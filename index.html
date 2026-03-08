@@ -135,18 +135,31 @@ html, body {
 
 /* ── WIND POPUP ── */
 #popup {
-  position:absolute; z-index:15; pointer-events:none;
+  position:absolute; z-index:15;
+  pointer-events:all;          /* allows close button click */
   background:var(--surface); border:1px solid var(--border);
-  border-radius:var(--r); padding:13px 16px;
-  backdrop-filter:blur(14px); min-width:160px;
+  border-radius:var(--r); padding:14px 16px 13px;
+  backdrop-filter:blur(14px); min-width:190px;
   opacity:0; transform:translateY(6px) scale(.97);
-  transition:opacity .2s,transform .2s;
+  transition:opacity .18s,transform .18s;
+  display:none;
 }
-#popup.show { opacity:1; transform:none; }
+#popup.show { opacity:1; transform:none; display:block; }
+#popupClose {
+  position:absolute; top:8px; right:10px;
+  width:22px; height:22px; border-radius:50%;
+  background:rgba(255,255,255,.07); border:none;
+  color:var(--dim); font-size:14px; line-height:1;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  pointer-events:all; transition:background .15s, color .15s;
+}
+#popupClose:hover { background:rgba(255,80,80,.25); color:#ff8888; }
 .pl { font-size:8px; letter-spacing:2px; color:var(--dim); margin-bottom:2px; }
 .pv { font-size:22px; font-weight:600; line-height:1.1; margin-bottom:7px; }
 .pv small { font-size:11px; font-weight:400; color:var(--dim); }
-#pBadge { display:inline-block; padding:3px 9px; border-radius:4px; font-size:8px; letter-spacing:2px; }
+.pv2 { font-size:13px; font-weight:600; line-height:1.2; margin-bottom:7px; color:var(--text); }
+#pBadge { display:inline-block; padding:4px 10px; border-radius:4px; font-size:8px; letter-spacing:2px; margin-bottom:10px; }
+#pCoords { font-size:8px; color:var(--dim); margin-top:9px; padding-top:8px; border-top:1px solid var(--border); letter-spacing:.5px; }
 
 /* ── TOAST ── */
 #toast {
@@ -267,11 +280,15 @@ body.devmode #apiCounter { display:block; }
     </div>
   </div>
   <div id="popup">
+    <button id="popupClose" title="Sulje">×</button>
     <div class="pl">TUULENNOPEUS</div>
-    <div class="pv"><span id="pKts">--</span> <small>kts</small></div>
+    <div class="pv"><span id="pKts">--</span> <small>kts</small>&nbsp;&nbsp;<small id="pMs" style="opacity:.55">-- m/s</small></div>
+    <div class="pl">PUUSKA</div>
+    <div class="pv2"><span id="pGust">--</span> <small style="font-size:10px;font-weight:400;color:var(--dim)">kts</small></div>
     <div class="pl">SUUNTA</div>
     <div class="pv" style="font-size:14px;margin-bottom:9px"><span id="pDir">--</span></div>
     <div id="pBadge">--</div>
+    <div id="pCoords"><span id="pLat">--</span> &nbsp; <span id="pLng">--</span></div>
   </div>
   <div id="coords"><div id="cLat"></div><div id="cLng"></div></div>
   <div id="zDisp">Z<span id="zNum">3</span></div>
@@ -300,7 +317,7 @@ body.devmode #apiCounter { display:block; }
     </div>
     <p id="mTestNote" style="font-size:9px;line-height:1.7;margin-top:10px;min-height:18px;"></p>
     <p class="mnote">Ilmainen avain: <a href="https://openweathermap.org/api" target="_blank">openweathermap.org/api</a><br>
-    <span style="color:rgba(160,200,230,.3)">Uudet avaimet aktivoituvat 1–2 h rekisteröinnistä</span></p>
+    <span style="color:rgba(160,200,230,.3)">Uudet avaimet aktivoituvat 1–2 h rekisteröinnistä · Data välimuistissa 3 h</span></p>
   </div>
 </div>
 
@@ -337,8 +354,8 @@ const TILE_MAX = 600;
 
 // ── PERSISTENT STORAGE KEYS ──────────────────────────────
 const LS_PFX    = 'ww3_';
-const LS_TTL    = 60 * 60 * 1000;   // 60 min wind data TTL
-const LS_APIKEY = 'ww3_apikey';     // separate key for API key
+const LS_TTL    = 3 * 60 * 60 * 1000;  // 3h wind data TTL — limits daily API calls
+const LS_APIKEY = 'ww3_apikey';         // separate key for API key
 
 // ── API COUNTER (dev mode) ────────────────────────────────
 let apiCallCount = 0;
@@ -416,18 +433,30 @@ function getMapTile(z, tx, ty) {
 }
 
 function drawMap() {
-  const T = 256, z = S.zoom, n = 2**z, w = vw(), h = vh();
+  const T  = 256;
+  const iz = Math.floor(S.zoom);           // integer zoom for tile selection
+  const frac = S.zoom - iz;               // fractional part 0..1
+  const scale = Math.pow(2, frac);        // tile scale: 1.0 at integer, 2.0 at next level
+  const Ts = T * scale;                   // scaled tile size on screen
+  const n  = 2**iz;
+  const w  = vw(), h = vh();
+
   mc.fillStyle = '#070b17';
   mc.fillRect(0, 0, w, h);
-  const c = tw(S.lat, S.lng, z);
-  for (let tx = Math.floor((c.x - w/2) / T); tx <= Math.ceil((c.x + w/2) / T); tx++) {
-    for (let ty = Math.floor((c.y - h/2) / T); ty <= Math.ceil((c.y + h/2) / T); ty++) {
+
+  // Use integer zoom for Mercator center calculation, then scale around center
+  const c = tw(S.lat, S.lng, iz);
+  // Adjusted center accounting for scale (viewport center stays fixed)
+  const cx = c.x * scale, cy = c.y * scale;
+
+  for (let tx = Math.floor((cx - w/2) / Ts); tx <= Math.ceil((cx + w/2) / Ts); tx++) {
+    for (let ty = Math.floor((cy - h/2) / Ts); ty <= Math.ceil((cy + h/2) / Ts); ty++) {
       if (ty < 0 || ty >= n) continue;
-      const sx = Math.round(tx * T - c.x + w/2);
-      const sy = Math.round(ty * T - c.y + h/2);
-      const img = getMapTile(z, ((tx % n) + n) % n, ty);
-      if (img && img !== 'failed') mc.drawImage(img, sx, sy, T, T);
-      else { mc.fillStyle = '#0a0f1e'; mc.fillRect(sx, sy, T, T); }
+      const sx = Math.round(tx * Ts - cx + w/2);
+      const sy = Math.round(ty * Ts - cy + h/2);
+      const img = getMapTile(iz, ((tx % n) + n) % n, ty);
+      if (img && img !== 'failed') mc.drawImage(img, sx, sy, Math.ceil(Ts)+1, Math.ceil(Ts)+1);
+      else { mc.fillStyle = '#0a0f1e'; mc.fillRect(sx, sy, Math.ceil(Ts)+1, Math.ceil(Ts)+1); }
     }
   }
 }
@@ -455,13 +484,15 @@ function kts2rgba(k) {
 
 // ── IDW INTERPOLATION ─────────────────────────────────────
 function idw(lat, lng, pts) {
+  const R   = idwRadius();
+  const pow = idwPower();
   let ws = 0, vs = 0, n = 0;
   for (const p of pts) {
     if (!p || typeof p.speed !== 'number') continue;
     const d = Math.hypot(lat - p.lat, lng - p.lng);
-    if (d > 35) continue;
+    if (d > R) continue;
     if (d < 0.001) return p.speed;
-    const w = 1 / d**2.5;
+    const w = 1 / d**pow;
     ws += w; vs += w * p.speed; n++;
   }
   return n > 0 ? vs / ws : -1;
@@ -527,7 +558,7 @@ function drawWind() {
 
 function draw() {
   drawMap(); drawWind();
-  document.getElementById('zNum').textContent = S.zoom;
+  document.getElementById('zNum').textContent = S.zoom.toFixed(1);
 }
 let rafId = null;
 function schedDraw() {
@@ -594,37 +625,76 @@ function lsLoadKey() {
 function lsClearKey() {
   try { localStorage.removeItem(LS_APIKEY); } catch(e) {}
 }
-// Load all cached wind points into windCache. Returns count.
+// Load all cached wind points into windCache AND tileFetched. Returns count.
+// Populating tileFetched means fetchLive won't re-request already-cached tiles.
 function lsBootstrap() {
   let count = 0;
   try {
-    Object.keys(localStorage).filter(k => k.startsWith(LS_PFX) && k !== LS_APIKEY).forEach(k => {
-      try {
-        const v = JSON.parse(localStorage.getItem(k));
-        if (!v || Date.now()-v.ts > LS_TTL) { localStorage.removeItem(k); return; }
-        if (Array.isArray(v.pts)) {
-          v.pts.forEach(p => {
-            if (p && typeof p.lat==='number' && typeof p.speed==='number') {
-              windCache.set(`${p.lat.toFixed(2)},${p.lng.toFixed(2)}`, p);
-              count++;
-            }
-          });
-        }
-      } catch(e) { localStorage.removeItem(k); }
-    });
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(LS_PFX) && k !== LS_APIKEY)
+      .forEach(lsKey => {
+        try {
+          const v = JSON.parse(localStorage.getItem(lsKey));
+          if (!v || Date.now()-v.ts > LS_TTL) { localStorage.removeItem(lsKey); return; }
+          if (Array.isArray(v.pts)) {
+            v.pts.forEach(p => {
+              if (p && typeof p.lat==='number' && typeof p.speed==='number') {
+                windCache.set(`${p.lat.toFixed(2)},${p.lng.toFixed(2)}`, p);
+                count++;
+              }
+            });
+            // Mark this tile as fetched so fetchLive skips it in-session
+            // The lsKey IS the LS_PFX + tk, so strip prefix to get tk
+            const tk = lsKey.slice(LS_PFX.length);
+            tileFetched.add(tk);
+          }
+        } catch(e) { localStorage.removeItem(lsKey); }
+      });
   } catch(e) {}
   return count;
 }
 
 // ── FETCH ─────────────────────────────────────────────────
+// Adaptive grid — finer steps at higher zoom for coastal/urban detail.
+// OWM 2.5/weather max useful resolution is ~10-20km (nearest station interpolation).
+// 0.25° ≈ 28km is the practical maximum — finer gives duplicate station data.
 function tileStep() {
-  const z = S.zoom;
-  if (z <= 3) return 20;
-  if (z <= 5) return 10;
-  if (z <= 7) return 5;
-  return 2.5;
+  const z = Math.floor(S.zoom);
+  if (z <= 3) return 20;    // ~2200km — global overview
+  if (z <= 5) return 8;     // ~880km  — continent
+  if (z <= 7) return 2.5;   // ~280km  — region
+  if (z <= 9) return 1;     // ~110km  — coast / city area
+  if (z <= 11) return 0.5;  // ~55km   — city detail
+  return 0.25;              // ~28km   — OWM practical max resolution
 }
 function snapGrid(v, s) { return Math.round(v/s)*s; }
+
+// How many points max per fetch (rate-limit guard)
+function fetchCap() {
+  const z = Math.floor(S.zoom);
+  if (z <= 5) return 20;
+  if (z <= 7) return 30;
+  return 40;               // fine zoom: up to 40 pts but small area
+}
+
+// IDW search radius shrinks at high zoom so distant points don't bleed over
+function idwRadius() {
+  const z = Math.floor(S.zoom);
+  if (z <= 3)  return 40;
+  if (z <= 5)  return 25;
+  if (z <= 7)  return 12;
+  if (z <= 9)  return 5;
+  if (z <= 11) return 2.5;
+  return 1.2;
+}
+
+// IDW power increases at high zoom — nearest point dominates more
+function idwPower() {
+  const z = Math.floor(S.zoom);
+  if (z <= 5) return 2.5;
+  if (z <= 8) return 3.0;
+  return 3.5;
+}
 
 // FIX M4: include st in sig so different zoom levels always refetch
 function viewSig() {
@@ -653,7 +723,7 @@ async function fetchLive() {
     for (let lng=snapGrid(tl.lng-st,st); lng<=br.lng+st; lng+=st) {
       const cLat = clampLat(lat);
       const cLng = normLng(lng);
-      const tk   = `tk_${cLat.toFixed(1)}_${cLng.toFixed(1)}_${st}`;
+      const tk   = `tk_${cLat.toFixed(2)}_${cLng.toFixed(2)}_${st}`;
 
       if (tileFetched.has(tk)) continue;
 
@@ -676,7 +746,14 @@ async function fetchLive() {
     return;
   }
 
-  setStatus('loading', `LADATAAN ${todo.length}`);
+  // Cap total fetches to stay within rate limits
+  const cap = fetchCap();
+  const todoLimited = todo.slice(0, cap);
+  if (todo.length > cap) {
+    console.log(`[WingWind] Capped ${todo.length} → ${cap} fetches at zoom ${S.zoom.toFixed(1)}`);
+  }
+
+  setStatus('loading', `LADATAAN ${todoLimited.length}`);
 
   // FIX K2: use a shared error flag but NEVER break out of the loop.
   // Every fetchOne must run so done reaches todo.length and busy is freed.
@@ -697,7 +774,7 @@ async function fetchLive() {
           const gust  = (j.wind?.gust||j.wind?.speed||0)*1.94384;
           const pt    = { lat, lng, speed, dir, gust, ts:Date.now() };
           windCache.set(`${lat.toFixed(2)},${lng.toFixed(2)}`, pt);
-          tileFetched.add(tk);
+          tileFetched.add(tk);  // tk already uses toFixed(2) — consistent with windCache key
           lsSave(tk, [pt]);
           fetchedCount++;
         } else if (!fetchErr) {
@@ -715,25 +792,25 @@ async function fetchLive() {
       }
     }
     done++;
-    if (done >= todo.length) {
+    if (done >= todoLimited.length) {
       busy = false;
       rebuildWPts();
       buildGrid(() => { drawWind(); schedDraw(); });
       if (!fetchErr) {
         setStatus('live','LIVE');
-        const fromCache = todo.length - fetchedCount;
+        const fromCache = todoLimited.length - fetchedCount;
         if (fetchedCount>0) toast(`✅ ${fetchedCount} API-kutsu${fetchedCount>1?'a':''}${fromCache>0?' + '+fromCache+' välimuistista':''}`);
       }
     }
   };
 
-  // Send all requests — no early break, so done always reaches todo.length
+  // Send all requests in batches of 3 — no early break
   const BATCH=3;
   const batches=[];
-  for (let i=0; i<todo.length; i+=BATCH) batches.push(todo.slice(i,i+BATCH));
-  for (const batch of batches) {
-    await Promise.all(batch.map(fetchOne));
-    if (batches.indexOf(batch) < batches.length-1) await new Promise(r=>setTimeout(r,350));
+  for (let i=0; i<todoLimited.length; i+=BATCH) batches.push(todoLimited.slice(i,i+BATCH));
+  for (let bi=0; bi<batches.length; bi++) {
+    await Promise.all(batches[bi].map(fetchOne));
+    if (bi < batches.length-1) await new Promise(r=>setTimeout(r,350));
   }
 }
 
@@ -741,32 +818,68 @@ let fetchTimer=null;
 function schedFetch() { clearTimeout(fetchTimer); fetchTimer=setTimeout(fetchLive,800); }
 
 // ── PAN / ZOOM ────────────────────────────────────────────
+// S.zoom is a FLOAT — continuous zoom like Windy, not integer steps.
+// Tile rendering snaps to Math.floor(S.zoom) for tile selection,
+// but the viewport scale is computed from the full float value.
+// This gives silky-smooth pinch zoom on iPhone.
+
+// Zoom by a float delta, keeping the screen point (px,py) stationary.
 function doZoom(delta, px, py) {
-  px=px??vw()/2; py=py??vh()/2;
-  const {lat:pLat, lng:pLng}=fs(px,py);
-  const nz=Math.max(2,Math.min(13,S.zoom+delta));
-  if (nz===S.zoom) return;
-  S.zoom=nz;
-  const after=ts(pLat,pLng), cw=tw(S.lat,S.lng,S.zoom);
-  const nc=fw(cw.x+after.x-px, cw.y+after.y-py, S.zoom);
-  S.lat=clampLat(nc.lat); S.lng=normLng(nc.lng);
-  schedDraw(); schedFetch();
+  px = px ?? vw()/2; py = py ?? vh()/2;
+  const {lat:pLat, lng:pLng} = fs(px, py);
+  const nz = Math.max(2, Math.min(13, S.zoom + delta));
+  if (Math.abs(nz - S.zoom) < 0.0001) return;
+  S.zoom = nz;
+  // Reproject so the point under the finger stays fixed
+  const after = ts(pLat, pLng);
+  const cw    = tw(S.lat, S.lng, S.zoom);
+  const nc    = fw(cw.x + after.x - px, cw.y + after.y - py, S.zoom);
+  S.lat = clampLat(nc.lat);
+  S.lng = normLng(nc.lng);
+  schedDraw();
 }
 
-let drag=null;
+// Smooth-zoom with easing — used by +/- buttons and mouse wheel
+// Animates from current zoom to target over ~220ms
+let zoomAnim = null;
+function smoothZoomTo(targetZ, px, py) {
+  if (zoomAnim) cancelAnimationFrame(zoomAnim);
+  const startZ = S.zoom;
+  const diff   = Math.max(2, Math.min(13, targetZ)) - startZ;
+  if (Math.abs(diff) < 0.01) return;
+  const startT = performance.now();
+  const dur    = 220; // ms
+  function step(now) {
+    const t   = Math.min(1, (now - startT) / dur);
+    const ease = 1 - (1-t)*(1-t)*(1-t); // cubic ease-out
+    doZoom(startZ + diff * ease - S.zoom, px, py);
+    if (t < 1) zoomAnim = requestAnimationFrame(step);
+    else { zoomAnim = null; schedFetch(); }
+  }
+  zoomAnim = requestAnimationFrame(step);
+}
+
+let drag = null;
 function pStart(x,y) { drag={x,y,lat:S.lat,lng:S.lng,moved:false,ox:x,oy:y}; }
 function pMove(x,y) {
   if (!drag) return;
-  drag.moved = drag.moved||(Math.hypot(x-drag.ox,y-drag.oy)>4);
-  const cw=tw(drag.lat,drag.lng,S.zoom);
-  const nc=fw(cw.x-(x-drag.ox), cw.y-(y-drag.oy), S.zoom);
-  S.lat=clampLat(nc.lat); S.lng=normLng(nc.lng);
-  drag.x=x; drag.y=y;
+  drag.moved = drag.moved || (Math.hypot(x-drag.ox, y-drag.oy) > 4);
+  const cw = tw(drag.lat, drag.lng, S.zoom);
+  const nc = fw(cw.x-(x-drag.ox), cw.y-(y-drag.oy), S.zoom);
+  S.lat = clampLat(nc.lat); S.lng = normLng(nc.lng);
+  drag.x = x; drag.y = y;
   schedDraw();
 }
 function pEnd(x,y) {
   if (!drag) return;
-  if (!drag.moved) showWindPopup(x,y); else schedFetch();
+  if (!drag.moved) {
+    // If popup is already showing, close it; otherwise open for this point
+    const pop=document.getElementById('popup');
+    if (pop.classList.contains('show')) { closePopup(); }
+    else { showWindPopup(x,y); }
+  } else {
+    schedFetch();
+  }
   drag=null;
 }
 
@@ -780,56 +893,138 @@ MC.addEventListener('mousemove', e=>{
 });
 MC.addEventListener('mouseup',    e=>{MC.classList.remove('grabbing');pEnd(e.clientX,e.clientY);});
 MC.addEventListener('mouseleave', ()=>{if(drag){if(drag.moved)schedFetch();drag=null;MC.classList.remove('grabbing');}});
-MC.addEventListener('wheel', e=>{e.preventDefault();doZoom(e.deltaY<0?1:-1,e.clientX,e.clientY);},{passive:false});
+
+// Mouse wheel: smooth animated zoom
+MC.addEventListener('wheel', e=>{
+  e.preventDefault();
+  // Normalise delta across browsers (trackpad vs scroll wheel)
+  const raw   = e.deltaY;
+  const lines = e.deltaMode===1 ? raw*33 : e.deltaMode===2 ? raw*500 : raw;
+  const step  = Math.sign(lines) * Math.min(1, Math.abs(lines)/120);
+  smoothZoomTo(S.zoom - step, e.clientX, e.clientY);
+},{passive:false});
 
 // ── TOUCH EVENTS ─────────────────────────────────────────
-let tArr=[], pinchDist=0;
+let tArr=[], pinchDist=0, pinchMidX=0, pinchMidY=0;
+
 MC.addEventListener('touchstart', e=>{
   e.preventDefault(); tArr=[...e.touches];
-  if (tArr.length===1) pStart(tArr[0].clientX,tArr[0].clientY);
-  else if (tArr.length===2) { drag=null; pinchDist=Math.hypot(tArr[1].clientX-tArr[0].clientX,tArr[1].clientY-tArr[0].clientY); }
-},{passive:false});
-MC.addEventListener('touchmove', e=>{
-  e.preventDefault(); tArr=[...e.touches];
-  if (tArr.length===1&&drag) pMove(tArr[0].clientX,tArr[0].clientY);
-  else if (tArr.length===2) {
-    const d=Math.hypot(tArr[1].clientX-tArr[0].clientX,tArr[1].clientY-tArr[0].clientY);
-    if (Math.abs(d-pinchDist)>8) {
-      doZoom(d>pinchDist?1:-1,(tArr[0].clientX+tArr[1].clientX)/2,(tArr[0].clientY+tArr[1].clientY)/2);
-      pinchDist=d;
-    }
+  if (tArr.length===1) {
+    pStart(tArr[0].clientX, tArr[0].clientY);
+  } else if (tArr.length===2) {
+    drag=null;
+    pinchDist = Math.hypot(
+      tArr[1].clientX-tArr[0].clientX,
+      tArr[1].clientY-tArr[0].clientY
+    );
+    pinchMidX = (tArr[0].clientX+tArr[1].clientX)/2;
+    pinchMidY = (tArr[0].clientY+tArr[1].clientY)/2;
   }
 },{passive:false});
+
+MC.addEventListener('touchmove', e=>{
+  e.preventDefault(); tArr=[...e.touches];
+  if (tArr.length===1 && drag) {
+    pMove(tArr[0].clientX, tArr[0].clientY);
+  } else if (tArr.length===2) {
+    const d   = Math.hypot(
+      tArr[1].clientX-tArr[0].clientX,
+      tArr[1].clientY-tArr[0].clientY
+    );
+    const mx  = (tArr[0].clientX+tArr[1].clientX)/2;
+    const my  = (tArr[0].clientY+tArr[1].clientY)/2;
+
+    if (pinchDist > 0) {
+      // Continuous ratio-based zoom — no threshold, no integer steps
+      // log2 gives perceptually linear zoom matching how Windy/Google Maps feel
+      const ratio = d / pinchDist;
+      const zDelta = Math.log2(ratio) * 0.85; // 0.85 = sensitivity (< 1 = gentler)
+      doZoom(zDelta, mx, my);
+    }
+
+    // Also pan with the midpoint movement
+    if (Math.abs(mx-pinchMidX)>1 || Math.abs(my-pinchMidY)>1) {
+      const cw = tw(S.lat, S.lng, S.zoom);
+      const nc = fw(cw.x-(mx-pinchMidX), cw.y-(my-pinchMidY), S.zoom);
+      S.lat=clampLat(nc.lat); S.lng=normLng(nc.lng);
+      schedDraw();
+    }
+
+    pinchDist = d;
+    pinchMidX = mx;
+    pinchMidY = my;
+  }
+},{passive:false});
+
 MC.addEventListener('touchend', e=>{
   const prev=tArr; tArr=[...e.touches];
-  if (prev.length===1&&tArr.length===0&&drag) pEnd(prev[0].clientX,prev[0].clientY);
-  else drag=null;
+  if (prev.length===2 && tArr.length < 2) {
+    // Pinch ended — trigger data fetch for new zoom level
+    schedFetch();
+    pinchDist=0;
+    if (tArr.length===1) {
+      // One finger still down — start new pan without popup
+      drag={x:tArr[0].clientX,y:tArr[0].clientY,lat:S.lat,lng:S.lng,moved:true,ox:tArr[0].clientX,oy:tArr[0].clientY};
+    }
+  } else if (prev.length===1 && tArr.length===0 && drag) {
+    pEnd(prev[0].clientX, prev[0].clientY);
+  } else {
+    drag=null;
+  }
 });
 
 // ── WIND POPUP ────────────────────────────────────────────
 function showWindPopup(sx, sy) {
-  const {lat,lng}=fs(sx,sy), spd=gridLookup(lat,lng);
+  const {lat,lng}=fs(sx,sy);
+  const spd=gridLookup(lat,lng);
   if (spd<0) return;
-  document.getElementById('pKts').textContent=spd.toFixed(1);
-  let minD=Infinity, nearDir=0;
-  for (const p of wPts) { const d=Math.hypot(lat-p.lat,lng-p.lng); if(d<minD){minD=d;nearDir=p.dir;} }
+
+  // Find nearest real data point for direction + gust
+  let minD=Infinity, nearPt=null;
+  for (const p of wPts) {
+    const d=Math.hypot(lat-p.lat,lng-p.lng);
+    if (d<minD) { minD=d; nearPt=p; }
+  }
+  const nearDir  = nearPt?.dir  ?? 0;
+  const nearGust = nearPt?.gust ?? spd;  // fall back to speed if no gust
+
+  // Speed values
+  document.getElementById('pKts').textContent = spd.toFixed(1);
+  document.getElementById('pMs').textContent  = (spd/1.94384).toFixed(1)+' m/s';
+  document.getElementById('pGust').textContent = nearGust.toFixed(1);
+
+  // Direction
   const cards='N NE E SE S SW W NW'.split(' ');
   document.getElementById('pDir').textContent=`${Math.round(nearDir)}° ${cards[Math.round(nearDir/45)%8]}`;
+
+  // Rating badge
   const rt=wingRating(spd);
   const badge=document.getElementById('pBadge');
   badge.textContent=rt.label;
   badge.style.cssText=`background:${rt.c}22;color:${rt.c};border:1px solid ${rt.c}55`;
+
+  // Coordinates
+  document.getElementById('pLat').textContent=`${Math.abs(lat).toFixed(3)}°${lat>=0?'N':'S'}`;
+  document.getElementById('pLng').textContent=`${Math.abs(lng).toFixed(3)}°${lng>=0?'E':'W'}`;
+
+  // Position popup — clamp to viewport
   const pop=document.getElementById('popup');
-  // FIX M5: clamp popup within viewport on both sides
-  const PW=200, PH=115;
+  pop.classList.add('show');           // make visible so we can measure
+  const PW=pop.offsetWidth||210, PH=pop.offsetHeight||185;
   let px=Math.min(vw()-PW-8, Math.max(8, sx+18));
   let py=sy-PH-12;
   if (py<60) py=sy+18;
-  if (py+PH>vh()-20) py=vh()-PH-20;
+  if (py+PH>vh()-24) py=vh()-PH-24;
   pop.style.left=px+'px'; pop.style.top=py+'px';
-  pop.classList.add('show');
+
+  // No auto-close — user must press × or click map
   clearTimeout(pop._t);
-  pop._t=setTimeout(()=>pop.classList.remove('show'),4500);
+}
+
+function closePopup() {
+  const pop=document.getElementById('popup');
+  pop.classList.remove('show');
+  clearTimeout(pop._t);
 }
 function wingRating(k) {
   if (k<8)  return {label:'🌀 LIIAN TYYNTÄ', c:'#4060d0'};
@@ -914,10 +1109,14 @@ document.getElementById('btnLive').addEventListener('click', async ()=>{
 });
 
 document.getElementById('apiInput').addEventListener('keydown', e=>{if(e.key==='Enter')document.getElementById('btnLive').click();});
+document.getElementById('popupClose').addEventListener('click', e=>{
+  e.stopPropagation();
+  closePopup();
+});
 document.getElementById('settingsBtn').addEventListener('click', openModal);
 document.getElementById('pill').addEventListener('click', openModal);
-document.getElementById('zIn').addEventListener('click',  ()=>doZoom(1));
-document.getElementById('zOut').addEventListener('click', ()=>doZoom(-1));
+document.getElementById('zIn').addEventListener('click',  ()=>smoothZoomTo(S.zoom+1));
+document.getElementById('zOut').addEventListener('click', ()=>smoothZoomTo(S.zoom-1));
 document.getElementById('opSlider').addEventListener('input', e=>{S.opacity=e.target.value/100;drawWind();});
 
 // ── BOOT ──────────────────────────────────────────────────
