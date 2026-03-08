@@ -514,7 +514,7 @@ const Config = {
   INERTIA: 0.78,             // Slightly snappier for screen-space trails
   GEO_SPEED: 0.003,          // Slightly faster — trails are shorter with fade
   WIND_SAMPLE_INTERVAL: 2,
-  FADE_OPACITY: 0.965,       // Screen-space trail fade: 0.96=short, 0.97=long trails
+  FADE_OPACITY: 0.93,        // Screen-space trail fade: lower = shorter tails (0.93 ≈ 14 frames)
   DROP_RATE: 0.003,          // Base particle reset rate per frame
   DROP_RATE_BUMP: 0.008,     // Extra reset rate for fast particles (density balance)
   DATA_REFRESH_MS: 60 * 60 * 1000,
@@ -864,6 +864,7 @@ const State = {
   sheetSpot: null,
   errorCount: 0,
   _panning: false,
+  _panStartTransform: null,
   _tlTimes: null, _tlSpeeds: null, _tlDirs: null, _tlTicks: [],
 };
 
@@ -912,6 +913,18 @@ function updateHeatmapBlur() {
   State.colorCvs.style.webkitFilter = 'blur(' + blur + 'px)';
 }
 
+/* Helper: read Leaflet map pane translate offset from CSS transform */
+function _getMapPaneOffset() {
+  const pane = document.querySelector('.leaflet-map-pane');
+  if (!pane) return { x: 0, y: 0 };
+  const t = window.getComputedStyle(pane).transform;
+  if (!t || t === 'none') return { x: 0, y: 0 };
+  const m = t.match(/matrix.*\((.+)\)/);
+  if (!m) return { x: 0, y: 0 };
+  const v = m[1].split(',').map(Number);
+  return { x: v[4] || 0, y: v[5] || 0 };
+}
+
 /* ── MAP ──────────────────────────────────────────────────────── */
 function initMap() {
   const map = L.map('map', {
@@ -925,6 +938,8 @@ function initMap() {
   }).addTo(map);
   State.map = map;
   map.on('moveend', () => {
+    /* Reset heatmap canvas transform — drawColorField will render at correct position */
+    if (State.colorCvs) State.colorCvs.style.transform = '';
     flagHeatmapDirty(); renderSpots(State.currentHourIdx);
     TileEngine.onViewportChanged(map);
     GeoProject.update(map);
@@ -946,10 +961,19 @@ function initMap() {
   });
   map.on('movestart', () => {
     State._panning = true;
+    /* Record initial map pane position for pan offset calculation */
+    State._panStartTransform = _getMapPaneOffset();
   });
   map.on('move', () => {
-    /* Fade particle canvas during pan — Windy-style: particles don't follow map */
+    /* Fade particle canvas during pan */
     if (State.windCvs) State.windCvs.style.opacity = '0.15';
+    /* Sync heatmap canvas with map pane movement — keeps heatmap stuck to map */
+    if (State.colorCvs) {
+      const curr = _getMapPaneOffset();
+      const dx = curr.x - (State._panStartTransform ? State._panStartTransform.x : curr.x);
+      const dy = curr.y - (State._panStartTransform ? State._panStartTransform.y : curr.y);
+      State.colorCvs.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    }
   });
   let _prevZoom = map.getZoom();
   map.on('zoomend', () => {
