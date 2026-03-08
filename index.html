@@ -103,8 +103,8 @@ background: linear-gradient(135deg, #c8eeff 0%, var(–accent) 100%);
 LEGEND  z:20
 ============================================================ */
 #legend {
-position: absolute; top: calc(var(–sat) + 62px); right: calc(var(–sar) + 12px); z-index: 20;
-background: var(–panel); border: 1px solid var(–border); border-radius: 10px; padding: 10px;
+position: absolute; top: calc(var(–sat) + 82px); left: calc(var(–sal) + 12px); z-index: 20;
+background: var(–panel); border: 1px solid var(–border); border-radius: 10px; padding: 8px;
 -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); pointer-events: none;
 transition: opacity .3s;
 }
@@ -118,7 +118,7 @@ transition: opacity .3s;
 MAP CONTROLS  z:20
 ============================================================ */
 #map-ctrls {
-position: absolute; right: calc(var(–sar) + 12px); top: calc(var(–sat) + 200px);
+position: absolute; right: calc(var(–sar) + 12px); top: calc(var(–sat) + 70px);
 z-index: 20; display: flex; flex-direction: column; gap: 6px;
 }
 .mctl {
@@ -517,7 +517,7 @@ const Config = {
   FADE_OPACITY: 0.965,       // Screen-space trail fade: 0.96=short, 0.97=long trails
   DROP_RATE: 0.003,          // Base particle reset rate per frame
   DROP_RATE_BUMP: 0.008,     // Extra reset rate for fast particles (density balance)
-  DATA_REFRESH_MS: 30 * 60 * 1000,
+  DATA_REFRESH_MS: 60 * 60 * 1000,
   PLAY_INTERVAL_MS: 800,
   FINLAND_BOUNDS: { latMin: 52, latMax: 72, lngMin: 14, lngMax: 37 },
 };
@@ -584,7 +584,7 @@ const SPOTS = [
 const WeatherCache = {
   KEY: 'foilspot_wx_v4_',
   _key() { return this.KEY + State.activeModel; },
-  TTL: 30 * 60 * 1000, /* 30 minutes */
+  TTL: 60 * 60 * 1000, /* 60 minutes */
 
   save(points, spots) {
     try {
@@ -724,7 +724,7 @@ const TileEngine = (() => {
     if (!points.length) return Promise.resolve();
     cache[key] = { points, loaded: false, loading: true };
     const batches = [];
-    for (let i = 0; i < points.length; i += 50) batches.push(points.slice(i, i + 50));
+    for (let i = 0; i < points.length; i += 80) batches.push(points.slice(i, i + 80));
     return Promise.allSettled(batches.map(loadBatch)).then(() => {
       cache[key].loaded = true; cache[key].loading = false; allPointsDirty = true;
     });
@@ -743,9 +743,9 @@ const TileEngine = (() => {
     }
 
     const batches = [];
-    for (let i = 0; i < points.length; i += 50) batches.push(points.slice(i, i + 50));
+    for (let i = 0; i < points.length; i += 80) batches.push(points.slice(i, i + 80));
     const spotBatches = [];
-    for (let i = 0; i < SPOTS.length; i += 50) spotBatches.push(SPOTS.slice(i, i + 50));
+    for (let i = 0; i < SPOTS.length; i += 80) spotBatches.push(SPOTS.slice(i, i + 80));
     const allBatches = batches.concat(spotBatches);
     let done = 0;
     const total = points.length + SPOTS.length;
@@ -775,15 +775,20 @@ const TileEngine = (() => {
     if (zoom >= LODS.L2.minZoom) {
       bestLOD = 'L2';
       const pad = zoom >= 9 ? 0.3 : 0.8;
+      const needed = [];
       for (const tile of getTilesForBounds('L2', bounds, pad)) {
-        if (!cache[tile.key] || (!cache[tile.key].loaded && !cache[tile.key].loading)) promises.push(loadTile(tile));
+        if (!cache[tile.key] || (!cache[tile.key].loaded && !cache[tile.key].loading)) needed.push(tile);
       }
+      /* Limit to 3 tiles per viewport change to prevent API explosion */
+      for (const tile of needed.slice(0, 3)) promises.push(loadTile(tile));
     }
     if (zoom >= LODS.L3.minZoom) {
       bestLOD = 'L3';
+      const needed = [];
       for (const tile of getTilesForBounds('L3', bounds, 0.15)) {
-        if (!cache[tile.key] || (!cache[tile.key].loaded && !cache[tile.key].loading)) promises.push(loadTile(tile));
+        if (!cache[tile.key] || (!cache[tile.key].loaded && !cache[tile.key].loading)) needed.push(tile);
       }
+      for (const tile of needed.slice(0, 2)) promises.push(loadTile(tile));
     }
 
     /* Update LOD badge */
@@ -1327,7 +1332,7 @@ function geo2px(lat, lng) {
 }
 function makeParticle(rAge) {
   const g = rndGeo();
-  return { lat: g.lat, lng: g.lng, vlat: 0, vlng: 0, u: 0, v: 0, ms: 0,
+  return { lat: g.lat, lng: g.lng, plat: g.lat, plng: g.lng, vlat: 0, vlng: 0, u: 0, v: 0, ms: 0,
     sampleTimer: Math.floor(Math.random() * Config.WIND_SAMPLE_INTERVAL),
     age: rAge ? Math.floor(Math.random() * 320) : 0 };
 }
@@ -1342,8 +1347,8 @@ function sampleWind(p) {
   p.sampleTimer = 0; const w = WindTexture.sampleWind(p.lat, p.lng); p.u = w.u; p.v = w.v; p.ms = w.ms;
 }
 function respawn(p) {
-  const g = rndGeo(); p.lat = g.lat; p.lng = g.lng; p.vlat = 0; p.vlng = 0;
-  p.age = 0; p.sampleTimer = 0;
+  const g = rndGeo(); p.lat = g.lat; p.lng = g.lng; p.plat = g.lat; p.plng = g.lng;
+  p.vlat = 0; p.vlng = 0; p.age = 0; p.sampleTimer = 0;
 }
 
 /* ── UNIFIED RENDER LOOP — Screen-space trail fade technique ──
@@ -1380,7 +1385,8 @@ function renderLoop() {
   const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.2;
   const lngPad = (bounds.getEast() - bounds.getWest()) * 0.2;
 
-  /* Step 2: Update physics + draw one dot per particle */
+  /* Step 2: Update physics + draw line from prev to current position */
+  windCtx.lineCap = 'round';
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
     sampleWind(p);
@@ -1394,6 +1400,9 @@ function renderLoop() {
       continue;
     }
 
+    /* Save previous position */
+    p.plat = p.lat; p.plng = p.lng;
+
     const cosLat = Math.cos(p.lat * Math.PI / 180);
     p.vlat = p.vlat * Config.INERTIA + p.v * geoSpd * (1 - Config.INERTIA);
     p.vlng = p.vlng * Config.INERTIA + (p.u * geoSpd / (cosLat > 0.1 ? cosLat : 0.1)) * (1 - Config.INERTIA);
@@ -1403,17 +1412,20 @@ function renderLoop() {
     if (p.lat < bounds.getSouth() - latPad || p.lat > bounds.getNorth() + latPad ||
         p.lng < bounds.getWest() - lngPad || p.lng > bounds.getEast() + lngPad) { respawn(p); continue; }
 
-    /* Project to screen */
-    const pt = geo2px(p.lat, p.lng);
-    if (pt.x < -10 || pt.x > W + 10 || pt.y < -10 || pt.y > H + 10) continue;
+    /* Project both positions to screen */
+    const prev = geo2px(p.plat, p.plng);
+    const curr = geo2px(p.lat, p.lng);
+    if (curr.x < -10 || curr.x > W + 10 || curr.y < -10 || curr.y > H + 10) continue;
 
-    /* Draw single dot — trail comes from fade persistence */
+    /* Draw line from previous to current — trail comes from fade persistence */
     const lw = particleLineWidth(p.ms);
-    const alpha = Math.min(0.85, 0.3 + speedT * 0.55);
-    windCtx.fillStyle = ColorRamp.css(p.ms, alpha);
+    const alpha = Math.min(0.85, 0.25 + speedT * 0.6);
     windCtx.beginPath();
-    windCtx.arc(pt.x, pt.y, lw * 0.5, 0, 6.283);
-    windCtx.fill();
+    windCtx.moveTo(prev.x, prev.y);
+    windCtx.lineTo(curr.x, curr.y);
+    windCtx.lineWidth = lw;
+    windCtx.strokeStyle = ColorRamp.css(p.ms, alpha);
+    windCtx.stroke();
   }
 }
 
@@ -1786,11 +1798,11 @@ document.getElementById('models').addEventListener('click', e => {
   const model = b.dataset.model; if (!model || model === State.activeModel) return;
   document.querySelectorAll('#models .lbtn').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
   State.activeModel = model;
-  _rateLimited = false; /* Reset rate limit for new model */
+  _rateLimited = false;
+  try { sessionStorage.removeItem('foilspot_rl'); } catch(e) {}
   updateLODBadge();
-  /* Clear all caches and reload with new model */
+  /* Clear localStorage and batch cache, but keep tile cache to avoid re-fetching */
   WeatherCache.clear();
-  TileEngine.clearCache();
   Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
   Toast.show('Vaihdetaan malliin: ' + model.replace('_', ' ').toUpperCase() + '...', 3000);
   const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
