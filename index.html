@@ -213,21 +213,7 @@ html, body {
 .mnote a:hover { text-decoration:underline; }
 ```
 
-/* ── API COUNTER (dev mode only — add ?dev to URL) ── */
-#apiCounter {
-position:absolute; top:62px; right:12px; z-index:11;
-background:var(–surface); border:1px solid rgba(255,160,0,.4);
-border-radius:8px; padding:6px 12px;
-font-size:9px; letter-spacing:2px; color:var(–dim);
-backdrop-filter:blur(10px); pointer-events:none;
-transition: color .3s;
-display: none; /* hidden by default — shown by JS when ?dev */
-}
-body.devmode #apiCounter { display:block; }
-#apiCountNum { font-size:18px; font-weight:600; color:#ffa040; margin-right:4px; }
-#apiCounter.bump #apiCountNum { color:#fff; }
-</style>
-
+  </style>
 </head>
 <body>
 
@@ -277,13 +263,6 @@ body.devmode #apiCounter { display:block; }
   <div id="zDisp">Z<span id="zNum">3</span></div>
 </div>
 
-<!-- API call counter — testing helper -->
-
-<div id="apiCounter">
-  <span id="apiCountNum">0</span>
-  <span id="apiCountLabel"> API CALLS</span>
-</div>
-
 <div id="toast"></div>
 
 <!-- Info modal -->
@@ -317,8 +296,7 @@ body.devmode #apiCounter { display:block; }
 //  Batch API · localStorage cache · No API key required
 // ═══════════════════════════════════════════════════════════════
 
-const DEV = location.search.includes('dev');
-if (DEV) document.body.classList.add('devmode');
+// Dev mode available via ?dev URL param (no visible counter needed with Open-Meteo)
 
 const MC  = document.getElementById('mapCanvas');
 const WC  = document.getElementById('windCanvas');
@@ -340,23 +318,7 @@ const TILE_MAX    = 600;
 const LS_PFX = 'ww4_';              // v4 prefix — auto-invalidates old OWM data
 const LS_TTL = 3 * 60 * 60 * 1000; // 3h TTL — ECMWF updates hourly but cache is fine for 3h
 
-// ── API COUNTER (dev only — ?dev) ───────────────────────────
-let apiCallCount = 0;
-function bumpApiCount() {
-  if (!DEV) return;
-  apiCallCount++;
-  const el = document.getElementById('apiCountNum');
-  if (!el) return;
-  el.textContent = apiCallCount;
-  const ctr = document.getElementById('apiCounter');
-  ctr.classList.add('bump');
-  setTimeout(() => ctr.classList.remove('bump'), 400);
-}
-function resetApiCount() {
-  apiCallCount = 0;
-  const el = document.getElementById('apiCountNum');
-  if (el) el.textContent = '0';
-}
+
 
 // ── DIMENSIONS ───────────────────────────────────────────────
 const vw = () => innerWidth;
@@ -449,14 +411,18 @@ function kts2rgba(k) {
 }
 
 // ── IDW INTERPOLATION ────────────────────────────────────────
-function idwRadius() {
-  const z = Math.floor(S.zoom);
-  if (z <= 3)  return 40; if (z <= 5) return 25; if (z <= 7) return 12;
-  if (z <= 9)  return 5;  if (z <= 11) return 2.5; return 1.2;
-}
+// IDW search radius = 3× the data step.
+// This means each grid node finds ~9 neighbours in a 3×3 area — enough for
+// smooth interpolation without blurring across distant different wind zones.
+function idwRadius() { return tileStep() * 3; }
+
+// IDW power: higher = sharper transitions between measured points.
+// At fine zoom we want nearby stations to dominate; at global zoom blend broadly.
 function idwPower() {
   const z = Math.floor(S.zoom);
-  if (z <= 5) return 2.5; if (z <= 8) return 3.0; return 3.5;
+  if (z <= 5) return 2.0;   // smooth global blending
+  if (z <= 8) return 2.5;   // regional balance
+  return 3.0;               // local: nearest station dominates
 }
 function idw(lat, lng, pts) {
   const R = idwRadius(), pow = idwPower();
@@ -471,16 +437,29 @@ function idw(lat, lng, pts) {
   return n > 0 ? vs/ws : -1;
 }
 
+// Cancel token: only the latest buildGrid call writes to wGrid
+let _gridToken = 0;
+
 function buildGrid(cb) {
   const pts = wPts.filter(p => p && typeof p.lat==='number' && typeof p.speed==='number');
   if (!pts.length) { wGrid=null; if (cb) cb(); return; }
+
+  const myToken = ++_gridToken; // invalidates any in-flight buildGrid
+
+  // Grid resolution = half the data step so each cell contains at least one point.
+  // At zoom 12 (step 0.1°) this gives 0.05° grid — captures full ECMWF detail.
+  // At zoom 3  (step 15°)  this gives 7.5° — correct global overview.
+  const R = Math.max(0.05, tileStep() / 2);
+  const ROWS = Math.ceil(170/R)+1, COLS = Math.ceil(360/R)+1;
+
   setTimeout(() => {
-    const R=2.5, ROWS=Math.ceil(170/R)+1, COLS=Math.ceil(360/R)+1;
+    if (myToken !== _gridToken) return; // superseded — discard
     const data = new Float32Array(ROWS*COLS);
     for (let r=0; r<ROWS; r++) {
       const lat=-85+r*R;
       for (let c=0; c<COLS; c++) data[r*COLS+c] = idw(lat, -180+c*R, pts);
     }
+    if (myToken !== _gridToken) return; // check again after expensive loop
     wGrid = { ROWS, COLS, R, data };
     if (cb) cb();
   }, 0);
@@ -654,13 +633,11 @@ const OM_BATCH = 500; // max locations per request
 
 async function fetchOpenMeteo(points) {
   // points: [{lat, lng, tk}, ...]
-  bumpApiCount();
   const lats = points.map(p=>p.lat.toFixed(4)).join(',');
   const lons  = points.map(p=>p.lng.toFixed(4)).join(',');
   const url = `${OM_BASE}?latitude=${lats}&longitude=${lons}` +
               `&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m` +
-              `&wind_speed_unit=kn` +  // get knots directly — no conversion needed
-              `&forecast_days=1`;      // minimal payload
+              `&wind_speed_unit=kn`;   // knots directly, no conversion needed
   const res = await fetch(url);
   if (!res.ok) throw Object.assign(new Error('OM HTTP '+res.status), {status:res.status});
   const json = await res.json();
@@ -900,7 +877,7 @@ function closeModal() { document.getElementById('modal').classList.add('off'); }
 
 document.getElementById('btnDemo').addEventListener('click', ()=>{
   busy=false; lastSig='';
-  lsClear(); windCache.clear(); tileFetched.clear(); resetApiCount();
+  lsClear(); windCache.clear(); tileFetched.clear();
   wPts=makeDemo();
   buildGrid(()=>{ setStatus('demo','DEMO'); schedDraw(); });
   closeModal();
