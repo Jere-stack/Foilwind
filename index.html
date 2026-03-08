@@ -198,23 +198,6 @@ html, body {
 .msub { font-size:10px; color:var(--dim); line-height:1.9; margin-bottom:24px; }
 .mlbl { display:block; font-size:8px; letter-spacing:2.5px; color:var(--dim); margin-bottom:8px; }
 
-#apiInput {
-  width:100%;
-  background:rgba(255,255,255,.05); border:1px solid var(--border);
-  border-radius:8px; padding:13px 14px;
-  font-family:'JetBrains Mono',monospace; font-size:13px;
-  color:var(--text); outline:none; margin-bottom:10px;
-  transition:border-color .2s;
-  /* Explicitly enable all interactions for this input */
-  pointer-events:all;
-  touch-action:auto;
-  user-select:text; -webkit-user-select:text;
-  -webkit-appearance:none; appearance:none;
-  cursor:text;
-}
-#apiInput:focus { border-color:rgba(0,212,255,.55); }
-#apiInput::placeholder { color:rgba(160,200,230,.18); }
-
 .mbtns { display:flex; gap:10px; }
 .mbtn {
   flex:1; padding:13px; border-radius:8px; border:none;
@@ -303,33 +286,37 @@ body.devmode #apiCounter { display:block; }
 
 <div id="toast"></div>
 
-<!-- Modal: fixed, z-index:9999, fully interactive -->
+<!-- Info modal -->
 
-<div id="modal">
+<div id="modal" class="off">
   <div id="mbox">
     <h2>WING<em>WIND</em></h2>
-    <p class="msub">Live-tuulitiedot vaativat ilmaisen OpenWeatherMap API-avaimen.<br>Demo-tilassa näet fysikaalisesti mallinnetun globaalin tuulikentän.</p>
-    <label class="mlbl" for="apiInput">OPENWEATHERMAP API KEY</label>
-    <input type="text" id="apiInput" placeholder="kirjoita tai liitä avain tähän…" autocomplete="off" spellcheck="false">
+    <p class="msub">Live-tuulitiedot ECMWF-ennustemallista (Open-Meteo).<br>Sama data kuin Windyssä — ilmainen, ei API-avainta.</p>
+    <div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.2);border-radius:8px;padding:12px 14px;margin-bottom:18px;">
+      <div style="font-size:8px;letter-spacing:2px;color:var(--dim);margin-bottom:6px;">TIETOLÄHDE</div>
+      <div style="font-size:11px;color:var(--text);line-height:1.8;">
+        📡 Open-Meteo · ECMWF IFS<br>
+        📐 ~9km resoluutio<br>
+        🔄 Päivitetään joka tunti<br>
+        💾 Välimuisti 3 tuntia
+      </div>
+    </div>
     <div class="mbtns">
       <button class="mbtn mbtn-s" id="btnDemo">DEMO-TILA</button>
-      <button class="mbtn mbtn-p" id="btnLive">AKTIVOI LIVE</button>
+      <button class="mbtn mbtn-p" id="btnClose">SULJE</button>
     </div>
-    <p id="mTestNote" style="font-size:9px;line-height:1.7;margin-top:10px;min-height:18px;"></p>
-    <p class="mnote">Ilmainen avain: <a href="https://openweathermap.org/api" target="_blank">openweathermap.org/api</a><br>
-    <span style="color:rgba(160,200,230,.3)">Uudet avaimet aktivoituvat 1–2 h rekisteröinnistä · Data välimuistissa 3 h</span></p>
+    <p class="mnote"><a href="https://open-meteo.com" target="_blank">open-meteo.com</a> · <a href="https://www.ecmwf.int" target="_blank">ecmwf.int</a></p>
   </div>
 </div>
 
 <script>
 'use strict';
 
-// ═══════════════════════════════════════════════════════
-//  WingWind — Global Wind Heatmap  v2.1
-//  OpenWeatherMap 2.5 · localStorage cache · API counter
-// ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+//  WingWind v3.0 — Open-Meteo ECMWF · Global Wind Heatmap
+//  Batch API · localStorage cache · No API key required
+// ═══════════════════════════════════════════════════════════════
 
-// Dev mode: add ?dev to URL to show API counter
 const DEV = location.search.includes('dev');
 if (DEV) document.body.classList.add('devmode');
 
@@ -337,27 +324,23 @@ const MC  = document.getElementById('mapCanvas');
 const WC  = document.getElementById('windCanvas');
 const mc  = MC.getContext('2d');
 const wc  = WC.getContext('2d');
-const hmC = document.createElement('canvas');   // offscreen heatmap
-const hmc = hmC.getContext('2d');                // its context
+const hmC = document.createElement('canvas');
+const hmc = hmC.getContext('2d');
 
-const S = { lat:20, lng:10, zoom:3, apiKey:'', opacity:.72 };
+const S = { lat:20, lng:10, zoom:3, opacity:.72 };
 let wPts=[], wGrid=null, busy=false, lastSig='';
 
-// Separate stores — never mixed:
-//   tileCache   Map<"z/tx/ty", Image|null|"failed">
-//   windCache   Map<"lat,lng", WindPoint>
-//   tileFetched Set<tileKey>  — which grid tiles fetched this session
-const tileCache   = new Map();
-const windCache   = new Map();
-const tileFetched = new Set();
-const TILE_MAX = 600;
+// Separate stores — never mixed
+const tileCache   = new Map();  // map tiles
+const windCache   = new Map();  // wind points only
+const tileFetched = new Set();  // which grid keys are already fetched this session
+const TILE_MAX    = 600;
 
-// ── PERSISTENT STORAGE KEYS ──────────────────────────────
-const LS_PFX    = 'ww3_';
-const LS_TTL    = 3 * 60 * 60 * 1000;  // 3h wind data TTL — limits daily API calls
-const LS_APIKEY = 'ww3_apikey';         // separate key for API key
+// ── CACHE CONFIG ─────────────────────────────────────────────
+const LS_PFX = 'ww4_';              // v4 prefix — auto-invalidates old OWM data
+const LS_TTL = 3 * 60 * 60 * 1000; // 3h TTL — ECMWF updates hourly but cache is fine for 3h
 
-// ── API COUNTER (dev mode) ────────────────────────────────
+// ── API COUNTER (dev only — ?dev) ───────────────────────────
 let apiCallCount = 0;
 function bumpApiCount() {
   if (!DEV) return;
@@ -375,7 +358,7 @@ function resetApiCount() {
   if (el) el.textContent = '0';
 }
 
-// ── DIMENSIONS ───────────────────────────────────────────
+// ── DIMENSIONS ───────────────────────────────────────────────
 const vw = () => innerWidth;
 const vh = () => innerHeight;
 
@@ -390,11 +373,11 @@ function resize() {
   mc.setTransform(dpr, 0, 0, dpr, 0, 0);
   wc.setTransform(dpr, 0, 0, dpr, 0, 0);
   schedDraw();
-  if (S.apiKey) schedFetch(); // P1: re-fetch on resize (landscape flip etc.)
+  schedFetch();
 }
 window.addEventListener('resize', resize);
 
-// ── MERCATOR ─────────────────────────────────────────────
+// ── MERCATOR ─────────────────────────────────────────────────
 function tw(lat, lng, z) {
   const n = 2**z * 256, x = (lng + 180) / 360 * n, r = lat * Math.PI / 180;
   return { x, y: (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n };
@@ -415,98 +398,88 @@ function fs(sx, sy) {
 const clampLat = lat => Math.max(-85, Math.min(85, lat));
 const normLng  = lng => ((lng + 180) % 360 + 360) % 360 - 180;
 
-// ── MAP TILES ─────────────────────────────────────────────
+// ── MAP TILES ────────────────────────────────────────────────
 function getMapTile(z, tx, ty) {
   const k = `${z}/${tx}/${ty}`;
   if (tileCache.has(k)) return tileCache.get(k);
   tileCache.set(k, null);
   const img = new Image();
   img.crossOrigin = 'anonymous';
-  img.src = `https://${'abcd'[(Math.abs(tx) + Math.abs(ty)) % 4]}.basemaps.cartocdn.com/dark_all/${z}/${tx}/${ty}.png`;
-  img.onload  = () => {
-    tileCache.set(k, img);
-    if (tileCache.size > TILE_MAX) tileCache.delete(tileCache.keys().next().value);
-    schedDraw();
-  };
+  img.src = `https://${'abcd'[(Math.abs(tx)+Math.abs(ty))%4]}.basemaps.cartocdn.com/dark_all/${z}/${tx}/${ty}.png`;
+  img.onload  = () => { tileCache.set(k, img); if (tileCache.size > TILE_MAX) tileCache.delete(tileCache.keys().next().value); schedDraw(); };
   img.onerror = () => tileCache.set(k, 'failed');
   return null;
 }
 
 function drawMap() {
-  const T  = 256;
-  const iz = Math.floor(S.zoom);           // integer zoom for tile selection
-  const frac = S.zoom - iz;               // fractional part 0..1
-  const scale = Math.pow(2, frac);        // tile scale: 1.0 at integer, 2.0 at next level
-  const Ts = T * scale;                   // scaled tile size on screen
-  const n  = 2**iz;
-  const w  = vw(), h = vh();
-
+  const T = 256, iz = Math.floor(S.zoom), frac = S.zoom - iz;
+  const scale = Math.pow(2, frac), Ts = T * scale, n = 2**iz;
+  const w = vw(), h = vh();
   mc.fillStyle = '#070b17';
   mc.fillRect(0, 0, w, h);
-
-  // Use integer zoom for Mercator center calculation, then scale around center
   const c = tw(S.lat, S.lng, iz);
-  // Adjusted center accounting for scale (viewport center stays fixed)
   const cx = c.x * scale, cy = c.y * scale;
-
-  for (let tx = Math.floor((cx - w/2) / Ts); tx <= Math.ceil((cx + w/2) / Ts); tx++) {
-    for (let ty = Math.floor((cy - h/2) / Ts); ty <= Math.ceil((cy + h/2) / Ts); ty++) {
+  for (let tx = Math.floor((cx-w/2)/Ts); tx <= Math.ceil((cx+w/2)/Ts); tx++) {
+    for (let ty = Math.floor((cy-h/2)/Ts); ty <= Math.ceil((cy+h/2)/Ts); ty++) {
       if (ty < 0 || ty >= n) continue;
-      const sx = Math.round(tx * Ts - cx + w/2);
-      const sy = Math.round(ty * Ts - cy + h/2);
-      const img = getMapTile(iz, ((tx % n) + n) % n, ty);
+      const sx = Math.round(tx*Ts - cx + w/2);
+      const sy = Math.round(ty*Ts - cy + h/2);
+      const img = getMapTile(iz, ((tx%n)+n)%n, ty);
       if (img && img !== 'failed') mc.drawImage(img, sx, sy, Math.ceil(Ts)+1, Math.ceil(Ts)+1);
       else { mc.fillStyle = '#0a0f1e'; mc.fillRect(sx, sy, Math.ceil(Ts)+1, Math.ceil(Ts)+1); }
     }
   }
 }
 
-// ── WIND COLOR SCALE ──────────────────────────────────────
+// ── WIND COLOR SCALE ─────────────────────────────────────────
 const BPS = [0, 3, 7, 12, 16, 21, 26, 32, 40, 55];
 const CLR = [
-  [8,12,40,0],   [12,18,60,30],   [20,52,168,140], [0,100,220,165],
-  [0,190,140,178],[60,220,60,188],[255,210,0,198],  [255,130,0,205],
+  [8,12,40,0],[12,18,60,30],[20,52,168,140],[0,100,220,165],
+  [0,190,140,178],[60,220,60,188],[255,210,0,198],[255,130,0,205],
   [255,30,30,210],[200,0,255,215]
 ];
 function kts2rgba(k) {
-  for (let i = 0; i < BPS.length - 1; i++) {
+  for (let i = 0; i < BPS.length-1; i++) {
     if (k <= BPS[i+1]) {
-      const t = (k - BPS[i]) / (BPS[i+1] - BPS[i]);
-      const a = CLR[i], b = CLR[i+1];
-      return [
-        a[0]+(b[0]-a[0])*t|0, a[1]+(b[1]-a[1])*t|0,
-        a[2]+(b[2]-a[2])*t|0, a[3]+(b[3]-a[3])*t|0
-      ];
+      const t = (k-BPS[i])/(BPS[i+1]-BPS[i]), a=CLR[i], b=CLR[i+1];
+      return [a[0]+(b[0]-a[0])*t|0, a[1]+(b[1]-a[1])*t|0, a[2]+(b[2]-a[2])*t|0, a[3]+(b[3]-a[3])*t|0];
     }
   }
   return CLR[CLR.length-1];
 }
 
-// ── IDW INTERPOLATION ─────────────────────────────────────
+// ── IDW INTERPOLATION ────────────────────────────────────────
+function idwRadius() {
+  const z = Math.floor(S.zoom);
+  if (z <= 3)  return 40; if (z <= 5) return 25; if (z <= 7) return 12;
+  if (z <= 9)  return 5;  if (z <= 11) return 2.5; return 1.2;
+}
+function idwPower() {
+  const z = Math.floor(S.zoom);
+  if (z <= 5) return 2.5; if (z <= 8) return 3.0; return 3.5;
+}
 function idw(lat, lng, pts) {
-  const R   = idwRadius();
-  const pow = idwPower();
-  let ws = 0, vs = 0, n = 0;
+  const R = idwRadius(), pow = idwPower();
+  let ws=0, vs=0, n=0;
   for (const p of pts) {
     if (!p || typeof p.speed !== 'number') continue;
-    const d = Math.hypot(lat - p.lat, lng - p.lng);
+    const d = Math.hypot(lat-p.lat, lng-p.lng);
     if (d > R) continue;
     if (d < 0.001) return p.speed;
-    const w = 1 / d**pow;
-    ws += w; vs += w * p.speed; n++;
+    const w = 1/d**pow; ws+=w; vs+=w*p.speed; n++;
   }
-  return n > 0 ? vs / ws : -1;
+  return n > 0 ? vs/ws : -1;
 }
 
 function buildGrid(cb) {
-  const pts = wPts.filter(p => p && typeof p.lat === 'number' && typeof p.speed === 'number');
-  if (!pts.length) { wGrid = null; if (cb) cb(); return; }
+  const pts = wPts.filter(p => p && typeof p.lat==='number' && typeof p.speed==='number');
+  if (!pts.length) { wGrid=null; if (cb) cb(); return; }
   setTimeout(() => {
-    const R = 2.5, ROWS = Math.ceil(170/R)+1, COLS = Math.ceil(360/R)+1;
-    const data = new Float32Array(ROWS * COLS);
-    for (let r = 0; r < ROWS; r++) {
-      const lat = -85 + r * R;
-      for (let c = 0; c < COLS; c++) data[r*COLS+c] = idw(lat, -180+c*R, pts);
+    const R=2.5, ROWS=Math.ceil(170/R)+1, COLS=Math.ceil(360/R)+1;
+    const data = new Float32Array(ROWS*COLS);
+    for (let r=0; r<ROWS; r++) {
+      const lat=-85+r*R;
+      for (let c=0; c<COLS; c++) data[r*COLS+c] = idw(lat, -180+c*R, pts);
     }
     wGrid = { ROWS, COLS, R, data };
     if (cb) cb();
@@ -515,375 +488,305 @@ function buildGrid(cb) {
 
 function gridLookup(lat, lng) {
   if (!wGrid) return -1;
-  const { ROWS, COLS, R, data } = wGrid;
-  const r = (lat + 85) / R, c = (lng + 180) / R;
-  const r0 = Math.max(0, Math.min(ROWS-2, r|0));
-  const c0 = Math.max(0, Math.min(COLS-2, c|0));
-  const tr = r-r0, tc = c-c0;
+  const {ROWS,COLS,R,data} = wGrid;
+  const r=(lat+85)/R, c=(lng+180)/R;
+  const r0=Math.max(0,Math.min(ROWS-2,r|0)), c0=Math.max(0,Math.min(COLS-2,c|0));
+  const tr=r-r0, tc=c-c0;
   const v00=data[r0*COLS+c0], v01=data[r0*COLS+c0+1];
   const v10=data[(r0+1)*COLS+c0], v11=data[(r0+1)*COLS+c0+1];
-  if (v00<0 && v01<0 && v10<0 && v11<0) return -1;
-  const s = v => v < 0 ? 0 : v;
-  return s(v00)*(1-tr)*(1-tc) + s(v01)*(1-tr)*tc + s(v10)*tr*(1-tc) + s(v11)*tr*tc;
+  if (v00<0&&v01<0&&v10<0&&v11<0) return -1;
+  const s=v=>v<0?0:v;
+  return s(v00)*(1-tr)*(1-tc)+s(v01)*(1-tr)*tc+s(v10)*tr*(1-tc)+s(v11)*tr*tc;
 }
 
-// ── HEATMAP RENDER ────────────────────────────────────────
+// ── HEATMAP ──────────────────────────────────────────────────
 function drawWind() {
   wc.clearRect(0, 0, vw(), vh());
   if (!wGrid || !wPts.length) return;
-  const SC = 5;
-  const hw = Math.ceil(vw()/SC), hh = Math.ceil(vh()/SC);
-  hmC.width = hw; hmC.height = hh;
-  const id  = hmc.createImageData(hw, hh);
-  const buf = id.data;
-  const tl  = fs(0,0), br = fs(vw(), vh());
-  const dLat = tl.lat - br.lat, dLng = br.lng - tl.lng;
-  const al = S.opacity;
-  for (let py = 0; py < hh; py++) {
-    const lat = tl.lat - (py/hh) * dLat;
-    for (let px = 0; px < hw; px++) {
-      const lng = tl.lng + (px/hw) * dLng;
-      const spd = gridLookup(lat, lng);
-      if (spd < 0.5) continue;
-      const [r,g,b,a] = kts2rgba(spd), i = (py*hw+px)*4;
+  const SC=5, hw=Math.ceil(vw()/SC), hh=Math.ceil(vh()/SC);
+  hmC.width=hw; hmC.height=hh;
+  const id=hmc.createImageData(hw,hh), buf=id.data;
+  const tl=fs(0,0), br=fs(vw(),vh());
+  const dLat=tl.lat-br.lat, dLng=br.lng-tl.lng, al=S.opacity;
+  for (let py=0; py<hh; py++) {
+    const lat=tl.lat-(py/hh)*dLat;
+    for (let px=0; px<hw; px++) {
+      const spd=gridLookup(lat, tl.lng+(px/hw)*dLng);
+      if (spd<0.5) continue;
+      const [r,g,b,a]=kts2rgba(spd), i=(py*hw+px)*4;
       buf[i]=r; buf[i+1]=g; buf[i+2]=b; buf[i+3]=(a*al)|0;
     }
   }
-  hmc.putImageData(id, 0, 0);
-  wc.save();
-  wc.imageSmoothingEnabled = true; wc.imageSmoothingQuality = 'high';
-  wc.drawImage(hmC, 0, 0, vw(), vh());
+  hmc.putImageData(id,0,0);
+  wc.save(); wc.imageSmoothingEnabled=true; wc.imageSmoothingQuality='high';
+  wc.drawImage(hmC,0,0,vw(),vh());
   wc.restore();
 }
 
-function draw() {
-  drawMap(); drawWind();
-  document.getElementById('zNum').textContent = S.zoom.toFixed(1);
-}
-let rafId = null;
-function schedDraw() {
-  if (!rafId) rafId = requestAnimationFrame(() => { rafId=null; draw(); });
-}
+function draw() { drawMap(); drawWind(); document.getElementById('zNum').textContent=S.zoom.toFixed(1); }
+let rafId=null;
+function schedDraw() { if (!rafId) rafId=requestAnimationFrame(()=>{rafId=null;draw();}); }
 
-// ── DEMO DATA ─────────────────────────────────────────────
-function pnoise(x, y) {
+// ── DEMO DATA ────────────────────────────────────────────────
+function pnoise(x,y) {
   const a=Math.sin(x*12.9898+y*78.233)*43758.5453;
   const b=Math.sin(x*43.137+y*17.234)*28471.3847;
   const c=Math.sin(x*7.831+y*53.441)*91234.1234;
   return ((a-Math.floor(a))+(b-Math.floor(b))+(c-Math.floor(c)))/3*2-1;
 }
-function demoSpeed(lat, lng) {
+function demoSpeed(lat,lng) {
   const al=Math.abs(lat), n=pnoise(lat*.25,lng*.18)*6+pnoise(lat*.08,lng*.06)*10;
   let b;
-  if      (al<8)  b=2+3*Math.abs(Math.sin(lng*.08));
-  else if (al<30) b=12+7*(.5+.5*Math.sin(lng*.05+lat*.09));
-  else if (al<45) b=6+4*Math.abs(Math.cos(lng*.07));
-  else if (al<65) b=18+12*(.5+.5*Math.sin(lng*.06-al*.08));
-  else            b=8+8*Math.abs(Math.sin(lng*.09+lat*.05));
-  return Math.max(0, Math.min(50, b+n+Math.sin(lng*.04)*Math.cos(lat*.06)*2));
+  if(al<8) b=2+3*Math.abs(Math.sin(lng*.08));
+  else if(al<30) b=12+7*(.5+.5*Math.sin(lng*.05+lat*.09));
+  else if(al<45) b=6+4*Math.abs(Math.cos(lng*.07));
+  else if(al<65) b=18+12*(.5+.5*Math.sin(lng*.06-al*.08));
+  else b=8+8*Math.abs(Math.sin(lng*.09+lat*.05));
+  return Math.max(0,Math.min(50,b+n+Math.sin(lng*.04)*Math.cos(lat*.06)*2));
 }
-function demoDir(lat, lng) {
+function demoDir(lat,lng) {
   const n=pnoise(lat*.3,lng*.25)*25;
   const b=lat>=0?(Math.abs(lat)<30?65:240):(Math.abs(lat)<30?110:310);
   return (b+n+360)%360;
 }
 function makeDemo() {
   const pts=[];
-  for (let lat=-85; lat<=85; lat+=5)
-    for (let lng=-180; lng<=180; lng+=5)
-      pts.push({lat, lng, speed:demoSpeed(lat,lng), dir:demoDir(lat,lng)});
+  for(let lat=-85;lat<=85;lat+=5)
+    for(let lng=-180;lng<=180;lng+=5)
+      pts.push({lat,lng,speed:demoSpeed(lat,lng),dir:demoDir(lat,lng),gust:demoSpeed(lat,lng)*1.2});
   return pts;
 }
 
-// ── LOCALSTORAGE ──────────────────────────────────────────
-function lsSave(key, pts) {
-  try { localStorage.setItem(LS_PFX+key, JSON.stringify({ts:Date.now(), pts})); }
-  catch(e) {}
+// ── LOCALSTORAGE ─────────────────────────────────────────────
+function lsSave(key, data) {
+  try { localStorage.setItem(LS_PFX+key, JSON.stringify({ts:Date.now(), pts:data})); }
+  catch(e) { /* storage full — silently ignore */ }
 }
 function lsLoad(key) {
   try {
-    const raw = localStorage.getItem(LS_PFX+key);
+    const raw=localStorage.getItem(LS_PFX+key);
     if (!raw) return null;
-    const v = JSON.parse(raw);
+    const v=JSON.parse(raw);
     if (!v || Date.now()-v.ts > LS_TTL) { localStorage.removeItem(LS_PFX+key); return null; }
     return v.pts;
   } catch(e) { return null; }
 }
 function lsClear() {
   try {
-    Object.keys(localStorage).filter(k => k.startsWith(LS_PFX))
-      .forEach(k => localStorage.removeItem(k));
+    Object.keys(localStorage).filter(k=>k.startsWith(LS_PFX)).forEach(k=>localStorage.removeItem(k));
   } catch(e) {}
 }
-// Saves API key persistently (separate from wind data)
-function lsSaveKey(key) {
-  try { localStorage.setItem(LS_APIKEY, key); } catch(e) {}
-}
-function lsLoadKey() {
-  try { return localStorage.getItem(LS_APIKEY) || ''; } catch(e) { return ''; }
-}
-function lsClearKey() {
-  try { localStorage.removeItem(LS_APIKEY); } catch(e) {}
-}
-// Load all cached wind points into windCache AND tileFetched. Returns count.
-// Populating tileFetched means fetchLive won't re-request already-cached tiles.
+// Bootstrap: load all valid cached tiles into windCache + tileFetched at startup
 function lsBootstrap() {
-  let count = 0;
+  let count=0;
   try {
-    Object.keys(localStorage)
-      .filter(k => k.startsWith(LS_PFX) && k !== LS_APIKEY)
-      .forEach(lsKey => {
-        try {
-          const v = JSON.parse(localStorage.getItem(lsKey));
-          if (!v || Date.now()-v.ts > LS_TTL) { localStorage.removeItem(lsKey); return; }
-          if (Array.isArray(v.pts)) {
-            v.pts.forEach(p => {
-              if (p && typeof p.lat==='number' && typeof p.speed==='number') {
-                windCache.set(`${p.lat.toFixed(2)},${p.lng.toFixed(2)}`, p);
-                count++;
-              }
-            });
-            // Mark this tile as fetched so fetchLive skips it in-session
-            // The lsKey IS the LS_PFX + tk, so strip prefix to get tk
-            const tk = lsKey.slice(LS_PFX.length);
-            tileFetched.add(tk);
-          }
-        } catch(e) { localStorage.removeItem(lsKey); }
-      });
+    Object.keys(localStorage).filter(k=>k.startsWith(LS_PFX)).forEach(lsKey=>{
+      try {
+        const v=JSON.parse(localStorage.getItem(lsKey));
+        if (!v||Date.now()-v.ts>LS_TTL) { localStorage.removeItem(lsKey); return; }
+        if (Array.isArray(v.pts)) {
+          v.pts.forEach(p=>{
+            if (p&&typeof p.lat==='number'&&typeof p.speed==='number') {
+              windCache.set(`${p.lat.toFixed(4)},${p.lng.toFixed(4)}`,p);
+              count++;
+            }
+          });
+          // Mark tile fetched so fetchLive won't re-request it
+          tileFetched.add(lsKey.slice(LS_PFX.length));
+        }
+      } catch(e) { localStorage.removeItem(lsKey); }
+    });
   } catch(e) {}
   return count;
 }
 
-// ── FETCH ─────────────────────────────────────────────────
-// Adaptive grid — finer steps at higher zoom for coastal/urban detail.
-// OWM 2.5/weather max useful resolution is ~10-20km (nearest station interpolation).
-// 0.25° ≈ 28km is the practical maximum — finer gives duplicate station data.
+// ── OPEN-METEO FETCH ─────────────────────────────────────────
+// Grid density by zoom level — Open-Meteo ECMWF resolution is ~9km
+// so steps below 0.1° give duplicate model data
 function tileStep() {
-  const z = Math.floor(S.zoom);
-  if (z <= 3) return 20;    // ~2200km — global overview
-  if (z <= 5) return 8;     // ~880km  — continent
-  if (z <= 7) return 2.5;   // ~280km  — region
-  if (z <= 9) return 1;     // ~110km  — coast / city area
-  if (z <= 11) return 0.5;  // ~55km   — city detail
-  return 0.25;              // ~28km   — OWM practical max resolution
+  const z=Math.floor(S.zoom);
+  if (z<=3)  return 15;    // ~1700km global
+  if (z<=5)  return 5;     // ~550km continent
+  if (z<=7)  return 1.5;   // ~165km region
+  if (z<=9)  return 0.5;   // ~55km coast/city
+  if (z<=11) return 0.2;   // ~22km neighbourhood
+  return 0.1;              // ~11km — ECMWF native resolution
 }
-function snapGrid(v, s) { return Math.round(v/s)*s; }
+function snapGrid(v,s) { return Math.round(v/s)*s; }
 
-// How many points max per fetch (rate-limit guard)
-function fetchCap() {
-  const z = Math.floor(S.zoom);
-  if (z <= 5) return 20;
-  if (z <= 7) return 30;
-  return 40;               // fine zoom: up to 40 pts but small area
-}
-
-// IDW search radius shrinks at high zoom so distant points don't bleed over
-function idwRadius() {
-  const z = Math.floor(S.zoom);
-  if (z <= 3)  return 40;
-  if (z <= 5)  return 25;
-  if (z <= 7)  return 12;
-  if (z <= 9)  return 5;
-  if (z <= 11) return 2.5;
-  return 1.2;
-}
-
-// IDW power increases at high zoom — nearest point dominates more
-function idwPower() {
-  const z = Math.floor(S.zoom);
-  if (z <= 5) return 2.5;
-  if (z <= 8) return 3.0;
-  return 3.5;
-}
-
-// FIX M4: include st in sig so different zoom levels always refetch
 function viewSig() {
-  const tl=fs(0,0), br=fs(vw(),vh()), st=tileStep();
+  const tl=fs(0,0),br=fs(vw(),vh()),st=tileStep();
   return `${st}:${(tl.lat/st)|0},${(tl.lng/st)|0},${(br.lat/st)|0},${(br.lng/st)|0}`;
 }
 
 function rebuildWPts() {
-  wPts = [];
-  windCache.forEach(v => {
-    if (v && typeof v.lat==='number' && typeof v.speed==='number') wPts.push(v);
-  });
+  wPts=[];
+  windCache.forEach(v=>{ if(v&&typeof v.lat==='number'&&typeof v.speed==='number') wPts.push(v); });
 }
 
-async function fetchLive() {
-  if (!S.apiKey || busy) return;
-  const sig = viewSig();
-  if (sig === lastSig) return;
-  lastSig = sig;
-  busy = true;
-
+// Build the full grid of lat/lng points to fetch for current view
+function buildTodoList() {
   const tl=fs(0,0), br=fs(vw(),vh()), st=tileStep();
-  const todo = [];
-
-  for (let lat=snapGrid(Math.max(-85,br.lat),st); lat<=Math.min(85,tl.lat+st); lat+=st) {
+  const todo=[];
+  for (let lat=snapGrid(Math.max(-85,br.lat-st),st); lat<=Math.min(85,tl.lat+st); lat+=st) {
     for (let lng=snapGrid(tl.lng-st,st); lng<=br.lng+st; lng+=st) {
-      const cLat = clampLat(lat);
-      const cLng = normLng(lng);
-      const tk   = `tk_${cLat.toFixed(2)}_${cLng.toFixed(2)}_${st}`;
-
+      const cLat=clampLat(parseFloat(lat.toFixed(4)));
+      const cLng=normLng(parseFloat(lng.toFixed(4)));
+      const tk=`om_${cLat.toFixed(4)}_${cLng.toFixed(4)}_${st}`;
       if (tileFetched.has(tk)) continue;
-
-      const cached = lsLoad(tk);
+      // Check localStorage before adding to fetch list
+      const cached=lsLoad(tk);
       if (cached) {
-        cached.forEach(p => windCache.set(`${p.lat.toFixed(2)},${p.lng.toFixed(2)}`, p));
+        cached.forEach(p=>windCache.set(`${p.lat.toFixed(4)},${p.lng.toFixed(4)}`,p));
         tileFetched.add(tk);
         continue;
       }
-      todo.push({ lat:cLat, lng:cLng, tk });
+      todo.push({lat:cLat, lng:cLng, tk});
     }
   }
+  return todo;
+}
+
+// Open-Meteo batch fetch — one HTTP request for up to 500 points
+// API: https://api.open-meteo.com/v1/forecast?latitude=A,B,C&longitude=X,Y,Z&current=wind_speed_10m,...
+const OM_BASE  = 'https://api.open-meteo.com/v1/forecast';
+const OM_BATCH = 500; // max locations per request
+
+async function fetchOpenMeteo(points) {
+  // points: [{lat, lng, tk}, ...]
+  bumpApiCount();
+  const lats = points.map(p=>p.lat.toFixed(4)).join(',');
+  const lons  = points.map(p=>p.lng.toFixed(4)).join(',');
+  const url = `${OM_BASE}?latitude=${lats}&longitude=${lons}` +
+              `&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m` +
+              `&wind_speed_unit=kn` +  // get knots directly — no conversion needed
+              `&forecast_days=1`;      // minimal payload
+  const res = await fetch(url);
+  if (!res.ok) throw Object.assign(new Error('OM HTTP '+res.status), {status:res.status});
+  const json = await res.json();
+
+  // Open-Meteo returns either a single object or an array when multiple locations
+  const results = Array.isArray(json) ? json : [json];
+  const now = Date.now();
+
+  results.forEach((r, i) => {
+    const pt = points[i];
+    if (!pt || !r?.current) return;
+    const speed = r.current.wind_speed_10m    ?? 0;
+    const dir   = r.current.wind_direction_10m ?? 0;
+    const gust  = r.current.wind_gusts_10m    ?? speed;
+    const rec   = { lat:pt.lat, lng:pt.lng, speed, dir, gust, ts:now };
+    const wKey  = `${pt.lat.toFixed(4)},${pt.lng.toFixed(4)}`;
+    windCache.set(wKey, rec);
+    tileFetched.add(pt.tk);
+    lsSave(pt.tk, [rec]);
+  });
+
+  return results.length;
+}
+
+async function fetchLive() {
+  if (busy) return;
+  const sig=viewSig();
+  if (sig===lastSig) return;
+  lastSig=sig; busy=true;
+
+  const todo=buildTodoList();
 
   if (!todo.length) {
+    // Everything from cache
     rebuildWPts();
-    buildGrid(() => { drawWind(); schedDraw(); });
-    busy = false;
-    setStatus('live', 'LIVE');
+    buildGrid(()=>{ drawWind(); schedDraw(); });
+    busy=false;
+    setStatus('live','LIVE');
     toast(`⚡ Välimuistista (${windCache.size} pistettä)`);
     return;
   }
 
-  // Cap total fetches to stay within rate limits
-  const cap = fetchCap();
-  const todoLimited = todo.slice(0, cap);
-  if (todo.length > cap) {
-    console.log(`[WingWind] Capped ${todo.length} → ${cap} fetches at zoom ${S.zoom.toFixed(1)}`);
-  }
+  setStatus('loading',`LADATAAN ${todo.length}`);
 
-  setStatus('loading', `LADATAAN ${todoLimited.length}`);
-
-  // FIX K2: use a shared error flag but NEVER break out of the loop.
-  // Every fetchOne must run so done reaches todo.length and busy is freed.
-  let done=0, fetchErr=false, fetchedCount=0;
-
-  const fetchOne = async ({ lat, lng, tk }) => {
-    if (!fetchErr) { // skip remaining fetches after first error, but still count done
-      try {
-        bumpApiCount();
-        const url = `https://api.openweathermap.org/data/2.5/weather` +
-                    `?lat=${lat.toFixed(2)}&lon=${lng.toFixed(2)}` +
-                    `&appid=${S.apiKey}&units=metric`;
-        const res = await fetch(url);
-        if (res.ok) {
-          const j     = await res.json();
-          const speed = (j.wind?.speed||0)*1.94384;
-          const dir   = j.wind?.deg||0;
-          const gust  = (j.wind?.gust||j.wind?.speed||0)*1.94384;
-          const pt    = { lat, lng, speed, dir, gust, ts:Date.now() };
-          windCache.set(`${lat.toFixed(2)},${lng.toFixed(2)}`, pt);
-          tileFetched.add(tk);  // tk already uses toFixed(2) — consistent with windCache key
-          lsSave(tk, [pt]);
-          fetchedCount++;
-        } else if (!fetchErr) {
-          fetchErr = true;
-          if      (res.status===401) { setStatus('err','VIRHE'); toast('❌ API-avain virheellinen tai ei vielä aktiivinen'); }
-          else if (res.status===429) { setStatus('err','RAJA');  toast('⚠ API-raja saavutettu – odota hetki'); }
-          else                        { setStatus('err','VIRHE'); toast(`⚠ API-virhe ${res.status}`); }
-        }
-      } catch(e) {
-        if (!fetchErr) {
-          fetchErr = true;
-          setStatus('err','VIRHE');
-          toast('⚠ Verkkovirhe – tarkista yhteys');
-        }
-      }
-    }
-    done++;
-    if (done >= todoLimited.length) {
-      busy = false;
+  try {
+    // Split into batches of OM_BATCH
+    let fetched=0;
+    for (let i=0; i<todo.length; i+=OM_BATCH) {
+      const batch=todo.slice(i, i+OM_BATCH);
+      const n=await fetchOpenMeteo(batch);
+      fetched+=n;
+      // Show partial data as it arrives
       rebuildWPts();
-      buildGrid(() => { drawWind(); schedDraw(); });
-      if (!fetchErr) {
-        setStatus('live','LIVE');
-        const fromCache = todoLimited.length - fetchedCount;
-        if (fetchedCount>0) toast(`✅ ${fetchedCount} API-kutsu${fetchedCount>1?'a':''}${fromCache>0?' + '+fromCache+' välimuistista':''}`);
-      }
+      buildGrid(()=>{ drawWind(); schedDraw(); });
     }
-  };
-
-  // Send all requests in batches of 3 — no early break
-  const BATCH=3;
-  const batches=[];
-  for (let i=0; i<todoLimited.length; i+=BATCH) batches.push(todoLimited.slice(i,i+BATCH));
-  for (let bi=0; bi<batches.length; bi++) {
-    await Promise.all(batches[bi].map(fetchOne));
-    if (bi < batches.length-1) await new Promise(r=>setTimeout(r,350));
+    busy=false;
+    setStatus('live','LIVE');
+    const cached=todo.length-fetched;
+    toast(`✅ ${fetched} pistettä haettu${cached>0?' · '+cached+' välimuistista':''}`);
+  } catch(e) {
+    busy=false;
+    lastSig=''; // allow retry
+    if (e.status===429) {
+      setStatus('err','RAJA'); toast('⚠ Liian monta pyyntöä – odota hetki');
+    } else if (!navigator.onLine) {
+      setStatus('err','OFFLINE'); toast('⚠ Ei verkkoyhteyttä');
+    } else {
+      setStatus('err','VIRHE'); toast('⚠ Tiedonhaku epäonnistui – yritä uudelleen');
+    }
+    // Show whatever we have from cache
+    rebuildWPts();
+    buildGrid(()=>{ drawWind(); schedDraw(); });
   }
 }
 
 let fetchTimer=null;
-function schedFetch() { clearTimeout(fetchTimer); fetchTimer=setTimeout(fetchLive,800); }
+function schedFetch() { clearTimeout(fetchTimer); fetchTimer=setTimeout(fetchLive,600); }
 
-// ── PAN / ZOOM ────────────────────────────────────────────
-// S.zoom is a FLOAT — continuous zoom like Windy, not integer steps.
-// Tile rendering snaps to Math.floor(S.zoom) for tile selection,
-// but the viewport scale is computed from the full float value.
-// This gives silky-smooth pinch zoom on iPhone.
-
-// Zoom by a float delta, keeping the screen point (px,py) stationary.
-function doZoom(delta, px, py) {
-  px = px ?? vw()/2; py = py ?? vh()/2;
-  const {lat:pLat, lng:pLng} = fs(px, py);
-  const nz = Math.max(2, Math.min(13, S.zoom + delta));
-  if (Math.abs(nz - S.zoom) < 0.0001) return;
-  S.zoom = nz;
-  // Reproject so the point under the finger stays fixed
-  const after = ts(pLat, pLng);
-  const cw    = tw(S.lat, S.lng, S.zoom);
-  const nc    = fw(cw.x + after.x - px, cw.y + after.y - py, S.zoom);
-  S.lat = clampLat(nc.lat);
-  S.lng = normLng(nc.lng);
+// ── PAN / ZOOM ────────────────────────────────────────────────
+function doZoom(delta,px,py) {
+  px=px??vw()/2; py=py??vh()/2;
+  const {lat:pLat,lng:pLng}=fs(px,py);
+  const nz=Math.max(2,Math.min(13,S.zoom+delta));
+  if (Math.abs(nz-S.zoom)<0.0001) return;
+  S.zoom=nz;
+  const after=ts(pLat,pLng), cw=tw(S.lat,S.lng,S.zoom);
+  const nc=fw(cw.x+after.x-px, cw.y+after.y-py, S.zoom);
+  S.lat=clampLat(nc.lat); S.lng=normLng(nc.lng);
   schedDraw();
 }
-
-// Smooth-zoom with easing — used by +/- buttons and mouse wheel
-// Animates from current zoom to target over ~220ms
-let zoomAnim = null;
-function smoothZoomTo(targetZ, px, py) {
+let zoomAnim=null;
+function smoothZoomTo(targetZ,px,py) {
   if (zoomAnim) cancelAnimationFrame(zoomAnim);
-  const startZ = S.zoom;
-  const diff   = Math.max(2, Math.min(13, targetZ)) - startZ;
-  if (Math.abs(diff) < 0.01) return;
-  const startT = performance.now();
-  const dur    = 220; // ms
+  const startZ=S.zoom, diff=Math.max(2,Math.min(13,targetZ))-startZ;
+  if (Math.abs(diff)<0.01) return;
+  const startT=performance.now(), dur=220;
   function step(now) {
-    const t   = Math.min(1, (now - startT) / dur);
-    const ease = 1 - (1-t)*(1-t)*(1-t); // cubic ease-out
-    doZoom(startZ + diff * ease - S.zoom, px, py);
-    if (t < 1) zoomAnim = requestAnimationFrame(step);
-    else { zoomAnim = null; schedFetch(); }
+    const t=Math.min(1,(now-startT)/dur), ease=1-(1-t)**3;
+    doZoom(startZ+diff*ease-S.zoom, px, py);
+    if (t<1) zoomAnim=requestAnimationFrame(step);
+    else { zoomAnim=null; schedFetch(); }
   }
-  zoomAnim = requestAnimationFrame(step);
+  zoomAnim=requestAnimationFrame(step);
 }
 
-let drag = null;
+let drag=null;
 function pStart(x,y) { drag={x,y,lat:S.lat,lng:S.lng,moved:false,ox:x,oy:y}; }
 function pMove(x,y) {
   if (!drag) return;
-  drag.moved = drag.moved || (Math.hypot(x-drag.ox, y-drag.oy) > 4);
-  const cw = tw(drag.lat, drag.lng, S.zoom);
-  const nc = fw(cw.x-(x-drag.ox), cw.y-(y-drag.oy), S.zoom);
-  S.lat = clampLat(nc.lat); S.lng = normLng(nc.lng);
-  drag.x = x; drag.y = y;
-  schedDraw();
+  drag.moved=drag.moved||(Math.hypot(x-drag.ox,y-drag.oy)>4);
+  const cw=tw(drag.lat,drag.lng,S.zoom);
+  const nc=fw(cw.x-(x-drag.ox),cw.y-(y-drag.oy),S.zoom);
+  S.lat=clampLat(nc.lat); S.lng=normLng(nc.lng);
+  drag.x=x; drag.y=y; schedDraw();
 }
 function pEnd(x,y) {
   if (!drag) return;
   if (!drag.moved) {
-    // If popup is already showing, close it; otherwise open for this point
     const pop=document.getElementById('popup');
-    if (pop.classList.contains('show')) { closePopup(); }
-    else { showWindPopup(x,y); }
-  } else {
-    schedFetch();
-  }
+    if (pop.classList.contains('show')) closePopup();
+    else showWindPopup(x,y);
+  } else schedFetch();
   drag=null;
 }
 
-// ── MOUSE EVENTS ─────────────────────────────────────────
+// ── MOUSE ─────────────────────────────────────────────────────
 MC.addEventListener('mousedown', e=>{MC.classList.add('grabbing');pStart(e.clientX,e.clientY);});
 MC.addEventListener('mousemove', e=>{
   const {lat,lng}=fs(e.clientX,e.clientY);
@@ -893,150 +796,92 @@ MC.addEventListener('mousemove', e=>{
 });
 MC.addEventListener('mouseup',    e=>{MC.classList.remove('grabbing');pEnd(e.clientX,e.clientY);});
 MC.addEventListener('mouseleave', ()=>{if(drag){if(drag.moved)schedFetch();drag=null;MC.classList.remove('grabbing');}});
-
-// Mouse wheel: smooth animated zoom
 MC.addEventListener('wheel', e=>{
   e.preventDefault();
-  // Normalise delta across browsers (trackpad vs scroll wheel)
-  const raw   = e.deltaY;
-  const lines = e.deltaMode===1 ? raw*33 : e.deltaMode===2 ? raw*500 : raw;
-  const step  = Math.sign(lines) * Math.min(1, Math.abs(lines)/120);
-  smoothZoomTo(S.zoom - step, e.clientX, e.clientY);
+  const raw=e.deltaY, lines=e.deltaMode===1?raw*33:e.deltaMode===2?raw*500:raw;
+  smoothZoomTo(S.zoom-Math.sign(lines)*Math.min(1,Math.abs(lines)/120), e.clientX, e.clientY);
 },{passive:false});
 
-// ── TOUCH EVENTS ─────────────────────────────────────────
+// ── TOUCH ─────────────────────────────────────────────────────
 let tArr=[], pinchDist=0, pinchMidX=0, pinchMidY=0;
-
 MC.addEventListener('touchstart', e=>{
   e.preventDefault(); tArr=[...e.touches];
-  if (tArr.length===1) {
-    pStart(tArr[0].clientX, tArr[0].clientY);
-  } else if (tArr.length===2) {
+  if (tArr.length===1) pStart(tArr[0].clientX,tArr[0].clientY);
+  else if (tArr.length===2) {
     drag=null;
-    pinchDist = Math.hypot(
-      tArr[1].clientX-tArr[0].clientX,
-      tArr[1].clientY-tArr[0].clientY
-    );
-    pinchMidX = (tArr[0].clientX+tArr[1].clientX)/2;
-    pinchMidY = (tArr[0].clientY+tArr[1].clientY)/2;
+    pinchDist=Math.hypot(tArr[1].clientX-tArr[0].clientX,tArr[1].clientY-tArr[0].clientY);
+    pinchMidX=(tArr[0].clientX+tArr[1].clientX)/2;
+    pinchMidY=(tArr[0].clientY+tArr[1].clientY)/2;
   }
 },{passive:false});
-
 MC.addEventListener('touchmove', e=>{
   e.preventDefault(); tArr=[...e.touches];
-  if (tArr.length===1 && drag) {
-    pMove(tArr[0].clientX, tArr[0].clientY);
-  } else if (tArr.length===2) {
-    const d   = Math.hypot(
-      tArr[1].clientX-tArr[0].clientX,
-      tArr[1].clientY-tArr[0].clientY
-    );
-    const mx  = (tArr[0].clientX+tArr[1].clientX)/2;
-    const my  = (tArr[0].clientY+tArr[1].clientY)/2;
-
-    if (pinchDist > 0) {
-      // Continuous ratio-based zoom — no threshold, no integer steps
-      // log2 gives perceptually linear zoom matching how Windy/Google Maps feel
-      const ratio = d / pinchDist;
-      const zDelta = Math.log2(ratio) * 0.85; // 0.85 = sensitivity (< 1 = gentler)
-      doZoom(zDelta, mx, my);
+  if (tArr.length===1&&drag) pMove(tArr[0].clientX,tArr[0].clientY);
+  else if (tArr.length===2) {
+    const d=Math.hypot(tArr[1].clientX-tArr[0].clientX,tArr[1].clientY-tArr[0].clientY);
+    const mx=(tArr[0].clientX+tArr[1].clientX)/2, my=(tArr[0].clientY+tArr[1].clientY)/2;
+    if (pinchDist>0) doZoom(Math.log2(d/pinchDist)*0.85, mx, my);
+    if (Math.abs(mx-pinchMidX)>1||Math.abs(my-pinchMidY)>1) {
+      const cw=tw(S.lat,S.lng,S.zoom);
+      const nc=fw(cw.x-(mx-pinchMidX),cw.y-(my-pinchMidY),S.zoom);
+      S.lat=clampLat(nc.lat); S.lng=normLng(nc.lng); schedDraw();
     }
-
-    // Also pan with the midpoint movement
-    if (Math.abs(mx-pinchMidX)>1 || Math.abs(my-pinchMidY)>1) {
-      const cw = tw(S.lat, S.lng, S.zoom);
-      const nc = fw(cw.x-(mx-pinchMidX), cw.y-(my-pinchMidY), S.zoom);
-      S.lat=clampLat(nc.lat); S.lng=normLng(nc.lng);
-      schedDraw();
-    }
-
-    pinchDist = d;
-    pinchMidX = mx;
-    pinchMidY = my;
+    pinchDist=d; pinchMidX=mx; pinchMidY=my;
   }
 },{passive:false});
-
 MC.addEventListener('touchend', e=>{
   const prev=tArr; tArr=[...e.touches];
-  if (prev.length===2 && tArr.length < 2) {
-    // Pinch ended — trigger data fetch for new zoom level
-    schedFetch();
-    pinchDist=0;
-    if (tArr.length===1) {
-      // One finger still down — start new pan without popup
-      drag={x:tArr[0].clientX,y:tArr[0].clientY,lat:S.lat,lng:S.lng,moved:true,ox:tArr[0].clientX,oy:tArr[0].clientY};
-    }
-  } else if (prev.length===1 && tArr.length===0 && drag) {
-    pEnd(prev[0].clientX, prev[0].clientY);
-  } else {
-    drag=null;
-  }
+  if (prev.length===2&&tArr.length<2) {
+    schedFetch(); pinchDist=0;
+    if (tArr.length===1) drag={x:tArr[0].clientX,y:tArr[0].clientY,lat:S.lat,lng:S.lng,moved:true,ox:tArr[0].clientX,oy:tArr[0].clientY};
+  } else if (prev.length===1&&tArr.length===0&&drag) pEnd(prev[0].clientX,prev[0].clientY);
+  else drag=null;
 });
 
-// ── WIND POPUP ────────────────────────────────────────────
-function showWindPopup(sx, sy) {
-  const {lat,lng}=fs(sx,sy);
-  const spd=gridLookup(lat,lng);
+// ── WIND POPUP ────────────────────────────────────────────────
+function showWindPopup(sx,sy) {
+  const {lat,lng}=fs(sx,sy), spd=gridLookup(lat,lng);
   if (spd<0) return;
-
-  // Find nearest real data point for direction + gust
   let minD=Infinity, nearPt=null;
-  for (const p of wPts) {
-    const d=Math.hypot(lat-p.lat,lng-p.lng);
-    if (d<minD) { minD=d; nearPt=p; }
-  }
-  const nearDir  = nearPt?.dir  ?? 0;
-  const nearGust = nearPt?.gust ?? spd;  // fall back to speed if no gust
-
-  // Speed values
-  document.getElementById('pKts').textContent = spd.toFixed(1);
-  document.getElementById('pMs').textContent  = (spd/1.94384).toFixed(1)+' m/s';
-  document.getElementById('pGust').textContent = nearGust.toFixed(1);
-
-  // Direction
+  for (const p of wPts) { const d=Math.hypot(lat-p.lat,lng-p.lng); if(d<minD){minD=d;nearPt=p;} }
+  const nearDir=nearPt?.dir??0, nearGust=nearPt?.gust??spd;
+  document.getElementById('pKts').textContent=spd.toFixed(1);
+  document.getElementById('pMs').textContent=(spd/1.94384).toFixed(1)+' m/s';
+  document.getElementById('pGust').textContent=nearGust.toFixed(1);
   const cards='N NE E SE S SW W NW'.split(' ');
   document.getElementById('pDir').textContent=`${Math.round(nearDir)}° ${cards[Math.round(nearDir/45)%8]}`;
-
-  // Rating badge
   const rt=wingRating(spd);
   const badge=document.getElementById('pBadge');
   badge.textContent=rt.label;
   badge.style.cssText=`background:${rt.c}22;color:${rt.c};border:1px solid ${rt.c}55`;
-
-  // Coordinates
   document.getElementById('pLat').textContent=`${Math.abs(lat).toFixed(3)}°${lat>=0?'N':'S'}`;
   document.getElementById('pLng').textContent=`${Math.abs(lng).toFixed(3)}°${lng>=0?'E':'W'}`;
-
-  // Position popup — clamp to viewport
   const pop=document.getElementById('popup');
-  pop.classList.add('show');           // make visible so we can measure
+  pop.classList.add('show');
   const PW=pop.offsetWidth||210, PH=pop.offsetHeight||185;
-  let px=Math.min(vw()-PW-8, Math.max(8, sx+18));
+  let px=Math.min(vw()-PW-8,Math.max(8,sx+18));
   let py=sy-PH-12;
-  if (py<60) py=sy+18;
-  if (py+PH>vh()-24) py=vh()-PH-24;
+  if(py<60) py=sy+18;
+  if(py+PH>vh()-24) py=vh()-PH-24;
   pop.style.left=px+'px'; pop.style.top=py+'px';
-
-  // No auto-close — user must press × or click map
   clearTimeout(pop._t);
 }
-
 function closePopup() {
   const pop=document.getElementById('popup');
   pop.classList.remove('show');
   clearTimeout(pop._t);
 }
 function wingRating(k) {
-  if (k<8)  return {label:'🌀 LIIAN TYYNTÄ', c:'#4060d0'};
-  if (k<12) return {label:'🔵 KEVYT',        c:'#0064d4'};
-  if (k<16) return {label:'🟢 RAKENTUU',     c:'#00b478'};
-  if (k<22) return {label:'✅ HYVÄ',         c:'#32d232'};
-  if (k<28) return {label:'⭐ TÄYDELLINEN',  c:'#ffc800'};
-  if (k<36) return {label:'💪 KOVA',         c:'#ff7800'};
-  return     {label:'⚠️ ÄÄRIMMÄINEN',        c:'#ff1e1e'};
+  if(k<8)  return {label:'🌀 LIIAN TYYNTÄ',c:'#4060d0'};
+  if(k<12) return {label:'🔵 KEVYT',c:'#0064d4'};
+  if(k<16) return {label:'🟢 RAKENTUU',c:'#00b478'};
+  if(k<22) return {label:'✅ HYVÄ',c:'#32d232'};
+  if(k<28) return {label:'⭐ TÄYDELLINEN',c:'#ffc800'};
+  if(k<36) return {label:'💪 KOVA',c:'#ff7800'};
+  return    {label:'⚠️ ÄÄRIMMÄINEN',c:'#ff1e1e'};
 }
 
-// ── STATUS / TOAST ────────────────────────────────────────
+// ── STATUS / TOAST ────────────────────────────────────────────
 function setStatus(cls,txt) {
   document.getElementById('dot').className=cls;
   document.getElementById('pillTxt').textContent=txt;
@@ -1049,104 +894,43 @@ function toast(msg) {
   toastTimer=setTimeout(()=>el.classList.remove('on'),3500);
 }
 
-// ── MODAL ─────────────────────────────────────────────────
+// ── MODAL (info only) ────────────────────────────────────────
 function openModal()  { document.getElementById('modal').classList.remove('off'); }
 function closeModal() { document.getElementById('modal').classList.add('off'); }
 
 document.getElementById('btnDemo').addEventListener('click', ()=>{
-  S.apiKey=''; busy=false; lastSig='';
-  lsClear(); lsClearKey();
-  windCache.clear(); tileFetched.clear();
-  resetApiCount();
+  busy=false; lastSig='';
+  lsClear(); windCache.clear(); tileFetched.clear(); resetApiCount();
   wPts=makeDemo();
   buildGrid(()=>{ setStatus('demo','DEMO'); schedDraw(); });
   closeModal();
 });
-
-document.getElementById('btnLive').addEventListener('click', async ()=>{
-  const key =document.getElementById('apiInput').value.trim();
-  const inp =document.getElementById('apiInput');
-  const btn =document.getElementById('btnLive');
-  const note=document.getElementById('mTestNote');
-  if (!key) {
-    inp.style.borderColor='#ff4444';
-    setTimeout(()=>inp.style.borderColor='',1600);
-    return;
-  }
-  btn.textContent='TESTATAAN…'; btn.disabled=true;
-  note.textContent=''; note.style.color='var(--dim)';
-  try {
-    bumpApiCount();
-    const res=await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=60&lon=25&appid=${key}&units=metric`);
-    if (res.ok) {
-      S.apiKey=key; busy=false; lastSig='';
-      lsClear(); windCache.clear(); tileFetched.clear();
-      lsSaveKey(key);  // FIX K1+M1: persist key
-      btn.textContent='AKTIVOI LIVE'; btn.disabled=false;
-      closeModal();
-      toast('✅ Yhteys toimii! Haetaan tuulitietoja…');
-      fetchLive();
-    } else if (res.status===401) {
-      note.innerHTML='❌ Avain virheellinen tai ei vielä aktiivinen.<br>Uudet avaimet aktivoituvat 1–2 tunnissa.';
-      note.style.color='#ff6060';
-      btn.textContent='AKTIVOI LIVE'; btn.disabled=false;
-      inp.style.borderColor='#ff4444';
-      setTimeout(()=>inp.style.borderColor='',2500);
-    } else if (res.status===429) {
-      note.innerHTML='⚠ Liikaa pyyntöjä. Odota hetki ja yritä uudelleen.';
-      note.style.color='#ffa040';
-      btn.textContent='AKTIVOI LIVE'; btn.disabled=false;
-    } else {
-      note.innerHTML=`⚠ Virhe ${res.status} — tarkista verkkoyhteys.`;
-      note.style.color='#ffa040';
-      btn.textContent='AKTIVOI LIVE'; btn.disabled=false;
-    }
-  } catch(e) {
-    note.innerHTML='⚠ Verkkovirhe — avaa sovellus Netlify/GitHub-URLista,<br>ei suoraan tiedostona.';
-    note.style.color='#ffa040';
-    btn.textContent='AKTIVOI LIVE'; btn.disabled=false;
-  }
+document.getElementById('btnClose').addEventListener('click', ()=>{
+  closeModal();
+  // If we're in demo mode, restart live fetch when closing info
+  if (document.getElementById('dot').className==='demo') schedFetch();
 });
-
-document.getElementById('apiInput').addEventListener('keydown', e=>{if(e.key==='Enter')document.getElementById('btnLive').click();});
-document.getElementById('popupClose').addEventListener('click', e=>{
-  e.stopPropagation();
-  closePopup();
-});
+document.getElementById('popupClose').addEventListener('click', e=>{e.stopPropagation();closePopup();});
 document.getElementById('settingsBtn').addEventListener('click', openModal);
 document.getElementById('pill').addEventListener('click', openModal);
 document.getElementById('zIn').addEventListener('click',  ()=>smoothZoomTo(S.zoom+1));
 document.getElementById('zOut').addEventListener('click', ()=>smoothZoomTo(S.zoom-1));
 document.getElementById('opSlider').addEventListener('input', e=>{S.opacity=e.target.value/100;drawWind();});
 
-// ── BOOT ──────────────────────────────────────────────────
+// ── BOOT ──────────────────────────────────────────────────────
 resize();
+const cachedCount=lsBootstrap();
 
-const savedKey    = lsLoadKey();
-const cachedCount = lsBootstrap();
-
-if (savedKey) {
-  // FIX P5 + K1: we have a saved key — load it, skip modal, use cached data
-  S.apiKey = savedKey;
-  document.getElementById('apiInput').value = savedKey;
-
-  if (cachedCount > 0) {
-    // Cached wind data available — show it immediately, then refresh in background
-    rebuildWPts();
-    buildGrid(() => { setStatus('live','LIVE'); schedDraw(); });
-    schedFetch();
-  } else {
-    // Key saved but no cached data — show demo while fetching
-    wPts = makeDemo();
-    buildGrid(() => { setStatus('loading','LADATAAN'); schedDraw(); schedFetch(); });
-  }
+if (cachedCount>0) {
+  // Cached live data found — show immediately, refresh in background
+  rebuildWPts();
+  buildGrid(()=>{ setStatus('live','LIVE'); schedDraw(); });
+  schedFetch();
 } else {
-  // No saved key — show demo and open modal
-  wPts = makeDemo();
-  buildGrid(() => { setStatus('demo','DEMO'); schedDraw(); });
-  openModal();
+  // No cache — show demo while first live fetch runs
+  wPts=makeDemo();
+  buildGrid(()=>{ setStatus('loading','LADATAAN'); schedDraw(); schedFetch(); });
 }
-
 document.fonts.ready.then(schedDraw);
 </script>
 
