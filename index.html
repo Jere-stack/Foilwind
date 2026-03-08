@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WingWind – Global Wind Map</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#070b17; --surface:rgba(9,14,28,.93);
+      --border:rgba(60,110,190,.22); --accent:#00d4ff;
+      --text:#c8dae8; --dim:rgba(160,200,230,.45); --r:10px;
+    }
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+```
+/* Body: NO touch-action or user-select overrides — let browser defaults work */
+html, body {
+  width:100%; height:100%; overflow:hidden;
+  background:var(--bg);
+  font-family:'JetBrains Mono',monospace;
+  color:var(--text);
+}
+
+/* Canvases get their own touch/select lockdown */
+#mapCanvas {
+  position:absolute; top:0; left:0; z-index:1; display:block;
+  cursor:grab;
+  touch-action:none;
+  user-select:none; -webkit-user-select:none;
+}
+#mapCanvas.grabbing { cursor:grabbing; }
+#windCanvas {
+  position:absolute; top:0; left:0; z-index:2; display:block;
+  pointer-events:none;
+}
+
+/* UI layer: pointer-events:none by default, children opt-in */
+#ui { position:absolute; inset:0; z-index:10; pointer-events:none; }
+
+/* ── TOP BAR ── */
+#topBar {
+  position:absolute; top:0; left:0; right:0;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px 38px;
+  background:linear-gradient(to bottom,rgba(7,11,23,.96) 0%,transparent 100%);
+}
+#logo { font-family:'Bebas Neue',cursive; font-size:28px; letter-spacing:5px; color:#fff; }
+#logo em { color:var(--accent); font-style:normal; }
+
+#pill {
+  display:flex; align-items:center; gap:7px;
+  font-size:9px; letter-spacing:2px; color:var(--dim);
+  background:var(--surface); border:1px solid var(--border);
+  padding:6px 12px; border-radius:20px;
+  backdrop-filter:blur(10px);
+  pointer-events:all; cursor:pointer;
+  transition:border-color .2s;
+}
+#pill:hover { border-color:var(--accent); color:var(--text); }
+#dot { width:6px; height:6px; border-radius:50%; background:#ffa040; flex-shrink:0; }
+#dot.live    { background:#00ff88; animation:blink 2s ease-in-out infinite; }
+#dot.loading { background:#ffa040; animation:blink .8s ease-in-out infinite; }
+#dot.demo    { background:#ffa040; }
+#dot.err     { background:#ff3b3b; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+/* ── SETTINGS ── */
+#settingsBtn {
+  position:absolute; top:12px; right:12px;
+  width:40px; height:40px;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r); color:var(--dim); font-size:17px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  backdrop-filter:blur(10px); pointer-events:all;
+  transition:all .18s;
+}
+#settingsBtn:hover { color:var(--text); border-color:rgba(0,212,255,.4); }
+
+/* ── ZOOM ── */
+#zoomWrap {
+  position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  display:flex; flex-direction:column; gap:2px; pointer-events:all;
+}
+.zbtn {
+  width:42px; height:42px;
+  background:var(--surface); border:1px solid var(--border);
+  color:var(--text); font-size:22px; font-family:inherit;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  backdrop-filter:blur(10px); transition:all .15s; line-height:1;
+}
+.zbtn:first-child { border-radius:var(--r) var(--r) 3px 3px; }
+.zbtn:last-child  { border-radius:3px 3px var(--r) var(--r); }
+.zbtn:hover  { background:rgba(0,212,255,.12); color:var(--accent); }
+.zbtn:active { background:rgba(0,212,255,.22); }
+
+/* ── OPACITY ── */
+#opWrap {
+  position:absolute; left:12px; top:50%; transform:translateY(-50%);
+  display:flex; flex-direction:column; align-items:center; gap:8px;
+  pointer-events:all;
+}
+#opLabel { font-size:7px; letter-spacing:2px; color:var(--dim); writing-mode:vertical-rl; transform:rotate(180deg); }
+#opSlider { -webkit-appearance:slider-vertical; appearance:slider-vertical; writing-mode:vertical-lr; direction:rtl; width:4px; height:100px; accent-color:var(--accent); cursor:pointer; }
+
+/* ── LEGEND ── */
+#legend {
+  position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+  min-width:310px; max-width:calc(100vw - 80px);
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r); padding:12px 16px;
+  backdrop-filter:blur(12px); pointer-events:all;
+}
+#lgTitle { font-size:8px; letter-spacing:3px; color:var(--dim); text-align:center; margin-bottom:8px; }
+#lgBar { height:10px; border-radius:5px; margin-bottom:5px;
+  background:linear-gradient(to right,#1a3280 0%,#0050c8 13%,#00b478 26%,#32d232 40%,#ffc800 54%,#ff7800 68%,#ff1e1e 83%,#c800ff 100%); }
+#lgNums { display:flex; justify-content:space-between; font-size:8px; color:var(--dim); margin-bottom:8px; }
+#ratings { display:flex; justify-content:space-between; gap:3px; padding-top:8px; border-top:1px solid var(--border); }
+.rat { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; font-size:7px; color:var(--dim); text-align:center; }
+.rdot { width:7px; height:7px; border-radius:50%; }
+
+/* ── COORDS ── */
+#coords { position:absolute; bottom:20px; right:14px; font-size:9px; color:var(--dim); text-align:right; line-height:1.7; }
+#zDisp  { position:absolute; bottom:20px; left:64px;  font-size:9px; color:var(--dim); letter-spacing:1px; }
+
+/* ── WIND POPUP ── */
+#popup {
+  position:absolute; z-index:15; pointer-events:none;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--r); padding:13px 16px;
+  backdrop-filter:blur(14px); min-width:160px;
+  opacity:0; transform:translateY(6px) scale(.97);
+  transition:opacity .2s,transform .2s;
+}
+#popup.show { opacity:1; transform:none; }
+.pl { font-size:8px; letter-spacing:2px; color:var(--dim); margin-bottom:2px; }
+.pv { font-size:22px; font-weight:600; line-height:1.1; margin-bottom:7px; }
+.pv small { font-size:11px; font-weight:400; color:var(--dim); }
+#pBadge { display:inline-block; padding:3px 9px; border-radius:4px; font-size:8px; letter-spacing:2px; }
+
+/* ── TOAST ── */
+#toast {
+  position:absolute; bottom:86px; left:50%; transform:translateX(-50%);
+  z-index:20; background:var(--surface); border:1px solid var(--border);
+  border-radius:8px; padding:9px 16px; font-size:10px; letter-spacing:1px;
+  opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap;
+}
+#toast.on { opacity:1; }
+
+/*
+  ── MODAL ──
+  position:fixed so it always covers the full viewport.
+  z-index:9999 — above everything.
+  pointer-events:all — captures all mouse/touch events.
+  touch-action:auto — allows scrolling, tapping, typing inside.
+  user-select:auto — allows text selection / input inside.
+*/
+#modal {
+  position:fixed; inset:0; z-index:9999;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(7,11,23,.92);
+  backdrop-filter:blur(8px);
+  pointer-events:all;
+  touch-action:auto;
+  user-select:auto; -webkit-user-select:auto;
+}
+#modal.off { display:none; }
+
+#mbox {
+  background:rgba(9,14,28,.99); border:1px solid var(--border);
+  border-radius:18px; padding:36px; width:400px; max-width:92vw;
+}
+#mbox h2 { font-family:'Bebas Neue',cursive; font-size:34px; letter-spacing:5px; color:#fff; margin-bottom:6px; }
+#mbox h2 em { color:var(--accent); font-style:normal; }
+.msub { font-size:10px; color:var(--dim); line-height:1.9; margin-bottom:24px; }
+.mlbl { display:block; font-size:8px; letter-spacing:2.5px; color:var(--dim); margin-bottom:8px; }
+
+#apiInput {
+  width:100%;
+  background:rgba(255,255,255,.05); border:1px solid var(--border);
+  border-radius:8px; padding:13px 14px;
+  font-family:'JetBrains Mono',monospace; font-size:13px;
+  color:var(--text); outline:none; margin-bottom:10px;
+  transition:border-color .2s;
+  /* Explicitly enable all interactions for this input */
+  pointer-events:all;
+  touch-action:auto;
+  user-select:text; -webkit-user-select:text;
+  -webkit-appearance:none; appearance:none;
+  cursor:text;
+}
+#apiInput:focus { border-color:rgba(0,212,255,.55); }
+#apiInput::placeholder { color:rgba(160,200,230,.18); }
+
+.mbtns { display:flex; gap:10px; }
+.mbtn {
+  flex:1; padding:13px; border-radius:8px; border:none;
+  font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px;
+  cursor:pointer; transition:all .15s; pointer-events:all;
+}
+.mbtn-p { background:var(--accent); color:#070b17; font-weight:600; }
+.mbtn-p:hover { background:#33deff; }
+.mbtn-s { background:rgba(255,255,255,.07); color:var(--dim); border:1px solid var(--border); }
+.mbtn-s:hover { background:rgba(255,255,255,.13); color:var(--text); }
+.mnote { font-size:8px; color:var(--dim); text-align:center; margin-top:14px; line-height:1.9; }
+.mnote a { color:var(--accent); text-decoration:none; }
+.mnote a:hover { text-decoration:underline; }
+```
+
+  </style>
+</head>
+<body>
+
+<canvas id="mapCanvas"></canvas>
+<canvas id="windCanvas"></canvas>
+
+<div id="ui">
+  <div id="topBar">
+    <div id="logo">WING<em>WIND</em></div>
+    <div id="pill"><div id="dot" class="demo"></div><span id="pillTxt">DEMO</span></div>
+  </div>
+  <button id="settingsBtn">⚙</button>
+  <div id="zoomWrap">
+    <button class="zbtn" id="zIn">+</button>
+    <button class="zbtn" id="zOut">−</button>
+  </div>
+  <div id="opWrap">
+    <span id="opLabel">TUULI</span>
+    <input type="range" id="opSlider" min="10" max="95" value="72">
+  </div>
+  <div id="legend">
+    <div id="lgTitle">TUULENNOPEUS · SOLMUA (KTS)</div>
+    <div id="lgBar"></div>
+    <div id="lgNums"><span>0</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>30</span><span>35+</span></div>
+    <div id="ratings">
+      <div class="rat"><div class="rdot" style="background:#1a3280"></div>TYYNTÄ</div>
+      <div class="rat"><div class="rdot" style="background:#0050c8"></div>KEVYT</div>
+      <div class="rat"><div class="rdot" style="background:#00b478"></div>RAKENTUU</div>
+      <div class="rat"><div class="rdot" style="background:#32d232"></div>HYVÄ</div>
+      <div class="rat"><div class="rdot" style="background:#ffc800"></div>TÄYDELLINEN</div>
+      <div class="rat"><div class="rdot" style="background:#ff7800"></div>KOVA</div>
+      <div class="rat"><div class="rdot" style="background:#ff1e1e"></div>ÄÄRIMMÄINEN</div>
+    </div>
+  </div>
+  <div id="popup">
+    <div class="pl">TUULENNOPEUS</div>
+    <div class="pv"><span id="pKts">--</span> <small>kts</small></div>
+    <div class="pl">SUUNTA</div>
+    <div class="pv" style="font-size:14px;margin-bottom:9px"><span id="pDir">--</span></div>
+    <div id="pBadge">--</div>
+  </div>
+  <div id="coords"><div id="cLat"></div><div id="cLng"></div></div>
+  <div id="zDisp">Z<span id="zNum">3</span></div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Modal: fixed, z-index:9999, fully interactive -->
+
+<div id="modal">
+  <div id="mbox">
+    <h2>WING<em>WIND</em></h2>
+    <p class="msub">Live-tuulitiedot vaativat ilmaisen OpenWeatherMap API-avaimen.<br>Demo-tilassa näet fysikaalisesti mallinnetun globaalin tuulikentän.</p>
+    <label class="mlbl" for="apiInput">OPENWEATHERMAP API KEY</label>
+    <input type="text" id="apiInput" placeholder="kirjoita tai liitä avain tähän…" autocomplete="off" spellcheck="false">
+    <div class="mbtns">
+      <button class="mbtn mbtn-s" id="btnDemo">DEMO-TILA</button>
+      <button class="mbtn mbtn-p" id="btnLive">AKTIVOI LIVE</button>
+    </div>
+    <p id="mTestNote" style="font-size:9px;line-height:1.7;margin-top:10px;min-height:18px;"></p>
+    <p class="mnote">Ilmainen avain: <a href="https://openweathermap.org/api" target="_blank">openweathermap.org/api</a><br>
+    <span style="color:rgba(160,200,230,.3)">Uudet avaimet aktivoituvat 1–2 h rekisteröinnistä</span></p>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════
+//  WingWind — Global Wind Heatmap
+//  Desktop + Mobile · OpenWeatherMap / Demo
+// ═══════════════════════════════════════════════════
+
+const MC = document.getElementById('mapCanvas');
+const WC = document.getElementById('windCanvas');
+const mc = MC.getContext('2d');
+const wc = WC.getContext('2d');
+const hm = document.createElement('canvas');
+const hmc = hm.getContext('2d');
+
+const S = { lat:20, lng:10, zoom:3, apiKey:'', opacity:.72 };
+let wPts=[], wGrid=null, busy=false, lastSig='';
+
+const tCache = new Map(), dCache = new Map();
+const TMAX=600;
+
+// ── SIZE ─────────────────────────────────────────────
+const vw = () => innerWidth;
+const vh = () => innerHeight;
+
+function resize() {
+  const dpr=devicePixelRatio||1, w=vw(), h=vh();
+  [MC,WC].forEach(c=>{
+    c.width=Math.round(w*dpr); c.height=Math.round(h*dpr);
+    c.style.width=w+'px'; c.style.height=h+'px';
+  });
+  mc.setTransform(dpr,0,0,dpr,0,0);
+  wc.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+window.addEventListener('resize', resize);
+
+// ── MERCATOR ─────────────────────────────────────────
+function tw(lat,lng,z){
+  const n=2**z*256, x=(lng+180)/360*n, r=lat*Math.PI/180;
+  return {x, y:(1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*n};
+}
+function fw(wx,wy,z){
+  const n=2**z*256, lng=wx/n*360-180;
+  const nr=Math.PI-2*Math.PI*wy/n;
+  return {lat:180/Math.PI*Math.atan(.5*(Math.exp(nr)-Math.exp(-nr))), lng};
+}
+function ts(lat,lng){ const c=tw(S.lat,S.lng,S.zoom),p=tw(lat,lng,S.zoom); return {x:vw()/2+p.x-c.x,y:vh()/2+p.y-c.y}; }
+function fs(sx,sy){ const c=tw(S.lat,S.lng,S.zoom); return fw(c.x+sx-vw()/2,c.y+sy-vh()/2,S.zoom); }
+const clamp=lat=>Math.max(-85,Math.min(85,lat));
+const normLng=lng=>((lng+180)%360+360)%360-180;
+
+// ── TILES ─────────────────────────────────────────────
+function tile(z,tx,ty){
+  const k=`${z}/${tx}/${ty}`;
+  if(tCache.has(k)) return tCache.get(k);
+  tCache.set(k,null);
+  const img=new Image(); img.crossOrigin='anonymous';
+  img.src=`https://${'abcd'[(Math.abs(tx)+Math.abs(ty))%4]}.basemaps.cartocdn.com/dark_all/${z}/${tx}/${ty}.png`;
+  img.onload=()=>{ tCache.set(k,img); if(tCache.size>TMAX) tCache.delete(tCache.keys().next().value); draw(); };
+  img.onerror=()=>tCache.set(k,'failed');
+  return null;
+}
+
+function drawMap(){
+  const T=256, z=S.zoom, n=2**z, w=vw(), h=vh();
+  mc.fillStyle='#070b17'; mc.fillRect(0,0,w,h);
+  const c=tw(S.lat,S.lng,z);
+  for(let tx=Math.floor((c.x-w/2)/T);tx<=Math.ceil((c.x+w/2)/T);tx++){
+    for(let ty=Math.floor((c.y-h/2)/T);ty<=Math.ceil((c.y+h/2)/T);ty++){
+      if(ty<0||ty>=n) continue;
+      const sx=Math.round(tx*T-c.x+w/2), sy=Math.round(ty*T-c.y+h/2);
+      const img=tile(z,((tx%n)+n)%n,ty);
+      if(img&&img!=='failed') mc.drawImage(img,sx,sy,T,T);
+      else { mc.fillStyle='#0a0f1e'; mc.fillRect(sx,sy,T,T); }
+    }
+  }
+}
+
+// ── WIND COLORS ───────────────────────────────────────
+const BPS=[0,3,7,12,16,21,26,32,40,55];
+const CLR=[[8,12,40,0],[12,18,60,30],[20,52,168,140],[0,100,220,165],
+           [0,190,140,178],[60,220,60,188],[255,210,0,198],[255,130,0,205],
+           [255,30,30,210],[200,0,255,215]];
+function kts2c(k){
+  for(let i=0;i<BPS.length-1;i++){
+    if(k<=BPS[i+1]){const t=(k-BPS[i])/(BPS[i+1]-BPS[i]),a=CLR[i],b=CLR[i+1];
+      return[a[0]+(b[0]-a[0])*t|0,a[1]+(b[1]-a[1])*t|0,a[2]+(b[2]-a[2])*t|0,a[3]+(b[3]-a[3])*t|0];}
+  }
+  return CLR[CLR.length-1];
+}
+
+// ── GRID ─────────────────────────────────────────────
+function idw(lat,lng,pts){
+  let ws=0,vs=0,n=0;
+  for(const p of pts){const d=Math.hypot(lat-p.lat,lng-p.lng);if(d>30)continue;if(d<.001)return p.speed;const w=1/d**2.5;ws+=w;vs+=w*p.speed;n++;}
+  return n?vs/ws:-1;
+}
+function buildGrid(cb){
+  setTimeout(()=>{
+    const R=2.5,ROWS=Math.ceil(170/R)+1,COLS=Math.ceil(360/R)+1,data=new Float32Array(ROWS*COLS);
+    for(let r=0;r<ROWS;r++){const lat=-85+r*R;for(let c=0;c<COLS;c++) data[r*COLS+c]=idw(lat,-180+c*R,wPts);}
+    wGrid={ROWS,COLS,R,data};
+    if(cb) cb();
+  },0);
+}
+function glook(lat,lng){
+  if(!wGrid) return -1;
+  const{ROWS,COLS,R,data}=wGrid,r=(lat+85)/R,c=(lng+180)/R;
+  const r0=Math.max(0,Math.min(ROWS-2,r|0)),c0=Math.max(0,Math.min(COLS-2,c|0));
+  const tr=r-r0,tc=c-c0;
+  const v00=data[r0*COLS+c0],v01=data[r0*COLS+c0+1],v10=data[(r0+1)*COLS+c0],v11=data[(r0+1)*COLS+c0+1];
+  if(v00<0||v01<0||v10<0||v11<0) return -1;
+  return v00*(1-tr)*(1-tc)+v01*(1-tr)*tc+v10*tr*(1-tc)+v11*tr*tc;
+}
+
+// ── DRAW WIND ─────────────────────────────────────────
+function drawWind(){
+  wc.clearRect(0,0,vw(),vh());
+  if(!wGrid||!wPts.length) return;
+  const SC=5,hw=Math.ceil(vw()/SC),hh=Math.ceil(vh()/SC);
+  hm.width=hw; hm.height=hh;
+  const id=hmc.createImageData(hw,hh),buf=id.data;
+  const tl=fs(0,0),br=fs(vw(),vh()),dLat=tl.lat-br.lat,dLng=br.lng-tl.lng,al=S.opacity;
+  for(let py=0;py<hh;py++){
+    const lat=tl.lat-(py/hh)*dLat;
+    for(let px=0;px<hw;px++){
+      const spd=glook(lat,tl.lng+(px/hw)*dLng);
+      if(spd<.5) continue;
+      const[r,g,b,a]=kts2c(spd),i=(py*hw+px)*4;
+      buf[i]=r;buf[i+1]=g;buf[i+2]=b;buf[i+3]=(a*al)|0;
+    }
+  }
+  hmc.putImageData(id,0,0);
+  wc.save(); wc.imageSmoothingEnabled=true; wc.imageSmoothingQuality='high';
+  wc.drawImage(hm,0,0,vw(),vh()); wc.restore();
+}
+
+function draw(){ drawMap(); drawWind(); document.getElementById('zNum').textContent=S.zoom; }
+
+let raf=null;
+function schedDraw(){ if(!raf) raf=requestAnimationFrame(()=>{raf=null;draw();}); }
+
+// ── DEMO DATA ─────────────────────────────────────────
+function pn(x,y){
+  const a=Math.sin(x*12.9898+y*78.233)*43758.5453,b=Math.sin(x*43.137+y*17.234)*28471.3847,c=Math.sin(x*7.831+y*53.441)*91234.1234;
+  return((a-Math.floor(a))+(b-Math.floor(b))+(c-Math.floor(c)))/3*2-1;
+}
+function dspd(lat,lng){
+  const al=Math.abs(lat),n=pn(lat*.25,lng*.18)*6+pn(lat*.08,lng*.06)*10;
+  let b=al<8?2+3*Math.abs(Math.sin(lng*.08)):al<30?12+7*(.5+.5*Math.sin(lng*.05+lat*.09)):al<45?6+4*Math.abs(Math.cos(lng*.07)):al<65?18+12*(.5+.5*Math.sin(lng*.06-al*.08)):8+8*Math.abs(Math.sin(lng*.09+lat*.05));
+  return Math.max(0,Math.min(50,b+n+Math.sin(lng*.04)*Math.cos(lat*.06)*2));
+}
+function ddir(lat,lng){
+  const n=pn(lat*.3,lng*.25)*25;
+  let b=lat>=0?(Math.abs(lat)<30?65:240):(Math.abs(lat)<30?110:310);
+  return(b+n+360)%360;
+}
+function makeDemo(){
+  const pts=[];
+  for(let lat=-85;lat<=85;lat+=5) for(let lng=-180;lng<=180;lng+=5) pts.push({lat,lng,speed:dspd(lat,lng),dir:ddir(lat,lng)});
+  return pts;
+}
+
+// ── PERSISTENT CACHE (localStorage) ─────────────────────────────────────────
+//  Survives page refresh / closing browser. TTL = 60 min by default.
+//  Key: "ww_tile_LAT_LNG_ZOOM" — one entry per One Call tile.
+//  On startup we load all valid entries into dCache (in-memory Map).
+
+const LS_PREFIX  = 'ww2_';   // bump prefix to invalidate old cache format
+const LS_TTL_MS  = 60 * 60 * 1000;  // 60 minutes
+
+function lsSave(key, value) {
+  try { localStorage.setItem(LS_PREFIX + key, JSON.stringify(value)); } catch(e) {}
+}
+function lsLoad(key) {
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + key);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (!v || Date.now() - v.ts > LS_TTL_MS) { localStorage.removeItem(LS_PREFIX + key); return null; }
+    return v;
+  } catch(e) { return null; }
+}
+function lsClear() {
+  try {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(LS_PREFIX))
+      .forEach(k => localStorage.removeItem(k));
+  } catch(e) {}
+}
+function lsPurgeExpired() {
+  try {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(LS_PREFIX))
+      .forEach(k => {
+        try {
+          const v = JSON.parse(localStorage.getItem(k));
+          if (!v || Date.now() - v.ts > LS_TTL_MS) localStorage.removeItem(k);
+        } catch(e) { localStorage.removeItem(k); }
+      });
+  } catch(e) {}
+}
+
+// Load persisted points into in-memory dCache on startup
+function lsBootstrap() {
+  lsPurgeExpired();
+  let count = 0;
+  try {
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(LS_PREFIX))
+      .forEach(k => {
+        try {
+          const v = JSON.parse(localStorage.getItem(k));
+          if (v && Date.now() - v.ts <= LS_TTL_MS) {
+            // Each localStorage entry is an array of wind points from one tile
+            if (Array.isArray(v.pts)) {
+              v.pts.forEach(p => { dCache.set(`${p.lat.toFixed(2)},${p.lng.toFixed(2)}`, p); count++; });
+            }
+          }
+        } catch(e) {}
+      });
+  } catch(e) {}
+  return count;
+}
+
+// ── ONE CALL API 3.0 ─────────────────────────────────────────────────────────
+//  One Call 3.0 returns wind for a single lat/lng point — but we use it in a
+//  sparse grid pattern so we get many fewer calls than before.
+//  Grid centers: spaced by TILE_DEG degrees. Each "tile" covers TILE_DEG×TILE_DEG.
+//  One call per tile center → ~4-16 calls per view instead of 40.
+
+function tileStep() {
+  // Coarser grid = fewer calls. Fine enough for wingfoil planning.
+  const z = S.zoom;
+  if (z <= 3) return 20;   // world view:  ~18 calls cover globe
+  if (z <= 5) return 10;   // region view: ~12 calls
+  if (z <= 7) return 5;    //  area view:  ~9-16 calls
+  return 2.5;              // local view:  ~9-16 calls
+}
+
+function tileKey(lat, lng, step) {
+  // Snap to grid so same tile isn't fetched twice from slightly different views
+  const r = Math.round(lat / step) * step;
+  const c = Math.round(lng / step) * step;
+  return `t_${r.toFixed(1)}_${c.toFixed(1)}_${step}`;
+}
+
+function vsig(){
+  const tl=fs(0,0),br=fs(vw(),vh()),st=tileStep();
+  return`${(tl.lat/st|0)},${(tl.lng/st|0)},${(br.lat/st|0)},${(br.lng/st|0)},${S.zoom}`;
+}
+
+function rebuildFromDCache() {
+  const pts = [];
+  dCache.forEach(v => pts.push(v));
+  wPts = pts;
+  buildGrid(() => { drawWind(); schedDraw(); });
+}
+
+async function fetchLive() {
+  if (!S.apiKey || busy) return;
+  const sig = vsig();
+  if (sig === lastSig) return;
+  lastSig = sig; busy = true;
+
+  const tl  = fs(0, 0), br = fs(vw(), vh());
+  const st  = tileStep();
+  const snap = (v, s) => Math.round(v / s) * s;
+  const todo = [];  // tile centers to fetch
+
+  for (let lat = snap(Math.max(-85, br.lat), st); lat <= Math.min(85, tl.lat + st); lat += st) {
+    for (let lng = snap(tl.lng - st, st); lng <= br.lng + st; lng += st) {
+      const tk = tileKey(lat, lng, st);
+      // Check localStorage first (survives refresh)
+      const cached = lsLoad(tk);
+      if (cached) {
+        // Re-hydrate dCache from persisted tile
+        cached.pts.forEach(p => dCache.set(`${p.lat.toFixed(2)},${p.lng.toFixed(2)}`, p));
+        continue;
+      }
+      // Check in-memory cache
+      const ck = `${lat.toFixed(1)},${lng.toFixed(1)},${st}`;
+      if (dCache.has('tile:' + ck)) continue;
+      todo.push({ lat: clamp(lat), lng, tk, ck });
+    }
+  }
+
+  if (!todo.length) {
+    // Everything came from cache
+    rebuildFromDCache();
+    busy = false;
+    setStatus('live', 'LIVE 📦');
+    toast('⚡ Ladattu välimuistista');
+    return;
+  }
+
+  setStatus('loading', `LADATAAN ${todo.length}`);
+
+  let done = 0, err = false, fromCache = 0, fetched = 0;
+
+  const fetchTile = async ({ lat, lng, tk, ck }) => {
+    try {
+      // Current Weather API 2.5 — works with all free API keys, no subscription needed
+      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat.toFixed(2)}&lon=${lng.toFixed(2)}&appid=${S.apiKey}&units=metric`;
+      const res = await fetch(url);
+
+      if (res.ok) {
+        const j = await res.json();
+        const speed = (j.wind?.speed || 0) * 1.94384; // m/s → knots
+        const dir   = j.wind?.deg || 0;
+        const gust  = (j.wind?.gust || j.wind?.speed || 0) * 1.94384;
+        const pt    = { ts: Date.now(), lat, lng, speed, dir, gust };
+
+        dCache.set(`${lat.toFixed(2)},${lng.toFixed(2)}`, pt);
+        dCache.set('tile:' + ck, true);  // mark tile as fetched in-memory
+
+        // Persist to localStorage as a tile bundle
+        lsSave(tk, { ts: Date.now(), pts: [pt] });
+        fetched++;
+
+      } else if (!err) {
+        err = true;
+        if (res.status === 401) {
+          setStatus('err', 'VIRHE'); toast('❌ Avain virheellinen tai vanhentunut');
+        } else if (res.status === 429) {
+          setStatus('err', 'RAJA'); toast('⚠ API-raja saavutettu, yritä hetken kuluttua');
+        } else {
+          setStatus('err', 'VIRHE'); toast('⚠ Verkkovirhe ' + res.status);
+        }
+      }
+    } catch(e) {
+      // Network failure — don't crash, just skip this tile
+    }
+
+    done++;
+    if (done >= todo.length) {
+      busy = false;
+      rebuildFromDCache();
+      if (!err) {
+        const cacheHits = todo.length - fetched;
+        setStatus('live', 'LIVE');
+        if (fetched > 0) toast(`✅ ${fetched} API-kutsu${fetched>1?'a':''} — ${cacheHits} välimuistista`);
+      }
+    }
+  };
+
+  // Batch 3 at a time (gentler on rate limit)
+  const BATCH = 3;
+  for (let i = 0; i < todo.length; i += BATCH) {
+    if (err) break;
+    await Promise.all(todo.slice(i, i + BATCH).map(fetchTile));
+    if (i + BATCH < todo.length) await new Promise(r => setTimeout(r, 350));
+  }
+  if (err) { busy = false; rebuildFromDCache(); }
+}
+
+let ftmr = null;
+function schedFetch() { clearTimeout(ftmr); ftmr = setTimeout(fetchLive, 800); }
+
+// ── PAN / ZOOM ────────────────────────────────────────
+function doZoom(d,px,py){
+  px=px??vw()/2;py=py??vh()/2;
+  const{lat:pLat,lng:pLng}=fs(px,py);
+  const nz=Math.max(2,Math.min(13,S.zoom+d)); if(nz===S.zoom) return;
+  S.zoom=nz;
+  const a=ts(pLat,pLng),cw=tw(S.lat,S.lng,S.zoom),nc=fw(cw.x+a.x-px,cw.y+a.y-py,S.zoom);
+  S.lat=clamp(nc.lat);S.lng=normLng(nc.lng);
+  schedDraw();schedFetch();
+}
+
+let drag=null;
+function pStart(x,y){drag={x,y,lat:S.lat,lng:S.lng,moved:false,ox:x,oy:y};}
+function pMove(x,y){
+  if(!drag)return;
+  drag.moved=drag.moved||(Math.hypot(x-drag.ox,y-drag.oy)>4);
+  const cw=tw(drag.lat,drag.lng,S.zoom),nc=fw(cw.x-(x-drag.ox),cw.y-(y-drag.oy),S.zoom);
+  S.lat=clamp(nc.lat);S.lng=normLng(nc.lng);drag.x=x;drag.y=y;schedDraw();
+}
+function pEnd(x,y){
+  if(!drag)return;
+  if(!drag.moved)showPopup(x,y); else schedFetch();
+  drag=null;
+}
+
+// ── EVENTS ────────────────────────────────────────────
+// Mouse events ONLY on #mapCanvas — never on window.
+// This is the key fix: window-level listeners were swallowing modal input.
+
+MC.addEventListener('mousedown',e=>{
+  MC.classList.add('grabbing');
+  pStart(e.clientX,e.clientY);
+});
+MC.addEventListener('mousemove',e=>{
+  const{lat,lng}=fs(e.clientX,e.clientY);
+  document.getElementById('cLat').textContent=`${Math.abs(lat).toFixed(2)}°${lat>=0?'N':'S'}`;
+  document.getElementById('cLng').textContent=`${Math.abs(lng).toFixed(2)}°${lng>=0?'E':'W'}`;
+  if(drag) pMove(e.clientX,e.clientY);
+});
+MC.addEventListener('mouseup',e=>{MC.classList.remove('grabbing');pEnd(e.clientX,e.clientY);});
+MC.addEventListener('mouseleave',()=>{if(drag){if(drag.moved)schedFetch();drag=null;MC.classList.remove('grabbing');}});
+MC.addEventListener('wheel',e=>{e.preventDefault();doZoom(e.deltaY<0?1:-1,e.clientX,e.clientY);},{passive:false});
+
+// Touch
+let tArr=[],pDist=0;
+MC.addEventListener('touchstart',e=>{
+  e.preventDefault();tArr=[...e.touches];
+  if(tArr.length===1) pStart(tArr[0].clientX,tArr[0].clientY);
+  else if(tArr.length===2){drag=null;pDist=Math.hypot(tArr[1].clientX-tArr[0].clientX,tArr[1].clientY-tArr[0].clientY);}
+},{passive:false});
+MC.addEventListener('touchmove',e=>{
+  e.preventDefault();tArr=[...e.touches];
+  if(tArr.length===1&&drag) pMove(tArr[0].clientX,tArr[0].clientY);
+  else if(tArr.length===2){
+    const d=Math.hypot(tArr[1].clientX-tArr[0].clientX,tArr[1].clientY-tArr[0].clientY);
+    if(Math.abs(d-pDist)>8){doZoom(d>pDist?1:-1,(tArr[0].clientX+tArr[1].clientX)/2,(tArr[0].clientY+tArr[1].clientY)/2);pDist=d;}
+  }
+},{passive:false});
+MC.addEventListener('touchend',e=>{
+  const prev=tArr;tArr=[...e.touches];
+  if(prev.length===1&&tArr.length===0&&drag) pEnd(prev[0].clientX,prev[0].clientY);
+  else drag=null;
+});
+
+// ── POPUP ─────────────────────────────────────────────
+function showPopup(sx,sy){
+  const{lat,lng}=fs(sx,sy),spd=glook(lat,lng);
+  if(spd<0)return;
+  document.getElementById('pKts').textContent=spd.toFixed(1);
+  let md=Infinity,mdir=0;
+  for(const p of wPts){const d=Math.hypot(lat-p.lat,lng-p.lng);if(d<md){md=d;mdir=p.dir;}}
+  document.getElementById('pDir').textContent=`${Math.round(mdir)}° ${'N NE E SE S SW W NW'.split(' ')[Math.round(mdir/45)%8]}`;
+  const rt=rate(spd);
+  const b=document.getElementById('pBadge');
+  b.textContent=rt.l;b.style.cssText=`background:${rt.c}22;color:${rt.c};border:1px solid ${rt.c}55`;
+  const pop=document.getElementById('popup');
+  let px=sx+18,py=sy-105;
+  if(px+180>vw())px=sx-200;if(py<56)py=sy+18;
+  pop.style.left=px+'px';pop.style.top=py+'px';
+  pop.classList.add('show');clearTimeout(pop._t);
+  pop._t=setTimeout(()=>pop.classList.remove('show'),4500);
+}
+function rate(k){
+  if(k<8)  return{l:'🌀 LIIAN TYYNTÄ',c:'#4060d0'};
+  if(k<12) return{l:'🔵 KEVYT',c:'#0064d4'};
+  if(k<16) return{l:'🟢 RAKENTUU',c:'#00b478'};
+  if(k<22) return{l:'✅ HYVÄ',c:'#32d232'};
+  if(k<28) return{l:'⭐ TÄYDELLINEN',c:'#ffc800'};
+  if(k<36) return{l:'💪 KOVA',c:'#ff7800'};
+  return{l:'⚠️ ÄÄRIMMÄINEN',c:'#ff1e1e'};
+}
+
+// ── STATUS / TOAST / MODAL ────────────────────────────
+function setStatus(cls,txt){document.getElementById('dot').className=cls;document.getElementById('pillTxt').textContent=txt;}
+let tT=null;
+function toast(m){const e=document.getElementById('toast');e.textContent=m;e.classList.add('on');clearTimeout(tT);tT=setTimeout(()=>e.classList.remove('on'),3200);}
+function openModal() { document.getElementById('modal').classList.remove('off'); }
+function closeModal(){ document.getElementById('modal').classList.add('off'); }
+
+// ── MODAL BUTTONS ─────────────────────────────────────
+document.getElementById('btnDemo').addEventListener('click',()=>{
+  S.apiKey=''; busy=false; lastSig=''; lsClear();
+  // Bootstrap: load any cached live data from previous sessions
+const cachedCount = lsBootstrap();
+if (cachedCount > 0 && S.apiKey) {
+  rebuildFromDCache();
+  setStatus('live', 'LIVE 📦');
+} else {
+  wPts=makeDemo(); buildGrid(()=>{ setStatus('demo','DEMO'); schedDraw(); });
+} closeModal();
+});
+
+document.getElementById('btnLive').addEventListener('click', async ()=>{
+  const key = document.getElementById('apiInput').value.trim();
+  const inp  = document.getElementById('apiInput');
+  const btn  = document.getElementById('btnLive');
+  const note = document.getElementById('mTestNote');
+
+  if(!key){
+    inp.style.borderColor='#ff4444';
+    setTimeout(()=>inp.style.borderColor='',1600);
+    return;
+  }
+
+  // Test the key BEFORE closing the modal
+  btn.textContent='TESTATAAN…'; btn.disabled=true;
+  note.textContent=''; note.style.color='var(--dim)';
+
+  try {
+    const testUrl = `https://api.openweathermap.org/data/2.5/weather?lat=60&lon=25&appid=${key}&units=metric`;
+    const res = await fetch(testUrl);
+
+    if(res.ok){
+      // Key works!
+      S.apiKey=key; busy=false; lastSig=''; dCache.clear(); lsClear();
+      btn.textContent='AKTIVOI LIVE'; btn.disabled=false;
+      closeModal();
+      toast('✅ Live-data aktivoitu!');
+      fetchLive();
+    } else if(res.status===401){
+      note.innerHTML='❌ Avain virheellinen tai ei vielä aktiivinen.<br>Uudet avaimet aktivoituvat 1–2 tunnissa.';
+      note.style.color='#ff6060';
+      btn.textContent='AKTIVOI LIVE'; btn.disabled=false;
+      inp.style.borderColor='#ff4444';
+      setTimeout(()=>inp.style.borderColor='',2500);
+    } else if(res.status===429){
+      note.innerHTML='⚠ Liikaa pyyntöjä. Odota hetki ja yritä uudelleen.';
+      note.style.color='#ffa040';
+      btn.textContent='AKTIVOI LIVE'; btn.disabled=false;
+    } else {
+      note.innerHTML=`⚠ Virhe ${res.status}. Tarkista verkkoyhteys.`;
+      note.style.color='#ffa040';
+      btn.textContent='AKTIVOI LIVE'; btn.disabled=false;
+    }
+  } catch(e){
+    note.innerHTML='⚠ Verkkovirhe. Tarkista internetyhteys.';
+    note.style.color='#ffa040';
+    btn.textContent='AKTIVOI LIVE'; btn.disabled=false;
+  }
+});
+
+document.getElementById('apiInput').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('btnLive').click();});
+document.getElementById('settingsBtn').addEventListener('click',openModal);
+document.getElementById('pill').addEventListener('click',openModal);
+document.getElementById('zIn').addEventListener('click',()=>doZoom(1));
+document.getElementById('zOut').addEventListener('click',()=>doZoom(-1));
+document.getElementById('opSlider').addEventListener('input',e=>{S.opacity=e.target.value/100;drawWind();});
+
+// ── BOOT ──────────────────────────────────────────────
+resize();
+wPts=makeDemo(); buildGrid(()=>{ setStatus('demo','DEMO'); schedDraw(); });
+document.fonts.ready.then(schedDraw);
+</script>
+
+</body>
+</html>
