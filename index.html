@@ -118,7 +118,7 @@ transition: opacity .3s;
 MAP CONTROLS  z:20
 ============================================================ */
 #map-ctrls {
-position: absolute; right: calc(var(–sar) + 12px); bottom: calc(var(–sab) + 194px);
+position: absolute; right: calc(var(–sar) + 12px); top: calc(var(–sat) + 200px);
 z-index: 20; display: flex; flex-direction: column; gap: 6px;
 }
 .mctl {
@@ -409,7 +409,7 @@ animation: pulse-dot 1s ease infinite;
     </div>
     <div id="timebox">
       <div id="clock">--:--</div>
-      <div id="fc-lbl">Live + 48h</div>
+      <div id="fc-lbl">Live + 3 pv</div>
     </div>
   </div>
 
@@ -498,7 +498,6 @@ const Config = {
   WIND_SAMPLE_INTERVAL: 2,   // Sample wind every 2 frames = near-instant response (was 6)
   DATA_REFRESH_MS: 30 * 60 * 1000,
   PLAY_INTERVAL_MS: 800,
-  FADE_ALPHA: 0.82,          // Was 0.88 — lower = trails dissipate faster for clean look
   FINLAND_BOUNDS: { latMin: 52, latMax: 72, lngMin: 14, lngMax: 37 },
 };
 
@@ -874,6 +873,9 @@ function updateLODBadge() {
   const lodLabels = { L1: '~55km', L2: '~20km', L3: '~7km' };
   const modelLabels = { icon_eu: 'ICON-EU', ecmwf_ifs025: 'ECMWF', gfs_seamless: 'GFS' };
   el.textContent = (modelLabels[State.activeModel] || State.activeModel) + ' ' + (lodLabels[lod] || lod);
+  /* Update forecast horizon label */
+  const fcEl = document.getElementById('fc-lbl');
+  if (fcEl) fcEl.textContent = State.activeModel === 'icon_eu' ? 'Live + 3 pv' : 'Live + 7 pv';
 }
 function updateHeatmapBlur() {
   if (!State.map || !State.colorCvs) return;
@@ -954,6 +956,10 @@ function initMap() {
           respawn(State.particles[idx]);
         }
       }
+    }
+    /* Rebuild WindTexture at new zoom level for resolution scaling */
+    if (State.windField.length) {
+      WindTexture.build(State.windField, map.getBounds()).then(() => flagHeatmapDirty());
     }
   });
   map.on('zoom', () => {
@@ -1192,7 +1198,7 @@ const WindTexture = {
           setTimeout(processChunk, 0);
         } else {
           self.ctx.putImageData(img, 0, 0);
-          console.log('[WindTexture]', self.cols + 'x' + self.rows, '=', n, 'px, RES=' + RES);
+          console.log('[WindTexture]', self.cols + 'x' + self.rows, '=', n, 'px, RES=' + baseRES);
           resolve();
         }
       }
@@ -1685,6 +1691,8 @@ document.getElementById('models').addEventListener('click', e => {
   const model = b.dataset.model; if (!model || model === State.activeModel) return;
   document.querySelectorAll('#models .lbtn').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
   State.activeModel = model;
+  _rateLimited = false; /* Reset rate limit for new model */
+  updateLODBadge();
   /* Clear all caches and reload with new model */
   WeatherCache.clear();
   TileEngine.clearCache();
