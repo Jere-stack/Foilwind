@@ -103,7 +103,7 @@ background: linear-gradient(135deg, #c8eeff 0%, var(–accent) 100%);
 LEGEND  z:20
 ============================================================ */
 #legend {
-position: absolute; top: calc(var(–sat) + 82px); left: calc(var(–sal) + 12px); z-index: 20;
+position: absolute; right: calc(var(–sar) + 12px); top: calc(var(–sat) + 280px); z-index: 20;
 background: var(–panel); border: 1px solid var(–border); border-radius: 10px; padding: 8px;
 -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); pointer-events: none;
 transition: opacity .3s;
@@ -180,52 +180,57 @@ cursor: pointer;
 .lbtn.active { border-color: var(–accent); color: var(–accent); background: rgba(0,207,255,.1); }
 .lbtn .l-icon { font-size: 13px; }
 
-#tl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding: 0 2px; pointer-events: none; }
+#tl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; padding: 0 2px; pointer-events: none; }
 #tl-lbl { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); letter-spacing: 2px; text-transform: uppercase; }
-#tl-now { font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–accent); letter-spacing: 0.3px; }
+#tl-now { font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–accent); letter-spacing: 0.3px; font-weight: 500; }
 
 #tl-wrap {
-position: relative; pointer-events: all; height: 68px;
--webkit-mask-image: linear-gradient(to right, transparent 0%, black 18%, black 82%, transparent 100%);
-mask-image: linear-gradient(to right, transparent 0%, black 18%, black 82%, transparent 100%);
+position: relative; pointer-events: all; height: 44px;
 }
 #tl-scroll {
 display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
 -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 0;
 overscroll-behavior-x: contain; height: 100%;
 scroll-snap-type: x mandatory; -webkit-scroll-snap-type: x mandatory;
-touch-action: pan-x;
+touch-action: pan-x; align-items: flex-end;
 }
 #tl-scroll::-webkit-scrollbar { display: none; }
 
-/* Center selection indicator */
-#tl-indicator {
-position: absolute; top: 0; left: 50%; width: 56px; height: 100%;
-transform: translateX(-50%); pointer-events: none; z-index: 2;
-border: 1.5px solid var(–accent); border-radius: 12px;
-background: rgba(0,207,255,0.06);
-box-shadow: 0 0 20px rgba(0,207,255,0.08);
-}
-
+/* Windy-style: thin vertical bars per hour, height = wind speed */
 .htick {
-flex: 0 0 56px; display: flex; flex-direction: column; align-items: center;
-justify-content: center; gap: 2px; min-height: 64px;
+flex: 0 0 8px; display: flex; flex-direction: column; align-items: center;
+justify-content: flex-end; height: 100%;
 scroll-snap-align: center; -webkit-scroll-snap-align: center;
--webkit-user-select: none; user-select: none;
--webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
+-webkit-user-select: none; user-select: none; cursor: pointer;
+position: relative;
+}
+.htick-bar {
+width: 6px; border-radius: 3px 3px 0 0; min-height: 4px;
 transition: opacity 0.1s;
 }
-.htick .ht { font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–muted); }
-.htick .hs { font-size: 16px; font-weight: 700; line-height: 1; }
-.htick .hd { font-size: 12px; color: var(–muted); line-height: 1; }
+.htick-lbl {
+position: absolute; top: -1px; font-family: ‘DM Mono’, monospace;
+font-size: 7px; color: var(–muted); white-space: nowrap; opacity: 0;
+pointer-events: none;
+}
+.htick.show-lbl .htick-lbl { opacity: 1; }
+
+/* Center indicator line */
+#tl-indicator {
+position: absolute; top: 0; left: 50%; width: 2px; height: 100%;
+transform: translateX(-50%); pointer-events: none; z-index: 2;
+background: var(–accent);
+box-shadow: 0 0 8px rgba(0,207,255,0.4);
+}
 
 /* Day separator */
 .day-sep {
-flex: 0 0 42px; display: flex; align-items: center; justify-content: center;
-scroll-snap-align: none;
-font-family: ‘DM Mono’, monospace; font-size: 8px; color: var(–accent);
-letter-spacing: 1.5px; text-transform: uppercase; opacity: .5;
-border-left: 1px solid rgba(0,207,255,.2);
+flex: 0 0 14px; display: flex; align-items: flex-start; justify-content: center;
+height: 100%; scroll-snap-align: none; padding-top: 2px;
+font-family: ‘DM Mono’, monospace; font-size: 7px; color: var(–accent);
+letter-spacing: 0.5px; text-transform: uppercase; opacity: .6;
+border-left: 1px solid rgba(0,207,255,.25);
+writing-mode: vertical-rl; text-orientation: mixed;
 }
 
 /* ============================================================
@@ -1320,7 +1325,7 @@ function nParticles() {
   return 120;
 }
 function particleLineWidth(ms) {
-  return 1.4 + (ms / Config.MAX_MS) * 1.6;
+  return 2.0 + (ms / Config.MAX_MS) * 2.2;
 }
 function rndGeo() {
   const m = State.map;
@@ -1397,11 +1402,8 @@ function renderLoop() {
   const W = window.innerWidth, H = window.innerHeight;
   if (!GeoProject._valid) GeoProject.update(map);
 
-  /* Step 1: Fade previous frame — this creates trails from persistence */
-  windCtx.globalCompositeOperation = 'destination-in';
-  windCtx.fillStyle = 'rgba(0,0,0,' + Config.FADE_OPACITY + ')';
-  windCtx.fillRect(0, 0, W, H);
-  windCtx.globalCompositeOperation = 'source-over';
+  /* Clear fully each frame — no trail persistence, just moving dots */
+  windCtx.clearRect(0, 0, W, H);
 
   const zoom = map.getZoom();
   const geoSpd = Config.GEO_SPEED / Math.pow(2, zoom - 5) * (zoom >= 9 ? 0.7 : 1.0);
@@ -1441,15 +1443,13 @@ function renderLoop() {
     const curr = geo2px(p.lat, p.lng);
     if (curr.x < -10 || curr.x > W + 10 || curr.y < -10 || curr.y > H + 10) continue;
 
-    /* Draw line from previous to current — trail comes from fade persistence */
+    /* Draw dot at current position — no tail, just a moving point */
     const lw = particleLineWidth(p.ms);
-    const alpha = Math.min(0.85, 0.25 + speedT * 0.6);
+    const alpha = Math.min(0.9, 0.3 + speedT * 0.6);
+    windCtx.fillStyle = ColorRamp.css(p.ms, alpha);
     windCtx.beginPath();
-    windCtx.moveTo(prev.x, prev.y);
-    windCtx.lineTo(curr.x, curr.y);
-    windCtx.lineWidth = lw;
-    windCtx.strokeStyle = ColorRamp.css(p.ms, alpha);
-    windCtx.stroke();
+    windCtx.arc(curr.x, curr.y, lw * 0.5, 0, 6.283);
+    windCtx.fill();
   }
 }
 
@@ -1650,21 +1650,35 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
   const tl = document.getElementById('tl-scroll'); tl.innerHTML = '';
   if (!times || !times.length) return;
   State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
-  State._tlTicks = []; State._tlSelecting = false;
-  const ITEM_W = 56; /* must match CSS flex-basis */
+  State._tlTicks = [];
+  const ITEM_W = 8; /* thin bars */
   const DAY = ['Su','Ma','Ti','Ke','To','Pe','La']; let lastDay = -1;
 
-  /* Left spacer — half viewport so first item can snap to center */
+  /* Find max wind for bar height scaling */
+  let maxMs = 1;
+  for (let i = 0; i < speeds.length; i++) { if ((speeds[i]||0) > maxMs) maxMs = speeds[i]; }
+
+  /* Left spacer */
   const spacerL = document.createElement('div');
   spacerL.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - ITEM_W / 2) + 'px';
   tl.appendChild(spacerL);
 
   for (let i = 0; i < times.length; i++) {
-    const d = new Date(times[i]), day = d.getDay();
-    if (day !== lastDay) { lastDay = day; const sep = document.createElement('div'); sep.className = 'day-sep'; sep.textContent = DAY[day]+' '+d.getDate()+'.'; tl.appendChild(sep); }
-    const ms = speeds[i]||0, c = ColorRamp.rgb(ms), tick = document.createElement('div');
-    tick.className = 'htick'; tick.dataset.idx = i;
-    tick.innerHTML = '<span class="ht">'+fmtHour(times[i])+'</span><span class="hs" style="color:rgb('+c.r+','+c.g+','+c.b+')">'+Math.round(ms)+'</span><span class="hd">'+(dirs&&dirs[i]!=null?dirArrow(dirs[i]):'')+'</span>';
+    const d = new Date(times[i]), day = d.getDay(), hour = d.getHours();
+    if (day !== lastDay) {
+      lastDay = day;
+      const sep = document.createElement('div'); sep.className = 'day-sep';
+      sep.textContent = DAY[day] + ' ' + d.getDate();
+      tl.appendChild(sep);
+    }
+    const ms = speeds[i]||0, c = ColorRamp.rgb(ms);
+    const tick = document.createElement('div');
+    tick.className = 'htick' + (hour % 3 === 0 ? ' show-lbl' : '');
+    tick.dataset.idx = i;
+
+    const barH = Math.max(4, (ms / maxMs) * 36); /* max 36px bar height */
+    tick.innerHTML = '<div class="htick-bar" style="height:' + barH + 'px;background:rgb(' + c.r + ',' + c.g + ',' + c.b + ')"></div>'
+      + '<span class="htick-lbl">' + ('0'+hour).slice(-2) + '</span>';
     tl.appendChild(tick);
     State._tlTicks.push(tick);
   }
@@ -1674,43 +1688,27 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
   spacerR.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - ITEM_W / 2) + 'px';
   tl.appendChild(spacerR);
 
-  /* Scroll to active index (no animation on init) */
+  /* Scroll to active index */
   requestAnimationFrame(() => {
     const target = State._tlTicks[activeIdx];
     if (target) tl.scrollLeft = target.offsetLeft - tl.offsetWidth / 2 + ITEM_W / 2;
-    _tlUpdateVisuals(tl);
   });
 
-  /* Scroll handler — detect centered item and update weather */
+  /* Scroll handler */
   let _scrollTimer = null;
   tl.addEventListener('scroll', () => {
-    _tlUpdateVisuals(tl);
     clearTimeout(_scrollTimer);
-    _scrollTimer = setTimeout(() => _tlSnapSelect(tl), 120);
+    _scrollTimer = setTimeout(() => _tlSnapSelect(tl), 100);
   }, { passive: true });
 }
 
-/* Update visual perspective: scale/opacity based on distance from center */
-function _tlUpdateVisuals(tl) {
-  const center = tl.scrollLeft + tl.offsetWidth / 2;
-  for (const tick of State._tlTicks) {
-    const tickCenter = tick.offsetLeft + 28; /* half of ITEM_W */
-    const dist = Math.abs(center - tickCenter);
-    const norm = Math.min(1, dist / 180); /* 0 = center, 1 = far */
-    const scale = 1 - norm * 0.2;
-    const opacity = 1 - norm * 0.55;
-    tick.style.transform = 'scale(' + scale.toFixed(3) + ')';
-    tick.style.opacity = opacity.toFixed(2);
-  }
-}
-
-/* Select whichever item is closest to center after scroll stops */
+/* Select whichever item is closest to center */
 function _tlSnapSelect(tl) {
   const center = tl.scrollLeft + tl.offsetWidth / 2;
   let bestIdx = 0, bestDist = Infinity;
   for (let i = 0; i < State._tlTicks.length; i++) {
     const tick = State._tlTicks[i];
-    const tickCenter = tick.offsetLeft + 28;
+    const tickCenter = tick.offsetLeft + 4; /* half of 8px */
     const dist = Math.abs(center - tickCenter);
     if (dist < bestDist) { bestDist = dist; bestIdx = i; }
   }
@@ -1728,7 +1726,7 @@ function scrollTimelineTo(idx) {
   const tl = document.getElementById('tl-scroll');
   if (!tl || !State._tlTicks || !State._tlTicks[idx]) return;
   const target = State._tlTicks[idx];
-  tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 28, behavior: 'smooth' });
+  tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 4, behavior: 'smooth' });
 }
 
 
