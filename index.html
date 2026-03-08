@@ -340,6 +340,21 @@ opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: all;
 }
 
 /* ============================================================
+WIND TOOLTIP  z:25
+============================================================ */
+#wind-tip {
+position: absolute; z-index: 25; pointer-events: none;
+background: var(–panel); border: 1px solid var(–border);
+-webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+border-radius: 8px; padding: 5px 9px;
+font-family: ‘DM Mono’, monospace; font-size: 11px; font-weight: 500;
+color: var(–text); white-space: nowrap;
+opacity: 0; transition: opacity 0.15s;
+transform: translate(-50%, -130%);
+}
+#wind-tip.show { opacity: 1; }
+
+/* ============================================================
 LOADING  z:999
 ============================================================ */
 #loading {
@@ -477,6 +492,10 @@ animation: pulse-dot 1s ease infinite;
 
   <div id="toast"></div>
 
+  <!-- Wind tooltip for hover/tap -->
+
+  <div id="wind-tip"></div>
+
   <!-- Refresh indicator -->
 
   <div id="refresh-dot"></div>
@@ -492,10 +511,12 @@ animation: pulse-dot 1s ease infinite;
 
 const Config = {
   MAX_MS: 20,
-  TRAIL_LEN: 16,             // Shorter trail = cleaner lines (was 24)
-  INERTIA: 0.82,             // Lower = snappier direction changes, no wiggle (was 0.95)
-  GEO_SPEED: 0.0028,         // Slightly faster for visual clarity (was 0.0023)
-  WIND_SAMPLE_INTERVAL: 2,   // Sample wind every 2 frames = near-instant response (was 6)
+  INERTIA: 0.78,             // Slightly snappier for screen-space trails
+  GEO_SPEED: 0.003,          // Slightly faster — trails are shorter with fade
+  WIND_SAMPLE_INTERVAL: 2,
+  FADE_OPACITY: 0.965,       // Screen-space trail fade: 0.96=short, 0.97=long trails
+  DROP_RATE: 0.003,          // Base particle reset rate per frame
+  DROP_RATE_BUMP: 0.008,     // Extra reset rate for fast particles (density balance)
   DATA_REFRESH_MS: 30 * 60 * 1000,
   PLAY_INTERVAL_MS: 800,
   FINLAND_BOUNDS: { latMin: 52, latMax: 72, lngMin: 14, lngMax: 37 },
@@ -1208,11 +1229,26 @@ const WindTexture = {
   
   sampleWind(lat, lng) {
     if (!this.msData) return { u: 0, v: 0, ms: 0 };
-    const c = ((lng - this.lngMin) / (this.lngMax - this.lngMin) * this.cols) | 0;
-    const r = ((this.latMax - lat) / (this.latMax - this.latMin) * this.rows) | 0;
-    if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) return { u: 0, v: 0, ms: 0 };
-    const idx = r * this.cols + c;
-    return { u: this.uData[idx], v: this.vData[idx], ms: this.msData[idx] };
+    const fc = (lng - this.lngMin) / (this.lngMax - this.lngMin) * this.cols;
+    const fr = (this.latMax - lat) / (this.latMax - this.latMin) * this.rows;
+    const c0 = Math.floor(fc), r0 = Math.floor(fr);
+    if (r0 < 0 || r0 >= this.rows - 1 || c0 < 0 || c0 >= this.cols - 1) {
+      /* Edge case: clamp to nearest */
+      const cc = Math.max(0, Math.min(this.cols - 1, Math.round(fc)));
+      const rr = Math.max(0, Math.min(this.rows - 1, Math.round(fr)));
+      const idx = rr * this.cols + cc;
+      return { u: this.uData[idx], v: this.vData[idx], ms: this.msData[idx] };
+    }
+    /* Bilinear interpolation: 4 neighbors */
+    const a = fc - c0, b = fr - r0; /* fractional position 0..1 */
+    const i00 = r0 * this.cols + c0;
+    const i10 = i00 + this.cols;       /* row below */
+    const i01 = i00 + 1;               /* col right */
+    const i11 = i10 + 1;               /* diagonal */
+    const w00 = (1 - a) * (1 - b), w01 = a * (1 - b), w10 = (1 - a) * b, w11 = a * b;
+    const u = w00 * this.uData[i00] + w01 * this.uData[i01] + w10 * this.uData[i10] + w11 * this.uData[i11];
+    const v = w00 * this.vData[i00] + w01 * this.vData[i01] + w10 * this.vData[i10] + w11 * this.vData[i11];
+    return { u, v, ms: Math.sqrt(u * u + v * v) };
   }
 };
 
@@ -1230,7 +1266,7 @@ function drawColorField() {
   colorCtx.drawImage(WindTexture.canvas, 0, 0, WindTexture.cols, WindTexture.rows, nw.x, nw.y, dw, dh);
 }
 
-/* ── PARTICLE SYSTEM — Tapered trails ─────────────────────────── */
+/* ── PARTICLE SYSTEM — Screen-space trail fade ───────────────── */
 function nParticles() {
   const z = State.map ? State.map.getZoom() : 5;
   if (z <= 5) return 600;
@@ -1238,10 +1274,10 @@ function nParticles() {
   if (z <= 8) return 350;
   if (z <= 9) return 250;
   if (z <= 10) return 180;
-  return 120; /* zoom 11+: very close, small viewport area */
+  return 120;
 }
 function particleLineWidth(ms) {
-  return 1.6 + (ms / Config.MAX_MS) * 1.4;
+  return 1.4 + (ms / Config.MAX_MS) * 1.6;
 }
 function rndGeo() {
   const m = State.map;
@@ -1249,8 +1285,7 @@ function rndGeo() {
     return { lat: b.getSouth() - ls * pad + Math.random() * ls * (1 + pad * 2), lng: b.getWest() - gs * pad + Math.random() * gs * (1 + pad * 2) }; }
   return { lat: 58 + Math.random() * 12, lng: 18 + Math.random() * 13 };
 }
-/* Cached affine projection — avoids calling Leaflet per point per frame.
-   Recomputes only on moveend/zoomend. Valid for small viewports (Mercator ≈ affine). */
+/* Cached affine projection */
 const GeoProject = {
   _ox: 0, _oy: 0, _sx: 1, _sy: 1, _valid: false,
   update(map) {
@@ -1277,11 +1312,10 @@ function geo2px(lat, lng) {
   return { x: pt.x, y: pt.y };
 }
 function makeParticle(rAge) {
-  const g = rndGeo(), trail = [];
-  for (let i = 0; i < Config.TRAIL_LEN; i++) trail.push({ lat: g.lat, lng: g.lng });
+  const g = rndGeo();
   return { lat: g.lat, lng: g.lng, vlat: 0, vlng: 0, u: 0, v: 0, ms: 0,
-    sampleTimer: Math.floor(Math.random() * Config.WIND_SAMPLE_INTERVAL), trail, trailHead: 0,
-    age: rAge ? Math.floor(Math.random() * 320) : 0, maxAge: 180 + Math.floor(Math.random() * 160) };
+    sampleTimer: Math.floor(Math.random() * Config.WIND_SAMPLE_INTERVAL),
+    age: rAge ? Math.floor(Math.random() * 320) : 0 };
 }
 function resetParticles() {
   const { windCtx, windCvs, dpr } = State;
@@ -1295,11 +1329,16 @@ function sampleWind(p) {
 }
 function respawn(p) {
   const g = rndGeo(); p.lat = g.lat; p.lng = g.lng; p.vlat = 0; p.vlng = 0;
-  p.age = 0; p.maxAge = 180 + Math.floor(Math.random() * 160); p.sampleTimer = 0;
-  for (let i = 0; i < Config.TRAIL_LEN; i++) p.trail[i] = { lat: g.lat, lng: g.lng }; p.trailHead = 0;
+  p.age = 0; p.sampleTimer = 0;
 }
 
-/* ── UNIFIED RENDER LOOP — Single RAF for heatmap + particles ── */
+/* ── UNIFIED RENDER LOOP — Screen-space trail fade technique ──
+   Same technique as earth.nullschool, Esri Wind-JS, Mapbox webgl-wind:
+   1. Fade previous frame (destination-in composite)
+   2. Draw one dot per particle at current position
+   Trail emerges from persistence of previous pixels.
+   ~600 draw calls vs old 9000 (15× faster).
+   ============================================================ */
 let _heatmapDirty = true;
 function flagHeatmapDirty() { _heatmapDirty = true; }
 
@@ -1309,60 +1348,58 @@ function renderLoop() {
   /* Heatmap: only when flagged dirty */
   if (_heatmapDirty && State.windField.length) { drawColorField(); _heatmapDirty = false; }
 
-  /* Particles: every frame — full redraw from geo coords (no pixel ghosts on pan) */
+  /* Particles */
   const { windCtx, windCvs, windField, map, particles, dpr } = State;
   if (!windCtx || !windCvs.width || !windField.length || !map) return;
   const W = window.innerWidth, H = window.innerHeight;
-  
-  /* Clear fully — all trails are redrawn from geo-stored positions each frame.
-     This means panning is perfectly clean: no stale pixel artifacts. */
-  windCtx.clearRect(0, 0, W, H);
-  windCtx.lineCap = 'round'; windCtx.lineJoin = 'round';
   if (!GeoProject._valid) GeoProject.update(map);
+
+  /* Step 1: Fade previous frame — this creates trails from persistence */
+  windCtx.globalCompositeOperation = 'destination-in';
+  windCtx.fillStyle = 'rgba(0,0,0,' + Config.FADE_OPACITY + ')';
+  windCtx.fillRect(0, 0, W, H);
+  windCtx.globalCompositeOperation = 'source-over';
+
   const zoom = map.getZoom();
   const geoSpd = Config.GEO_SPEED / Math.pow(2, zoom - 5) * (zoom >= 9 ? 0.7 : 1.0);
   const bounds = map.getBounds();
   const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.2;
   const lngPad = (bounds.getEast() - bounds.getWest()) * 0.2;
 
+  /* Step 2: Update physics + draw one dot per particle */
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
     sampleWind(p);
-    if (p.ms < 0.3) { p.age++; if (p.age > p.maxAge) respawn(p); continue; }
+
+    /* Speed-based drop rate: fast particles reset more often → even density */
+    const speedT = Math.min(1, p.ms / Config.MAX_MS);
+    const dropChance = Config.DROP_RATE + speedT * Config.DROP_RATE_BUMP;
+    if (p.ms < 0.3 || Math.random() < dropChance) {
+      p.age++;
+      if (p.age > 300 || Math.random() < dropChance * 0.5) respawn(p);
+      continue;
+    }
+
     const cosLat = Math.cos(p.lat * Math.PI / 180);
     p.vlat = p.vlat * Config.INERTIA + p.v * geoSpd * (1 - Config.INERTIA);
     p.vlng = p.vlng * Config.INERTIA + (p.u * geoSpd / (cosLat > 0.1 ? cosLat : 0.1)) * (1 - Config.INERTIA);
     p.lat += p.vlat; p.lng += p.vlng; p.age++;
-    p.trailHead = (p.trailHead + 1) % Config.TRAIL_LEN;
-    p.trail[p.trailHead] = { lat: p.lat, lng: p.lng };
+
+    /* Bounds check */
     if (p.lat < bounds.getSouth() - latPad || p.lat > bounds.getNorth() + latPad ||
-        p.lng < bounds.getWest() - lngPad || p.lng > bounds.getEast() + lngPad || p.age > p.maxAge) { respawn(p); continue; }
-    const pts = [];
-    for (let t = 0; t < Config.TRAIL_LEN; t++) {
-      const ti = (p.trailHead - Config.TRAIL_LEN + 1 + t + Config.TRAIL_LEN * 4) % Config.TRAIL_LEN;
-      pts.push(geo2px(p.trail[ti].lat, p.trail[ti].lng));
-    }
-    const head = pts[pts.length - 1];
-    if (head.x < -40 || head.x > W + 40 || head.y < -40 || head.y > H + 40) continue;
-    const lf = p.age / p.maxAge;
-    let alpha = Math.sin(lf * Math.PI) * 0.85;
-    if (alpha < 0.03) alpha = 0.03;
-    /* WINDY-STYLE TRAIL: straight tapered streak, no curves */
-    const lwMax = particleLineWidth(p.ms);
-    
-    /* Draw as single continuous path for speed, then overlay segments for taper */
-    for (let s = 1; s < pts.length; s++) {
-      const segT = s / (pts.length - 1); /* 0 at tail → 1 at head */
-      const segA = segT * alpha;
-      if (segA < 0.01) continue;
-      const taper = 0.15 + segT * 0.85;
-      windCtx.beginPath();
-      windCtx.moveTo(pts[s-1].x, pts[s-1].y);
-      windCtx.lineTo(pts[s].x, pts[s].y);
-      windCtx.lineWidth = lwMax * taper;
-      windCtx.strokeStyle = ColorRamp.css(p.ms, segA * 0.9);
-      windCtx.stroke();
-    }
+        p.lng < bounds.getWest() - lngPad || p.lng > bounds.getEast() + lngPad) { respawn(p); continue; }
+
+    /* Project to screen */
+    const pt = geo2px(p.lat, p.lng);
+    if (pt.x < -10 || pt.x > W + 10 || pt.y < -10 || pt.y > H + 10) continue;
+
+    /* Draw single dot — trail comes from fade persistence */
+    const lw = particleLineWidth(p.ms);
+    const alpha = Math.min(0.85, 0.3 + speedT * 0.55);
+    windCtx.fillStyle = ColorRamp.css(p.ms, alpha);
+    windCtx.beginPath();
+    windCtx.arc(pt.x, pt.y, lw * 0.5, 0, 6.283);
+    windCtx.fill();
   }
 }
 
@@ -1670,6 +1707,44 @@ function updateScaleBar() {
 function updateClock() { const n = new Date(); document.getElementById('clock').textContent = ('0'+n.getHours()).slice(-2)+':'+('0'+n.getMinutes()).slice(-2); }
 updateClock(); setInterval(updateClock, 30000);
 
+/* ── WIND TOOLTIP — Show wind data at cursor/finger position ─── */
+const WindTip = {
+  el: null, _hideTimer: null,
+  init() {
+    this.el = document.getElementById('wind-tip');
+    if (!State.map) return;
+    State.map.on('mousemove', (e) => this._show(e.latlng, e.containerPoint));
+    State.map.on('mouseout', () => this._hide());
+    /* Touch: show on long-press or tap-hold */
+    let _touchTimer = null;
+    State.map.getContainer().addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      _touchTimer = setTimeout(() => {
+        const ll = State.map.containerPointToLatLng(L.point(t.clientX, t.clientY));
+        this._show(ll, { x: t.clientX, y: t.clientY });
+      }, 300);
+    }, { passive: true });
+    State.map.getContainer().addEventListener('touchend', () => { clearTimeout(_touchTimer); this._hide(); }, { passive: true });
+    State.map.getContainer().addEventListener('touchmove', () => { clearTimeout(_touchTimer); this._hide(); }, { passive: true });
+  },
+  _show(latlng, point) {
+    if (!WindTexture.msData || State._panning) return;
+    const w = WindTexture.sampleWind(latlng.lat, latlng.lng);
+    if (w.ms < 0.1) { this._hide(); return; }
+    const dir = (Math.atan2(-w.u, -w.v) * 180 / Math.PI + 360) % 360;
+    const arrow = ['\u2193','\u2199','\u2190','\u2196','\u2191','\u2197','\u2192','\u2198'][Math.round(dir / 45) % 8];
+    const c = ColorRamp.rgb(w.ms);
+    this.el.innerHTML = '<span style="color:rgb('+c.r+','+c.g+','+c.b+')">' + w.ms.toFixed(1) + '</span> m/s ' + arrow + ' ' + Math.round(dir) + '\u00b0';
+    this.el.style.left = point.x + 'px';
+    this.el.style.top = point.y + 'px';
+    this.el.classList.add('show');
+    clearTimeout(this._hideTimer);
+    this._hideTimer = setTimeout(() => this._hide(), 3000);
+  },
+  _hide() { if (this.el) this.el.classList.remove('show'); }
+};
+
 /* ── CONTROLS ─────────────────────────────────────────────────── */
 document.getElementById('btn-in').addEventListener('click', () => State.map.zoomIn(), { passive: true });
 document.getElementById('btn-out').addEventListener('click', () => State.map.zoomOut(), { passive: true });
@@ -1738,6 +1813,7 @@ function scheduleRefresh() {
 function main() {
   const bail = setTimeout(() => { hideLoading(); renderLoop(); }, 20000);
   buildLegend(); initMap(); initCanvases(); updateLODBadge(); updateHeatmapBlur();
+  WindTip.init();
   updateLoadText('Haetaan s\u00e4\u00e4dataa (L1)...');
 
   TileEngine.loadL1((done, total) => { updateLoadText('L1 ladataan... ' + Math.round(done / total * 100) + '%'); })
