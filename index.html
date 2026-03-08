@@ -2,913 +2,1767 @@
 
 <html lang="fi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>WingWind – Global Wind Map</title>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg:#070b17; --surface:rgba(9,14,28,.93);
-      --border:rgba(60,110,190,.22); --accent:#00d4ff;
-      --text:#c8dae8; --dim:rgba(160,200,230,.45); --r:10px;
-    }
-    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FoilSpot">
+<meta name="theme-color" content="#060912">
+<meta name="description" content="Wingfoil-sääsovellus Suomen parhaille spoteille">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23060912' width='100' height='100' rx='20'/><text y='68' x='50' text-anchor='middle' font-size='50'>🪁</text></svg>">
+<title>FoilSpot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
+<style>
+/* ============================================================
+   CSS VARIABLES & RESET
+   ============================================================ */
+:root {
+  --bg:     #060912;
+  --panel:  rgba(6,9,18,0.88);
+  --border: rgba(255,255,255,0.09);
+  --accent: #00cfff;
+  --accent-glow: rgba(0,207,255,0.15);
+  --text:   #ddeeff;
+  --muted:  rgba(180,215,255,0.45);
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+*, *::before, *::after {
+  margin: 0; padding: 0; box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+html {
+  height: -webkit-fill-available; background: var(--bg);
+  overscroll-behavior: none; /* Prevent Safari rubber-band */
+}
+body {
+  width: 100%; height: 100%; min-height: -webkit-fill-available;
+  background: var(--bg); color: var(--text);
+  font-family: 'Syne', sans-serif;
+  overflow: hidden; position: fixed; inset: 0;
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+  overscroll-behavior: none;
+  /* Safari: prevent accidental navigation swipes */
+  touch-action: none;
+}
+#app { position: absolute; inset: 0; }
 
-```
-/* Body: NO touch-action or user-select overrides — let browser defaults work */
-html, body {
-  width:100%; height:100%; overflow:hidden;
-  background:var(--bg);
-  font-family:'JetBrains Mono',monospace;
-  color:var(--text);
-}
+/* ============================================================
+MAP  z:1
+============================================================ */
+#map { position: absolute; inset: 0; z-index: 1; background: var(–bg); }
+.leaflet-container { background: var(–bg) !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
+.leaflet-tile-pane { -webkit-filter: brightness(2.0) contrast(1.05) saturate(1.15); filter: brightness(2.0) contrast(1.05) saturate(1.15); }
+.leaflet-control-zoom { display: none !important; }
+.leaflet-control-attribution { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
+.leaflet-control-attribution a { color: rgba(255,255,255,.22) !important; }
+/* Hide default popups - we use bottom sheet */
+.leaflet-popup { display: none !important; }
 
-/* Canvases get their own touch/select lockdown */
-#mapCanvas {
-  position:absolute; top:0; left:0; z-index:1; display:block;
-  cursor:grab;
-  touch-action:none;
-  user-select:none; -webkit-user-select:none;
+/* ============================================================
+WIND CANVASES  z:2-3
+============================================================ */
+#c-color, #c-wind {
+position: absolute; top: 0; left: 0;
+pointer-events: none;
+-webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
+will-change: contents;
+-webkit-backface-visibility: hidden; backface-visibility: hidden;
 }
-#mapCanvas.grabbing { cursor:grabbing; }
-#windCanvas {
-  position:absolute; top:0; left:0; z-index:2; display:block;
-  pointer-events:none;
-}
+#c-color { z-index: 2; opacity: 0.95; filter: blur(16px); -webkit-filter: blur(16px); transition: filter 0.3s, -webkit-filter 0.3s; }
+#c-wind  { z-index: 3; transition: opacity 0.15s; }
 
-/* UI layer: pointer-events:none by default, children opt-in */
-#ui { position:absolute; inset:0; z-index:10; pointer-events:none; }
+/* ============================================================
+TOPBAR  z:20
+============================================================ */
+#topbar {
+position: absolute; top: 0; left: 0; right: 0; z-index: 20;
+padding: calc(var(–sat) + 10px) calc(var(–sar) + 16px) 48px calc(var(–sal) + 16px);
+background: linear-gradient(to bottom, rgba(6,9,18,.96) 0%, transparent 100%);
+display: flex; align-items: flex-end; justify-content: space-between;
+pointer-events: none;
+}
+#logo { pointer-events: all; display: flex; align-items: center; gap: 9px; cursor: pointer; }
+#logo-text {
+font-size: 21px; font-weight: 800; letter-spacing: -.5px;
+background: linear-gradient(135deg, #c8eeff 0%, var(–accent) 100%);
+-webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+#logo-sub { font-family: ‘DM Mono’, monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-top: -2px; color: var(–accent); -webkit-text-fill-color: var(–accent); }
+#timebox { text-align: right; pointer-events: all; }
+#clock { font-family: ‘DM Mono’, monospace; font-size: 14px; font-weight: 500; color: var(–text); }
+#fc-lbl { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); letter-spacing: 1px; text-transform: uppercase; }
 
-/* ── TOP BAR ── */
-#topBar {
-  position:absolute; top:0; left:0; right:0;
-  display:flex; align-items:center; justify-content:space-between;
-  padding:14px 16px 38px;
-  background:linear-gradient(to bottom,rgba(7,11,23,.96) 0%,transparent 100%);
-}
-#logo { font-family:'Bebas Neue',cursive; font-size:28px; letter-spacing:5px; color:#fff; }
-#logo em { color:var(--accent); font-style:normal; }
-
-#pill {
-  display:flex; align-items:center; gap:7px;
-  font-size:9px; letter-spacing:2px; color:var(--dim);
-  background:var(--surface); border:1px solid var(--border);
-  padding:6px 12px; border-radius:20px;
-  backdrop-filter:blur(10px);
-  pointer-events:all; cursor:pointer;
-  transition:border-color .2s;
-}
-#pill:hover { border-color:var(--accent); color:var(--text); }
-#dot { width:6px; height:6px; border-radius:50%; background:#ffa040; flex-shrink:0; }
-#dot.live    { background:#00ff88; animation:blink 2s ease-in-out infinite; }
-#dot.loading { background:#ffa040; animation:blink .8s ease-in-out infinite; }
-#dot.demo    { background:#ffa040; }
-#dot.err     { background:#ff3b3b; }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
-
-/* ── SETTINGS ── */
-#settingsBtn {
-  position:absolute; top:12px; right:12px;
-  width:40px; height:40px;
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:var(--r); color:var(--dim); font-size:17px;
-  cursor:pointer; display:flex; align-items:center; justify-content:center;
-  backdrop-filter:blur(10px); pointer-events:all;
-  transition:all .18s;
-}
-#settingsBtn:hover { color:var(--text); border-color:rgba(0,212,255,.4); }
-
-/* ── ZOOM ── */
-#zoomWrap {
-  position:absolute; right:12px; top:50%; transform:translateY(-50%);
-  display:flex; flex-direction:column; gap:2px; pointer-events:all;
-}
-.zbtn {
-  width:42px; height:42px;
-  background:var(--surface); border:1px solid var(--border);
-  color:var(--text); font-size:22px; font-family:inherit;
-  cursor:pointer; display:flex; align-items:center; justify-content:center;
-  backdrop-filter:blur(10px); transition:all .15s; line-height:1;
-}
-.zbtn:first-child { border-radius:var(--r) var(--r) 3px 3px; }
-.zbtn:last-child  { border-radius:3px 3px var(--r) var(--r); }
-.zbtn:hover  { background:rgba(0,212,255,.12); color:var(--accent); }
-.zbtn:active { background:rgba(0,212,255,.22); }
-
-/* ── OPACITY ── */
-#opWrap {
-  position:absolute; left:12px; top:50%; transform:translateY(-50%);
-  display:flex; flex-direction:column; align-items:center; gap:8px;
-  pointer-events:all;
-}
-#opLabel { font-size:7px; letter-spacing:2px; color:var(--dim); writing-mode:vertical-rl; transform:rotate(180deg); }
-#opSlider {
-  writing-mode:vertical-lr;
-  direction:rtl;
-  -webkit-appearance:slider-vertical;
-  appearance:slider-vertical;
-  width:28px; height:110px;
-  accent-color:var(--accent);
-  cursor:pointer;
-  touch-action:none;
-}
-
-/* ── LEGEND ── */
+/* ============================================================
+LEGEND  z:20
+============================================================ */
 #legend {
-  position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
-  min-width:310px; max-width:calc(100vw - 80px);
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:var(--r); padding:12px 16px;
-  backdrop-filter:blur(12px); pointer-events:all;
+position: absolute; top: calc(var(–sat) + 62px); right: calc(var(–sar) + 12px); z-index: 20;
+background: var(–panel); border: 1px solid var(–border); border-radius: 10px; padding: 10px;
+-webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); pointer-events: none;
+transition: opacity .3s;
 }
-#lgTitle { font-size:8px; letter-spacing:3px; color:var(--dim); text-align:center; margin-bottom:8px; }
-#lgBar { height:10px; border-radius:5px; margin-bottom:5px;
-  background:linear-gradient(to right,#1a3280 0%,#0050c8 13%,#00b478 26%,#32d232 40%,#ffc800 54%,#ff7800 68%,#ff1e1e 83%,#c800ff 100%); }
-#lgNums { display:flex; justify-content:space-between; font-size:8px; color:var(--dim); margin-bottom:8px; }
-#ratings { display:flex; justify-content:space-between; gap:3px; padding-top:8px; border-top:1px solid var(--border); }
-.rat { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; font-size:7px; color:var(--dim); text-align:center; }
-.rdot { width:7px; height:7px; border-radius:50%; }
+#legend h3 { font-family: ‘DM Mono’, monospace; font-size: 8px; color: var(–muted); letter-spacing: 2px; text-transform: uppercase; text-align: center; margin-bottom: 8px; }
+#legend-body { display: flex; gap: 7px; align-items: stretch; }
+#legend-bar { width: 11px; border-radius: 5px; border: 1px solid rgba(255,255,255,.08); flex-shrink: 0; }
+#legend-ticks { display: flex; flex-direction: column; justify-content: space-between; }
+.ltick { font-family: ‘DM Mono’, monospace; font-size: 9px; line-height: 1; white-space: nowrap; }
 
-/* ── COORDS ── */
-#coords { position:absolute; bottom:20px; right:14px; font-size:9px; color:var(--dim); text-align:right; line-height:1.7; }
-#zDisp  { position:absolute; bottom:20px; left:64px;  font-size:9px; color:var(--dim); letter-spacing:1px; }
-
-/* ── WIND POPUP ── */
-#popup {
-  position:absolute; z-index:15;
-  pointer-events:all;          /* allows close button click */
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:var(--r); padding:14px 16px 13px;
-  backdrop-filter:blur(14px); min-width:190px;
-  opacity:0; transform:translateY(6px) scale(.97);
-  transition:opacity .18s,transform .18s;
-  display:none;
+/* ============================================================
+MAP CONTROLS  z:20
+============================================================ */
+#map-ctrls {
+position: absolute; right: calc(var(–sar) + 12px); bottom: calc(var(–sab) + 194px);
+z-index: 20; display: flex; flex-direction: column; gap: 6px;
 }
-#popup.show { opacity:1; transform:none; display:block; }
-#popupClose {
-  position:absolute; top:8px; right:10px;
-  width:22px; height:22px; border-radius:50%;
-  background:rgba(255,255,255,.07); border:none;
-  color:var(--dim); font-size:14px; line-height:1;
-  cursor:pointer; display:flex; align-items:center; justify-content:center;
-  pointer-events:all; transition:background .15s, color .15s;
+.mctl {
+width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(–border);
+background: var(–panel); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+color: var(–text); display: flex; align-items: center; justify-content: center;
+cursor: pointer; font-size: 20px; line-height: 1;
+-webkit-user-select: none; user-select: none; touch-action: manipulation;
+transition: background .12s, transform .1s, border-color .12s;
+-webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
 }
-#popupClose:hover { background:rgba(255,80,80,.25); color:#ff8888; }
-.pl { font-size:8px; letter-spacing:2px; color:var(--dim); margin-bottom:2px; }
-.pv { font-size:22px; font-weight:600; line-height:1.1; margin-bottom:7px; }
-.pv small { font-size:11px; font-weight:400; color:var(--dim); }
-.pv2 { font-size:13px; font-weight:600; line-height:1.2; margin-bottom:7px; color:var(--text); }
-#pBadge { display:inline-block; padding:4px 10px; border-radius:4px; font-size:8px; letter-spacing:2px; margin-bottom:10px; }
-#pCoords { font-size:8px; color:var(--dim); margin-top:9px; padding-top:8px; border-top:1px solid var(--border); letter-spacing:.5px; }
+.mctl:active { background: rgba(0,207,255,.22); transform: scale(0.9); }
+.mctl.playing { border-color: var(–accent); color: var(–accent); background: rgba(0,207,255,.12); }
 
-/* ── TOAST ── */
+/* ============================================================
+SCALE BAR  z:20
+============================================================ */
+#scale-bar {
+position: absolute; bottom: calc(var(–sab) + 194px); left: calc(var(–sal) + 14px); z-index: 20;
+pointer-events: none; display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+}
+#scale-label {
+font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 500;
+color: rgba(255,255,255,0.85); text-shadow: 0 1px 3px rgba(0,0,0,0.7); letter-spacing: 0.3px;
+}
+#scale-line {
+height: 2px; background: rgba(255,255,255,0.85); border-radius: 1px;
+box-shadow: 0 1px 3px rgba(0,0,0,0.5); position: relative;
+}
+#scale-line::before, #scale-line::after {
+content: ‘’; position: absolute; bottom: 0; width: 2px; height: 6px;
+background: rgba(255,255,255,0.85); border-radius: 1px;
+box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+#scale-line::before { left: 0; }
+#scale-line::after  { right: 0; }
+
+/* ============================================================
+BOTTOM PANEL  z:20
+============================================================ */
+#bottom {
+position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
+padding: 0 calc(var(–sal) + 12px) calc(var(–sab) + 12px) calc(var(–sar) + 12px);
+background: linear-gradient(to top, rgba(6,9,18,.98) 0%, rgba(6,9,18,.80) 55%, transparent 100%);
+pointer-events: none;
+}
+#layers { display: flex; gap: 6px; margin-bottom: 10px; pointer-events: all; }
+.lbtn {
+flex: 1; min-height: 44px; border-radius: 10px; border: 1px solid var(–border);
+background: rgba(6,9,18,.8); color: var(–muted);
+font-family: ‘DM Mono’, monospace; font-size: 10px; letter-spacing: .5px; text-transform: uppercase;
+display: flex; align-items: center; justify-content: center; gap: 5px;
+cursor: pointer;
+-webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+-webkit-user-select: none; user-select: none; touch-action: manipulation;
+-webkit-appearance: none; transition: border-color .15s, color .15s, background .15s;
+-webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
+}
+.lbtn.active { border-color: var(–accent); color: var(–accent); background: rgba(0,207,255,.1); }
+.lbtn .l-icon { font-size: 13px; }
+
+#tl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding: 0 2px; pointer-events: none; }
+#tl-lbl { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); letter-spacing: 2px; text-transform: uppercase; }
+#tl-now { font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–accent); }
+
+#tl-wrap {
+position: relative; pointer-events: all; height: 68px;
+-webkit-mask-image: linear-gradient(to right, transparent 0%, black 18%, black 82%, transparent 100%);
+mask-image: linear-gradient(to right, transparent 0%, black 18%, black 82%, transparent 100%);
+}
+#tl-scroll {
+display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
+-webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 0;
+overscroll-behavior-x: contain; height: 100%;
+scroll-snap-type: x mandatory; -webkit-scroll-snap-type: x mandatory;
+touch-action: pan-x;
+}
+#tl-scroll::-webkit-scrollbar { display: none; }
+
+/* Center selection indicator */
+#tl-indicator {
+position: absolute; top: 0; left: 50%; width: 56px; height: 100%;
+transform: translateX(-50%); pointer-events: none; z-index: 2;
+border: 1.5px solid var(–accent); border-radius: 12px;
+background: rgba(0,207,255,0.06);
+box-shadow: 0 0 20px rgba(0,207,255,0.08);
+}
+
+.htick {
+flex: 0 0 56px; display: flex; flex-direction: column; align-items: center;
+justify-content: center; gap: 2px; min-height: 64px;
+scroll-snap-align: center; -webkit-scroll-snap-align: center;
+-webkit-user-select: none; user-select: none;
+-webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
+transition: opacity 0.1s;
+}
+.htick .ht { font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–muted); }
+.htick .hs { font-size: 16px; font-weight: 700; line-height: 1; }
+.htick .hd { font-size: 12px; color: var(–muted); line-height: 1; }
+
+/* Day separator */
+.day-sep {
+flex: 0 0 42px; display: flex; align-items: center; justify-content: center;
+scroll-snap-align: none;
+font-family: ‘DM Mono’, monospace; font-size: 8px; color: var(–accent);
+letter-spacing: 1.5px; text-transform: uppercase; opacity: .5;
+border-left: 1px solid rgba(0,207,255,.2);
+}
+
+/* ============================================================
+BOTTOM SHEET  z:30
+============================================================ */
+#sheet-overlay {
+position: absolute; inset: 0; z-index: 29;
+background: rgba(0,0,0,0); pointer-events: none;
+transition: background .35s;
+}
+#sheet-overlay.open { background: rgba(0,0,0,.4); pointer-events: all; }
+
+#sheet {
+position: absolute; bottom: 0; left: 0; right: 0; z-index: 30;
+background: rgba(10,14,26,.97);
+border-top: 1px solid rgba(0,207,255,.2);
+border-radius: 20px 20px 0 0;
+-webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+box-shadow: 0 -8px 40px rgba(0,0,0,.6);
+-webkit-transform: translate3d(0,100%,0); transform: translate3d(0,100%,0);
+transition: transform .35s cubic-bezier(.32,.72,.24,1);
+max-height: 55vh;
+overflow-y: auto; -webkit-overflow-scrolling: touch;
+overscroll-behavior: contain;
+padding-bottom: calc(var(–sab) + 16px);
+}
+#sheet.open { -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0); }
+
+#sheet-handle {
+display: flex; justify-content: center; padding: 10px 0 6px;
+position: sticky; top: 0; background: rgba(10,14,26,.97); z-index: 1;
+}
+#sheet-handle::after {
+content: ‘’; width: 36px; height: 4px; border-radius: 2px;
+background: rgba(255,255,255,.2);
+}
+#sheet-content { padding: 4px 20px 16px; }
+
+.sh-name {
+font-size: 20px; font-weight: 800; letter-spacing: -.3px; margin-bottom: 4px;
+}
+.sh-desc {
+font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–muted);
+margin-bottom: 16px;
+}
+.sh-grid {
+display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px;
+}
+.sh-card {
+background: rgba(255,255,255,.04); border: 1px solid var(–border);
+border-radius: 12px; padding: 12px;
+}
+.sh-card-label {
+font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted);
+text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;
+}
+.sh-card-value {
+font-family: ‘DM Mono’, monospace; font-size: 22px; font-weight: 500;
+line-height: 1;
+}
+.sh-card-unit {
+font-size: 11px; color: var(–muted); margin-left: 2px;
+}
+.sh-badge {
+padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+text-align: center; letter-spacing: .5px; text-transform: uppercase;
+}
+/* Wind forecast mini chart */
+.sh-chart-wrap { margin-top: 16px; }
+.sh-chart-title {
+font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted);
+text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px;
+}
+.sh-chart {
+display: flex; align-items: flex-end; gap: 2px; height: 60px;
+}
+.sh-bar {
+flex: 1; min-width: 3px; border-radius: 2px 2px 0 0;
+transition: height .2s;
+}
+.sh-chart-labels {
+display: flex; justify-content: space-between; margin-top: 4px;
+}
+.sh-chart-labels span {
+font-family: ‘DM Mono’, monospace; font-size: 8px; color: var(–muted);
+}
+
+/* Badge colors */
+.b-calm    { background: rgba(4,26,130,.18); color: rgb(80,160,255);  border: 1px solid rgba(80,160,255,.3); }
+.b-light   { background: rgba(0,220,180,.12); color: rgb(0,220,180);  border: 1px solid rgba(0,220,180,.3); }
+.b-good    { background: rgba(28,237,85,.12); color: rgb(80,237,120); border: 1px solid rgba(80,237,120,.3); }
+.b-perfect { background: rgba(240,220,0,.12); color: rgb(240,220,0);  border: 1px solid rgba(240,220,0,.3); }
+.b-strong  { background: rgba(255,80,8,.15);  color: rgb(255,130,50); border: 1px solid rgba(255,80,8,.3); }
+.b-danger  { background: rgba(255,10,10,.15); color: rgb(255,90,90);  border: 1px solid rgba(255,10,10,.3); }
+
+/* ============================================================
+ERROR TOAST  z:50
+============================================================ */
 #toast {
-  position:absolute; bottom:86px; left:50%; transform:translateX(-50%);
-  z-index:20; background:var(--surface); border:1px solid var(--border);
-  border-radius:8px; padding:9px 16px; font-size:10px; letter-spacing:1px;
-  opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap;
+position: absolute; top: calc(var(–sat) + 70px); left: 50%; z-index: 50;
+transform: translateX(-50%) translateY(-20px);
+opacity: 0; pointer-events: none;
+background: rgba(255,60,60,.15); border: 1px solid rgba(255,60,60,.3);
+-webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+border-radius: 12px; padding: 10px 18px;
+font-family: ‘DM Mono’, monospace; font-size: 11px; color: rgb(255,140,140);
+letter-spacing: .3px; white-space: nowrap;
+transition: opacity .3s, transform .3s;
 }
-#toast.on { opacity:1; }
-
-/*
-  ── MODAL ──
-  position:fixed so it always covers the full viewport.
-  z-index:9999 — above everything.
-  pointer-events:all — captures all mouse/touch events.
-  touch-action:auto — allows scrolling, tapping, typing inside.
-  user-select:auto — allows text selection / input inside.
-*/
-#modal {
-  position:fixed; inset:0; z-index:9999;
-  display:flex; align-items:center; justify-content:center;
-  background:rgba(7,11,23,.92);
-  backdrop-filter:blur(8px);
-  pointer-events:all;
-  touch-action:auto;
-  user-select:auto; -webkit-user-select:auto;
+#toast.show {
+opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: all;
 }
-#modal.off { display:none; }
 
-#mbox {
-  background:rgba(9,14,28,.99); border:1px solid var(--border);
-  border-radius:18px; padding:36px; width:400px; max-width:92vw;
+/* ============================================================
+LOADING  z:999
+============================================================ */
+#loading {
+position: absolute; inset: 0; z-index: 999; background: var(–bg);
+display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+transition: opacity .5s ease;
 }
-#mbox h2 { font-family:'Bebas Neue',cursive; font-size:34px; letter-spacing:5px; color:#fff; margin-bottom:6px; }
-#mbox h2 em { color:var(--accent); font-style:normal; }
-.msub { font-size:10px; color:var(--dim); line-height:1.9; margin-bottom:24px; }
-.mlbl { display:block; font-size:8px; letter-spacing:2.5px; color:var(--dim); margin-bottom:8px; }
+#loading.out { opacity: 0; pointer-events: none; }
+#load-logo { font-size: 36px; font-weight: 800; background: linear-gradient(135deg, #c8eeff 0%, var(–accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.spinner { width: 36px; height: 36px; border: 2px solid rgba(0,207,255,.12); border-top-color: var(–accent); border-radius: 50%; animation: spin .75s linear infinite; }
+#load-txt { font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–muted); letter-spacing: 2px; text-transform: uppercase; transition: opacity .3s; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-.mbtns { display:flex; gap:10px; }
-.mbtn {
-  flex:1; padding:13px; border-radius:8px; border:none;
-  font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:2px;
-  cursor:pointer; transition:all .15s; pointer-events:all;
+/* ============================================================
+REFRESH INDICATOR
+============================================================ */
+#lod-badge {
+position: absolute; top: calc(var(–sat) + 62px); left: calc(var(–sal) + 14px); z-index: 20;
+font-family: ‘DM Mono’, monospace; font-size: 9px; font-weight: 500;
+color: var(–muted); letter-spacing: .5px;
+background: var(–panel); border: 1px solid var(–border); border-radius: 6px;
+padding: 3px 7px; pointer-events: none;
+-webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+transition: opacity .3s;
 }
-.mbtn-p { background:var(--accent); color:#070b17; font-weight:600; }
-.mbtn-p:hover { background:#33deff; }
-.mbtn-s { background:rgba(255,255,255,.07); color:var(--dim); border:1px solid var(--border); }
-.mbtn-s:hover { background:rgba(255,255,255,.13); color:var(--text); }
-.mnote { font-size:8px; color:var(--dim); text-align:center; margin-top:14px; line-height:1.9; }
-.mnote a { color:var(--accent); text-decoration:none; }
-.mnote a:hover { text-decoration:underline; }
-```
+#refresh-dot {
+width: 6px; height: 6px; border-radius: 50%; background: var(–accent);
+position: absolute; top: calc(var(–sat) + 16px); left: 50%; z-index: 21;
+transform: translateX(-50%) scale(0); opacity: 0;
+transition: transform .3s, opacity .3s;
+}
+#refresh-dot.pulse {
+transform: translateX(-50%) scale(1); opacity: 1;
+animation: pulse-dot 1s ease infinite;
+}
+@keyframes pulse-dot {
+0%, 100% { opacity: .4; }
+50% { opacity: 1; }
+}
+</style>
 
-  </style>
 </head>
 <body>
-
-<canvas id="mapCanvas"></canvas>
-<canvas id="windCanvas"></canvas>
-
-<div id="ui">
-  <div id="topBar">
-    <div id="logo">WING<em>WIND</em></div>
-    <div id="pill"><div id="dot" class="demo"></div><span id="pillTxt">DEMO</span></div>
+<div id="app">
+  <div id="loading">
+    <div id="load-logo">FoilSpot</div>
+    <div class="spinner"></div>
+    <div id="load-txt">Ladataan säädataa...</div>
   </div>
-  <button id="settingsBtn">⚙</button>
-  <div id="zoomWrap">
-    <button class="zbtn" id="zIn">+</button>
-    <button class="zbtn" id="zOut">−</button>
-  </div>
-  <div id="opWrap">
-    <span id="opLabel">TUULI</span>
-    <input type="range" id="opSlider" min="10" max="95" value="72">
-  </div>
-  <div id="legend">
-    <div id="lgTitle">TUULENNOPEUS · SOLMUA (KTS)</div>
-    <div id="lgBar"></div>
-    <div id="lgNums"><span>0</span><span>5</span><span>10</span><span>15</span><span>20</span><span>25</span><span>30</span><span>35+</span></div>
-    <div id="ratings">
-      <div class="rat"><div class="rdot" style="background:#1a3280"></div>TYYNTÄ</div>
-      <div class="rat"><div class="rdot" style="background:#0050c8"></div>KEVYT</div>
-      <div class="rat"><div class="rdot" style="background:#00b478"></div>RAKENTUU</div>
-      <div class="rat"><div class="rdot" style="background:#32d232"></div>HYVÄ</div>
-      <div class="rat"><div class="rdot" style="background:#ffc800"></div>TÄYDELLINEN</div>
-      <div class="rat"><div class="rdot" style="background:#ff7800"></div>KOVA</div>
-      <div class="rat"><div class="rdot" style="background:#ff1e1e"></div>ÄÄRIMMÄINEN</div>
-    </div>
-  </div>
-  <div id="popup">
-    <button id="popupClose" title="Sulje">×</button>
-    <div class="pl">TUULENNOPEUS</div>
-    <div class="pv"><span id="pKts">--</span> <small>kts</small>&nbsp;&nbsp;<small id="pMs" style="opacity:.55">-- m/s</small></div>
-    <div class="pl">PUUSKA</div>
-    <div class="pv2"><span id="pGust">--</span> <small style="font-size:10px;font-weight:400;color:var(--dim)">kts</small></div>
-    <div class="pl">SUUNTA</div>
-    <div class="pv" style="font-size:14px;margin-bottom:9px"><span id="pDir">--</span></div>
-    <div id="pBadge">--</div>
-    <div id="pCoords"><span id="pLat">--</span> &nbsp; <span id="pLng">--</span></div>
-  </div>
-  <div id="coords"><div id="cLat"></div><div id="cLng"></div></div>
-  <div id="zDisp">Z<span id="zNum">3</span></div>
-</div>
 
-<div id="toast"></div>
+  <div id="map"></div>
+  <canvas id="c-color"></canvas>
+  <canvas id="c-wind"></canvas>
 
-<!-- Info modal -->
-
-<div id="modal" class="off">
-  <div id="mbox">
-    <h2>WING<em>WIND</em></h2>
-    <p class="msub">Live-tuulitiedot ECMWF-ennustemallista (Open-Meteo).<br>Sama data kuin Windyssä — ilmainen, ei API-avainta.</p>
-    <div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.2);border-radius:8px;padding:12px 14px;margin-bottom:18px;">
-      <div style="font-size:8px;letter-spacing:2px;color:var(--dim);margin-bottom:6px;">TIETOLÄHDE</div>
-      <div style="font-size:11px;color:var(--text);line-height:1.8;">
-        📡 Open-Meteo · ECMWF IFS<br>
-        📐 ~9km resoluutio<br>
-        🔄 Päivitetään joka tunti<br>
-        💾 Välimuisti 3 tuntia
+  <div id="topbar">
+    <div id="logo">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+        <path d="M2 22Q7 2 22 5" stroke="#00cfff" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M2 22Q12 15 22 5" stroke="rgba(0,207,255,.28)" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="2" cy="22" r="2.4" fill="#00cfff"/>
+        <path d="M17 17L22 5L11 9Z" fill="#00cfff" opacity=".88"/>
+      </svg>
+      <div>
+        <div id="logo-text">FoilSpot</div>
+        <div id="logo-sub">Wingfoil Finland</div>
       </div>
     </div>
-    <div class="mbtns">
-      <button class="mbtn mbtn-s" id="btnDemo">DEMO-TILA</button>
-      <button class="mbtn mbtn-p" id="btnClose">SULJE</button>
+    <div id="timebox">
+      <div id="clock">--:--</div>
+      <div id="fc-lbl">Live + 48h</div>
     </div>
-    <p class="mnote"><a href="https://open-meteo.com" target="_blank">open-meteo.com</a> · <a href="https://www.ecmwf.int" target="_blank">ecmwf.int</a></p>
   </div>
+
+  <div id="legend">
+    <h3 id="legend-title">m/s</h3>
+    <div id="legend-body">
+      <div id="legend-bar"></div>
+      <div id="legend-ticks"></div>
+    </div>
+  </div>
+
+  <div id="scale-bar">
+    <div id="scale-label">1 km</div>
+    <div id="scale-line" style="width:60px"></div>
+  </div>
+
+  <div id="map-ctrls">
+    <div class="mctl" id="btn-loc">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+      </svg>
+    </div>
+    <div class="mctl" id="btn-play">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" id="play-icon">
+        <path d="M8 5v14l11-7z"/>
+      </svg>
+    </div>
+    <div class="mctl" id="btn-in">+</div>
+    <div class="mctl" id="btn-out">−</div>
+  </div>
+
+  <div id="bottom">
+    <div id="models" style="display:flex;gap:5px;margin-bottom:6px;pointer-events:all">
+      <div class="lbtn active" data-model="icon_eu" style="font-size:9px"><span class="l-icon">🇪🇺</span>ICON-EU 7km</div>
+      <div class="lbtn" data-model="ecmwf_ifs025" style="font-size:9px"><span class="l-icon">🌍</span>ECMWF 9km</div>
+      <div class="lbtn" data-model="gfs_seamless" style="font-size:9px"><span class="l-icon">🇺🇸</span>GFS 11km</div>
+    </div>
+    <div id="layers">
+      <div class="lbtn active" data-layer="wind"><span class="l-icon">💨</span>Tuuli</div>
+      <div class="lbtn" data-layer="gust"><span class="l-icon">🌊</span>Puuska</div>
+
+```
+</div>
+<div id="tl-row">
+  <div id="tl-lbl">Ennuste</div>
+  <div id="tl-now">Nyt</div>
+</div>
+<div id="tl-wrap">
+  <div id="tl-indicator"></div>
+  <div id="tl-scroll"></div>
+</div>
+```
+
+  </div>
+
+  <!-- Bottom Sheet for spot details -->
+
+  <div id="sheet-overlay"></div>
+  <div id="sheet">
+    <div id="sheet-handle"></div>
+    <div id="sheet-content"></div>
+  </div>
+
+  <!-- Toast for errors -->
+
+  <div id="toast"></div>
+
+  <!-- Refresh indicator -->
+
+  <div id="refresh-dot"></div>
 </div>
 
 <script>
 'use strict';
 
-// ═══════════════════════════════════════════════════════════════
-//  WingWind v3.0 — Open-Meteo ECMWF · Global Wind Heatmap
-//  Batch API · localStorage cache · No API key required
-// ═══════════════════════════════════════════════════════════════
+/* ╔══════════════════════════════════════════════════════════════╗
+   ║  FoilSpot v3 — Progressive Tile-Based Wind Engine           ║
+   ║  Optimized: Bilinear interp, CSS blur, unified render loop  ║
+   ╚══════════════════════════════════════════════════════════════╝ */
 
-// Dev mode available via ?dev URL param (no visible counter needed with Open-Meteo)
+const Config = {
+  MAX_MS: 20,
+  TRAIL_LEN: 16,             // Shorter trail = cleaner lines (was 24)
+  INERTIA: 0.82,             // Lower = snappier direction changes, no wiggle (was 0.95)
+  GEO_SPEED: 0.0028,         // Slightly faster for visual clarity (was 0.0023)
+  WIND_SAMPLE_INTERVAL: 2,   // Sample wind every 2 frames = near-instant response (was 6)
+  DATA_REFRESH_MS: 30 * 60 * 1000,
+  PLAY_INTERVAL_MS: 800,
+  FADE_ALPHA: 0.82,          // Was 0.88 — lower = trails dissipate faster for clean look
+  FINLAND_BOUNDS: { latMin: 52, latMax: 72, lngMin: 14, lngMax: 37 },
+};
 
-const MC  = document.getElementById('mapCanvas');
-const WC  = document.getElementById('windCanvas');
-const mc  = MC.getContext('2d');
-const wc  = WC.getContext('2d');
-const hmC = document.createElement('canvas');
-const hmc = hmC.getContext('2d');
-
-const S = { lat:20, lng:10, zoom:3, opacity:.72 };
-let wPts=[], wGrid=null, busy=false, lastSig='';
-
-// Separate stores — never mixed
-const tileCache   = new Map();  // map tiles
-const windCache   = new Map();  // wind points only
-const tileFetched = new Set();  // which grid keys are already fetched this session
-const TILE_MAX    = 600;
-
-// ── CACHE CONFIG ─────────────────────────────────────────────
-const LS_PFX = 'ww4_';              // v4 prefix — auto-invalidates old OWM data
-const LS_TTL = 3 * 60 * 60 * 1000; // 3h TTL — ECMWF updates hourly but cache is fine for 3h
-
-
-
-// ── DIMENSIONS ───────────────────────────────────────────────
-const vw = () => innerWidth;
-const vh = () => innerHeight;
-
-function resize() {
-  const dpr = devicePixelRatio || 1, w = vw(), h = vh();
-  [MC, WC].forEach(c => {
-    c.width  = Math.round(w * dpr);
-    c.height = Math.round(h * dpr);
-    c.style.width  = w + 'px';
-    c.style.height = h + 'px';
-  });
-  mc.setTransform(dpr, 0, 0, dpr, 0, 0);
-  wc.setTransform(dpr, 0, 0, dpr, 0, 0);
-  schedDraw();
-  schedFetch();
-}
-window.addEventListener('resize', resize);
-
-// ── MERCATOR ─────────────────────────────────────────────────
-function tw(lat, lng, z) {
-  const n = 2**z * 256, x = (lng + 180) / 360 * n, r = lat * Math.PI / 180;
-  return { x, y: (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n };
-}
-function fw(wx, wy, z) {
-  const n = 2**z * 256, lng = wx / n * 360 - 180;
-  const nr = Math.PI - 2 * Math.PI * wy / n;
-  return { lat: 180 / Math.PI * Math.atan(.5 * (Math.exp(nr) - Math.exp(-nr))), lng };
-}
-function ts(lat, lng) {
-  const c = tw(S.lat, S.lng, S.zoom), p = tw(lat, lng, S.zoom);
-  return { x: vw()/2 + p.x - c.x, y: vh()/2 + p.y - c.y };
-}
-function fs(sx, sy) {
-  const c = tw(S.lat, S.lng, S.zoom);
-  return fw(c.x + sx - vw()/2, c.y + sy - vh()/2, S.zoom);
-}
-const clampLat = lat => Math.max(-85, Math.min(85, lat));
-const normLng  = lng => ((lng + 180) % 360 + 360) % 360 - 180;
-
-// ── MAP TILES ────────────────────────────────────────────────
-function getMapTile(z, tx, ty) {
-  const k = `${z}/${tx}/${ty}`;
-  if (tileCache.has(k)) return tileCache.get(k);
-  tileCache.set(k, null);
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-  img.src = `https://${'abcd'[(Math.abs(tx)+Math.abs(ty))%4]}.basemaps.cartocdn.com/dark_all/${z}/${tx}/${ty}.png`;
-  img.onload  = () => { tileCache.set(k, img); if (tileCache.size > TILE_MAX) tileCache.delete(tileCache.keys().next().value); schedDraw(); };
-  img.onerror = () => tileCache.set(k, 'failed');
-  return null;
-}
-
-function drawMap() {
-  const T = 256, iz = Math.floor(S.zoom), frac = S.zoom - iz;
-  const scale = Math.pow(2, frac), Ts = T * scale, n = 2**iz;
-  const w = vw(), h = vh();
-  mc.fillStyle = '#070b17';
-  mc.fillRect(0, 0, w, h);
-  const c = tw(S.lat, S.lng, iz);
-  const cx = c.x * scale, cy = c.y * scale;
-  for (let tx = Math.floor((cx-w/2)/Ts); tx <= Math.ceil((cx+w/2)/Ts); tx++) {
-    for (let ty = Math.floor((cy-h/2)/Ts); ty <= Math.ceil((cy+h/2)/Ts); ty++) {
-      if (ty < 0 || ty >= n) continue;
-      const sx = Math.round(tx*Ts - cx + w/2);
-      const sy = Math.round(ty*Ts - cy + h/2);
-      const img = getMapTile(iz, ((tx%n)+n)%n, ty);
-      if (img && img !== 'failed') mc.drawImage(img, sx, sy, Math.ceil(Ts)+1, Math.ceil(Ts)+1);
-      else { mc.fillStyle = '#0a0f1e'; mc.fillRect(sx, sy, Math.ceil(Ts)+1, Math.ceil(Ts)+1); }
-    }
-  }
-}
-
-// ── WIND COLOR SCALE ─────────────────────────────────────────
-const BPS = [0, 3, 7, 12, 16, 21, 26, 32, 40, 55];
-const CLR = [
-  [8,12,40,0],[12,18,60,30],[20,52,168,140],[0,100,220,165],
-  [0,190,140,178],[60,220,60,188],[255,210,0,198],[255,130,0,205],
-  [255,30,30,210],[200,0,255,215]
-];
-function kts2rgba(k) {
-  for (let i = 0; i < BPS.length-1; i++) {
-    if (k <= BPS[i+1]) {
-      const t = (k-BPS[i])/(BPS[i+1]-BPS[i]), a=CLR[i], b=CLR[i+1];
-      return [a[0]+(b[0]-a[0])*t|0, a[1]+(b[1]-a[1])*t|0, a[2]+(b[2]-a[2])*t|0, a[3]+(b[3]-a[3])*t|0];
-    }
-  }
-  return CLR[CLR.length-1];
-}
-
-// ── IDW INTERPOLATION ────────────────────────────────────────
-// IDW search radius = 3× the data step.
-// This means each grid node finds ~9 neighbours in a 3×3 area — enough for
-// smooth interpolation without blurring across distant different wind zones.
-function idwRadius() { return tileStep() * 3; }
-
-// IDW power: higher = sharper transitions between measured points.
-// At fine zoom we want nearby stations to dominate; at global zoom blend broadly.
-function idwPower() {
-  const z = Math.floor(S.zoom);
-  if (z <= 5) return 2.0;   // smooth global blending
-  if (z <= 8) return 2.5;   // regional balance
-  return 3.0;               // local: nearest station dominates
-}
-function idw(lat, lng, pts) {
-  const R = idwRadius(), pow = idwPower();
-  let ws=0, vs=0, n=0;
-  for (const p of pts) {
-    if (!p || typeof p.speed !== 'number') continue;
-    const d = Math.hypot(lat-p.lat, lng-p.lng);
-    if (d > R) continue;
-    if (d < 0.001) return p.speed;
-    const w = 1/d**pow; ws+=w; vs+=w*p.speed; n++;
-  }
-  return n > 0 ? vs/ws : -1;
-}
-
-// Cancel token: only the latest buildGrid call writes to wGrid
-let _gridToken = 0;
-
-function buildGrid(cb) {
-  const pts = wPts.filter(p => p && typeof p.lat==='number' && typeof p.speed==='number');
-  if (!pts.length) { wGrid=null; if (cb) cb(); return; }
-
-  const myToken = ++_gridToken; // invalidates any in-flight buildGrid
-
-  // Grid resolution = half the data step so each cell contains at least one point.
-  // At zoom 12 (step 0.1°) this gives 0.05° grid — captures full ECMWF detail.
-  // At zoom 3  (step 15°)  this gives 7.5° — correct global overview.
-  const R = Math.max(0.05, tileStep() / 2);
-  const ROWS = Math.ceil(170/R)+1, COLS = Math.ceil(360/R)+1;
-
-  setTimeout(() => {
-    if (myToken !== _gridToken) return; // superseded — discard
-    const data = new Float32Array(ROWS*COLS);
-    for (let r=0; r<ROWS; r++) {
-      const lat=-85+r*R;
-      for (let c=0; c<COLS; c++) data[r*COLS+c] = idw(lat, -180+c*R, pts);
-    }
-    if (myToken !== _gridToken) return; // check again after expensive loop
-    wGrid = { ROWS, COLS, R, data };
-    if (cb) cb();
-  }, 0);
-}
-
-function gridLookup(lat, lng) {
-  if (!wGrid) return -1;
-  const {ROWS,COLS,R,data} = wGrid;
-  const r=(lat+85)/R, c=(lng+180)/R;
-  const r0=Math.max(0,Math.min(ROWS-2,r|0)), c0=Math.max(0,Math.min(COLS-2,c|0));
-  const tr=r-r0, tc=c-c0;
-  const v00=data[r0*COLS+c0], v01=data[r0*COLS+c0+1];
-  const v10=data[(r0+1)*COLS+c0], v11=data[(r0+1)*COLS+c0+1];
-  if (v00<0&&v01<0&&v10<0&&v11<0) return -1;
-  const s=v=>v<0?0:v;
-  return s(v00)*(1-tr)*(1-tc)+s(v01)*(1-tr)*tc+s(v10)*tr*(1-tc)+s(v11)*tr*tc;
-}
-
-// ── HEATMAP ──────────────────────────────────────────────────
-function drawWind() {
-  wc.clearRect(0, 0, vw(), vh());
-  if (!wGrid || !wPts.length) return;
-  const SC=5, hw=Math.ceil(vw()/SC), hh=Math.ceil(vh()/SC);
-  hmC.width=hw; hmC.height=hh;
-  const id=hmc.createImageData(hw,hh), buf=id.data;
-  const tl=fs(0,0), br=fs(vw(),vh());
-  const dLat=tl.lat-br.lat, dLng=br.lng-tl.lng, al=S.opacity;
-  for (let py=0; py<hh; py++) {
-    const lat=tl.lat-(py/hh)*dLat;
-    for (let px=0; px<hw; px++) {
-      const spd=gridLookup(lat, tl.lng+(px/hw)*dLng);
-      if (spd<0.5) continue;
-      const [r,g,b,a]=kts2rgba(spd), i=(py*hw+px)*4;
-      buf[i]=r; buf[i+1]=g; buf[i+2]=b; buf[i+3]=(a*al)|0;
-    }
-  }
-  hmc.putImageData(id,0,0);
-  wc.save(); wc.imageSmoothingEnabled=true; wc.imageSmoothingQuality='high';
-  wc.drawImage(hmC,0,0,vw(),vh());
-  wc.restore();
-}
-
-function draw() { drawMap(); drawWind(); document.getElementById('zNum').textContent=S.zoom.toFixed(1); }
-let rafId=null;
-function schedDraw() { if (!rafId) rafId=requestAnimationFrame(()=>{rafId=null;draw();}); }
-
-// ── DEMO DATA ────────────────────────────────────────────────
-function pnoise(x,y) {
-  const a=Math.sin(x*12.9898+y*78.233)*43758.5453;
-  const b=Math.sin(x*43.137+y*17.234)*28471.3847;
-  const c=Math.sin(x*7.831+y*53.441)*91234.1234;
-  return ((a-Math.floor(a))+(b-Math.floor(b))+(c-Math.floor(c)))/3*2-1;
-}
-function demoSpeed(lat,lng) {
-  const al=Math.abs(lat), n=pnoise(lat*.25,lng*.18)*6+pnoise(lat*.08,lng*.06)*10;
-  let b;
-  if(al<8) b=2+3*Math.abs(Math.sin(lng*.08));
-  else if(al<30) b=12+7*(.5+.5*Math.sin(lng*.05+lat*.09));
-  else if(al<45) b=6+4*Math.abs(Math.cos(lng*.07));
-  else if(al<65) b=18+12*(.5+.5*Math.sin(lng*.06-al*.08));
-  else b=8+8*Math.abs(Math.sin(lng*.09+lat*.05));
-  return Math.max(0,Math.min(50,b+n+Math.sin(lng*.04)*Math.cos(lat*.06)*2));
-}
-function demoDir(lat,lng) {
-  const n=pnoise(lat*.3,lng*.25)*25;
-  const b=lat>=0?(Math.abs(lat)<30?65:240):(Math.abs(lat)<30?110:310);
-  return (b+n+360)%360;
-}
-function makeDemo() {
-  const pts=[];
-  for(let lat=-85;lat<=85;lat+=5)
-    for(let lng=-180;lng<=180;lng+=5)
-      pts.push({lat,lng,speed:demoSpeed(lat,lng),dir:demoDir(lat,lng),gust:demoSpeed(lat,lng)*1.2});
-  return pts;
-}
-
-// ── LOCALSTORAGE ─────────────────────────────────────────────
-function lsSave(key, data) {
-  try { localStorage.setItem(LS_PFX+key, JSON.stringify({ts:Date.now(), pts:data})); }
-  catch(e) { /* storage full — silently ignore */ }
-}
-function lsLoad(key) {
-  try {
-    const raw=localStorage.getItem(LS_PFX+key);
-    if (!raw) return null;
-    const v=JSON.parse(raw);
-    if (!v || Date.now()-v.ts > LS_TTL) { localStorage.removeItem(LS_PFX+key); return null; }
-    return v.pts;
-  } catch(e) { return null; }
-}
-function lsClear() {
-  try {
-    Object.keys(localStorage).filter(k=>k.startsWith(LS_PFX)).forEach(k=>localStorage.removeItem(k));
-  } catch(e) {}
-}
-// Bootstrap: load all valid cached tiles into windCache + tileFetched at startup
-function lsBootstrap() {
-  let count=0;
-  try {
-    Object.keys(localStorage).filter(k=>k.startsWith(LS_PFX)).forEach(lsKey=>{
-      try {
-        const v=JSON.parse(localStorage.getItem(lsKey));
-        if (!v||Date.now()-v.ts>LS_TTL) { localStorage.removeItem(lsKey); return; }
-        if (Array.isArray(v.pts)) {
-          v.pts.forEach(p=>{
-            if (p&&typeof p.lat==='number'&&typeof p.speed==='number') {
-              windCache.set(`${p.lat.toFixed(4)},${p.lng.toFixed(4)}`,p);
-              count++;
-            }
-          });
-          // Mark tile fetched so fetchLive won't re-request it
-          tileFetched.add(lsKey.slice(LS_PFX.length));
-        }
-      } catch(e) { localStorage.removeItem(lsKey); }
-    });
-  } catch(e) {}
-  return count;
-}
-
-// ── OPEN-METEO FETCH ─────────────────────────────────────────
-// Grid density by zoom level — Open-Meteo ECMWF resolution is ~9km
-// so steps below 0.1° give duplicate model data
-function tileStep() {
-  const z=Math.floor(S.zoom);
-  if (z<=3)  return 15;    // ~1700km global
-  if (z<=5)  return 5;     // ~550km continent
-  if (z<=7)  return 1.5;   // ~165km region
-  if (z<=9)  return 0.5;   // ~55km coast/city
-  if (z<=11) return 0.2;   // ~22km neighbourhood
-  return 0.1;              // ~11km — ECMWF native resolution
-}
-function snapGrid(v,s) { return Math.round(v/s)*s; }
-
-function viewSig() {
-  const tl=fs(0,0),br=fs(vw(),vh()),st=tileStep();
-  return `${st}:${(tl.lat/st)|0},${(tl.lng/st)|0},${(br.lat/st)|0},${(br.lng/st)|0}`;
-}
-
-function rebuildWPts() {
-  wPts=[];
-  windCache.forEach(v=>{ if(v&&typeof v.lat==='number'&&typeof v.speed==='number') wPts.push(v); });
-}
-
-// Build the full grid of lat/lng points to fetch for current view
-function buildTodoList() {
-  const tl=fs(0,0), br=fs(vw(),vh()), st=tileStep();
-  const todo=[];
-  for (let lat=snapGrid(Math.max(-85,br.lat-st),st); lat<=Math.min(85,tl.lat+st); lat+=st) {
-    for (let lng=snapGrid(tl.lng-st,st); lng<=br.lng+st; lng+=st) {
-      const cLat=clampLat(parseFloat(lat.toFixed(4)));
-      const cLng=normLng(parseFloat(lng.toFixed(4)));
-      const tk=`om_${cLat.toFixed(4)}_${cLng.toFixed(4)}_${st}`;
-      if (tileFetched.has(tk)) continue;
-      // Check localStorage before adding to fetch list
-      const cached=lsLoad(tk);
-      if (cached) {
-        cached.forEach(p=>windCache.set(`${p.lat.toFixed(4)},${p.lng.toFixed(4)}`,p));
-        tileFetched.add(tk);
-        continue;
+/* ── COLOUR RAMP ────────────────────────────────────────────── */
+const ColorRamp = (() => {
+  const RAMP = [
+    { t: 0.00, r: 5,   g: 10,  b: 200 },
+    { t: 0.10, r: 0,   g: 100, b: 255 },
+    { t: 0.22, r: 0,   g: 200, b: 255 },
+    { t: 0.34, r: 0,   g: 245, b: 175 },
+    { t: 0.46, r: 30,  g: 245, b: 70  },
+    { t: 0.56, r: 170, g: 245, b: 5   },
+    { t: 0.64, r: 255, g: 220, b: 0   },
+    { t: 0.72, r: 255, g: 120, b: 0   },
+    { t: 0.75, r: 255, g: 40,  b: 0   },
+    { t: 0.85, r: 220, g: 0,   b: 20  },
+    { t: 0.93, r: 180, g: 0,   b: 100 },
+    { t: 1.00, r: 130, g: 0,   b: 180 }
+  ];
+  /* Power curve: makes lower winds more visible for wingfoilers.
+     5 m/s now gets the colour that 8 m/s had before.
+     Sweet spot (8-15 m/s) gets more colour range = easier to read. */
+  function msToT(ms) { return Math.pow(Math.min(1, Math.max(0, ms / Config.MAX_MS)), 0.661); }
+  function interpolate(ramp, t) {
+    for (let i = 1; i < ramp.length; i++) {
+      if (t <= ramp[i].t) {
+        const a = ramp[i - 1], b = ramp[i], f = (t - a.t) / (b.t - a.t);
+        return { r: Math.round(a.r + f * (b.r - a.r)), g: Math.round(a.g + f * (b.g - a.g)), b: Math.round(a.b + f * (b.b - a.b)) };
       }
-      todo.push({lat:cLat, lng:cLng, tk});
+    }
+    const last = ramp[ramp.length - 1];
+    return { r: last.r, g: last.g, b: last.b };
+  }
+  function rgb(ms) { return interpolate(RAMP, msToT(ms)); }
+  function css(ms, alpha) { const c = rgb(ms); return `rgba(${c.r},${c.g},${c.b},${alpha === undefined ? 1 : alpha})`; }
+  return { rgb, css, msToT };
+})();
+
+/* ── SPOTS ───────────────────────────────────────────────────── */
+const SPOTS = [
+  { name: 'Hanko',             lat: 59.824, lng: 22.972, desc: 'Paras etelä-lounas' },
+  { name: 'Haukilahti',        lat: 60.1552, lng: 24.7800, desc: 'Klassikko – etelätuulet' },
+  { name: 'Lauttasaari',       lat: 60.1540, lng: 24.8676, desc: 'Etelä–länsi, helppo pääsy' },
+  { name: 'Laajalahti',        lat: 60.1861, lng: 24.8382, desc: 'Suojaisa – kevyet tuulet' },
+  { name: 'Otaniemi',          lat: 60.1993, lng: 24.8600, desc: 'Otaniemen edusta – lounas' },
+  { name: 'Hietaniemi',        lat: 60.1734, lng: 24.8991, desc: 'Hietsu – etelä ja lounas' },
+  { name: 'Kruunuvuorenranta',  lat: 60.1650, lng: 25.0105, desc: 'Itäväylän kupeessa – lounais' },
+  { name: 'Puuskaniemi',       lat: 60.1727, lng: 25.0853, desc: 'Jollaksen edusta – avoin' },
+  { name: 'Kallahti',          lat: 60.1871, lng: 25.1408, desc: 'Vuosaaren ranta – itätuulet' },
+  { name: 'Parainen',          lat: 60.300, lng: 22.303, desc: 'Saaristomeri' },
+  { name: 'Naantali',          lat: 60.468, lng: 22.028, desc: 'Suoja länsituulille' },
+  { name: 'Oulu',              lat: 64.950, lng: 25.367, desc: 'Perämeri – luoteis' },
+  { name: 'Kotka',             lat: 60.465, lng: 26.940, desc: 'Suomenlahti – itä' },
+  { name: 'Pori',              lat: 61.485, lng: 21.797, desc: 'Selkämeri' },
+  { name: 'Turku',             lat: 60.452, lng: 22.287, desc: 'Turun saaristo' },
+  { name: 'Lohja',             lat: 60.243, lng: 23.998, desc: 'Sisäjärvi' }
+];
+
+/* ── WEATHER CACHE — localStorage persistence ────────────────
+   Saves L1 + spot weather data so page reloads don't burn API calls.
+   TTL: 30 min. ~2MB compressed JSON fits in localStorage (5MB limit).
+   ============================================================ */
+const WeatherCache = {
+  KEY: 'foilspot_wx_v4_',
+  _key() { return this.KEY + State.activeModel; },
+  TTL: 30 * 60 * 1000, /* 30 minutes */
+
+  save(points, spots) {
+    try {
+      const data = {
+        ts: Date.now(),
+        pts: points.filter(p => p.wx && p.wx.hourly).map(p => ({
+          lat: p.lat, lng: p.lng, wx: p.wx
+        })),
+        spots: spots.filter(s => s.wx && s.wx.hourly).map(s => ({
+          name: s.name, wx: s.wx
+        }))
+      };
+      localStorage.setItem(this._key(), JSON.stringify(data));
+      console.log('[Cache] Saved', data.pts.length, 'pts +', data.spots.length, 'spots');
+    } catch(e) {
+      console.warn('[Cache] Save failed:', e.message);
+    }
+  },
+
+  load(points, spots) {
+    try {
+      const raw = localStorage.getItem(this._key());
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      if (Date.now() - data.ts > this.TTL) {
+        console.log('[Cache] Expired (' + Math.round((Date.now() - data.ts)/60000) + 'min old)');
+        localStorage.removeItem(this._key());
+        return false;
+      }
+      /* Restore wx data to matching points by lat/lng */
+      const ptMap = {};
+      for (const p of data.pts) ptMap[p.lat.toFixed(4) + ',' + p.lng.toFixed(4)] = p.wx;
+      let restored = 0;
+      for (const p of points) {
+        const key = p.lat.toFixed(4) + ',' + p.lng.toFixed(4);
+        if (ptMap[key]) { p.wx = ptMap[key]; restored++; }
+      }
+      /* Restore spots by name */
+      const spotMap = {};
+      for (const s of data.spots) spotMap[s.name] = s.wx;
+      let spotRestored = 0;
+      for (const s of spots) {
+        if (spotMap[s.name]) { s.wx = spotMap[s.name]; spotRestored++; }
+      }
+      console.log('[Cache] Restored', restored + '/' + points.length, 'pts,', spotRestored + '/' + spots.length, 'spots (' + Math.round((Date.now() - data.ts)/1000) + 's old)');
+      return restored > 0;
+    } catch(e) {
+      console.warn('[Cache] Load failed:', e.message);
+      return false;
+    }
+  },
+
+  clear() {
+    try { localStorage.removeItem(this._key()); } catch(e) {}
+  }
+};
+
+const TileEngine = (() => {
+  const LODS = {
+    L1: { latStep: 0.5,  lngStep: 0.85, minZoom: 0,  tileLatSize: 99, tileLngSize: 99, label: 'L1 ~55km' },
+    L2: { latStep: 0.18, lngStep: 0.30, minZoom: 7,  tileLatSize: 2.0, tileLngSize: 3.0, label: 'L2 ~20km' },
+    L3: { latStep: 0.065,lngStep: 0.12, minZoom: 9,  tileLatSize: 0.8, tileLngSize: 1.2, label: 'L3 ~7km' }
+  };
+  const cache = {};
+  let allPoints = [];
+  let allPointsDirty = true;
+  let currentLOD = 'L1';
+
+  function tileKey(level, r, c) { return level + ':' + r + ':' + c; }
+
+  function generateTilePoints(lod, latMin, latMax, lngMin, lngMax) {
+    const pts = [];
+    for (let lat = latMin; lat <= latMax; lat += lod.latStep) {
+      for (let lng = lngMin; lng <= lngMax; lng += lod.lngStep) {
+        pts.push({ lat: +lat.toFixed(4), lng: +lng.toFixed(4) });
+      }
+    }
+    return pts;
+  }
+
+  function getL1Points() {
+    const pts = [];
+    /* Standard Finland grid */
+    for (let lat = 58.5; lat <= 70.5; lat += LODS.L1.latStep) {
+      for (let lng = 18.5; lng <= 31.5; lng += LODS.L1.lngStep) {
+        pts.push({ lat: +lat.toFixed(4), lng: +lng.toFixed(4) });
+      }
+    }
+    /* Coastal densification: south coast marine band (Gulf of Finland).
+       Adds ~55 points at 0.15° lat × 0.35° lng spacing.
+       These capture the true land→sea wind gradient from ICON-EU
+       that the 55km L1 grid misses across the narrow Gulf. */
+    const seen = new Set(pts.map(p => p.lat + ',' + p.lng));
+    const coastal = [
+      /* Gulf of Finland marine band: 59.60–60.05°N, 22.5–27.5°E */
+      { latMin: 59.60, latMax: 60.05, lngMin: 22.5, lngMax: 27.5, latStep: 0.15, lngStep: 0.35 },
+      /* Archipelago Sea: 59.60–60.20°N, 19.8–22.5°E */
+      { latMin: 59.60, latMax: 60.20, lngMin: 19.8, lngMax: 22.5, latStep: 0.18, lngStep: 0.40 },
+    ];
+    for (const band of coastal) {
+      for (let lat = band.latMin; lat <= band.latMax; lat += band.latStep) {
+        for (let lng = band.lngMin; lng <= band.lngMax; lng += band.lngStep) {
+          const key = lat.toFixed(4) + ',' + lng.toFixed(4);
+          if (!seen.has(key)) {
+            pts.push({ lat: +lat.toFixed(4), lng: +lng.toFixed(4) });
+            seen.add(key);
+          }
+        }
+      }
+    }
+    console.log('[L1] Grid:', pts.length, 'pts (incl. coastal densification)');
+    return pts;
+  }
+
+  function getTilesForBounds(level, bounds, pad) {
+    const lod = LODS[level];
+    const latMin = bounds.getSouth() - pad, latMax = bounds.getNorth() + pad;
+    const lngMin = bounds.getWest() - pad, lngMax = bounds.getEast() + pad;
+    const rMin = Math.floor(latMin / lod.tileLatSize), rMax = Math.floor(latMax / lod.tileLatSize);
+    const cMin = Math.floor(lngMin / lod.tileLngSize), cMax = Math.floor(lngMax / lod.tileLngSize);
+    const tiles = [];
+    for (let r = rMin; r <= rMax; r++) {
+      for (let c = cMin; c <= cMax; c++) {
+        tiles.push({ key: tileKey(level, r, c), level, row: r, col: c,
+          latMin: r * lod.tileLatSize, latMax: (r + 1) * lod.tileLatSize,
+          lngMin: c * lod.tileLngSize, lngMax: (c + 1) * lod.tileLngSize });
+      }
+    }
+    return tiles;
+  }
+
+  function loadTile(tile) {
+    const key = tile.key;
+    if (cache[key] && (cache[key].loaded || cache[key].loading)) return Promise.resolve();
+    const lod = LODS[tile.level];
+    const points = generateTilePoints(lod, tile.latMin, tile.latMax, tile.lngMin, tile.lngMax);
+    if (!points.length) return Promise.resolve();
+    cache[key] = { points, loaded: false, loading: true };
+    const batches = [];
+    for (let i = 0; i < points.length; i += 50) batches.push(points.slice(i, i + 50));
+    return Promise.allSettled(batches.map(loadBatch)).then(() => {
+      cache[key].loaded = true; cache[key].loading = false; allPointsDirty = true;
+    });
+  }
+
+  function loadL1(onProgress) {
+    const key = tileKey('L1', 0, 0);
+    const points = getL1Points();
+    cache[key] = { points, loaded: false, loading: true };
+
+    /* Try localStorage cache first — 0 API calls if fresh */
+    if (WeatherCache.load(points, SPOTS)) {
+      cache[key].loaded = true; cache[key].loading = false; allPointsDirty = true;
+      if (onProgress) onProgress(points.length + SPOTS.length, points.length + SPOTS.length);
+      return Promise.resolve();
+    }
+
+    const batches = [];
+    for (let i = 0; i < points.length; i += 50) batches.push(points.slice(i, i + 50));
+    const spotBatches = [];
+    for (let i = 0; i < SPOTS.length; i += 50) spotBatches.push(SPOTS.slice(i, i + 50));
+    const allBatches = batches.concat(spotBatches);
+    let done = 0;
+    const total = points.length + SPOTS.length;
+    function wave(idx) {
+      const w = allBatches.slice(idx, idx + 4);
+      if (!w.length) return Promise.resolve();
+      return Promise.allSettled(w.map(b => loadBatch(b).then(() => { done += b.length; if (onProgress) onProgress(done, total); }))).then(() => wave(idx + 4));
+    }
+    return wave(0).then(() => {
+      cache[key].loaded = true; cache[key].loading = false; allPointsDirty = true;
+      WeatherCache.save(points, SPOTS);
+    });
+  }
+
+  let _debounce = null;
+  function onViewportChanged(map) {
+    clearTimeout(_debounce);
+    _debounce = setTimeout(() => _loadForViewport(map), 350);
+  }
+
+  function _loadForViewport(map) {
+    const zoom = map.getZoom();
+    const bounds = map.getBounds();
+    const promises = [];
+    let bestLOD = 'L1';
+
+    if (zoom >= LODS.L2.minZoom) {
+      bestLOD = 'L2';
+      const pad = zoom >= 9 ? 0.3 : 0.8;
+      for (const tile of getTilesForBounds('L2', bounds, pad)) {
+        if (!cache[tile.key] || (!cache[tile.key].loaded && !cache[tile.key].loading)) promises.push(loadTile(tile));
+      }
+    }
+    if (zoom >= LODS.L3.minZoom) {
+      bestLOD = 'L3';
+      for (const tile of getTilesForBounds('L3', bounds, 0.15)) {
+        if (!cache[tile.key] || (!cache[tile.key].loaded && !cache[tile.key].loading)) promises.push(loadTile(tile));
+      }
+    }
+
+    /* Update LOD badge */
+    currentLOD = bestLOD;
+    updateLODBadge();
+
+    if (promises.length > 0) {
+      const dot = document.getElementById('refresh-dot');
+      dot.classList.add('pulse');
+      Promise.allSettled(promises).then(() => {
+        buildWindField(State.currentHourIdx).then(() => {
+          flagHeatmapDirty();
+          resetParticles();
+          renderSpots(State.currentHourIdx);
+          setTimeout(() => dot.classList.remove('pulse'), 800);
+        });
+      });
     }
   }
-  return todo;
+
+  function getAllPoints() {
+    if (!allPointsDirty) return allPoints;
+    const map = new Map();
+    for (const level of ['L1', 'L2', 'L3']) {
+      for (const key in cache) {
+        if (!key.startsWith(level + ':') || !cache[key].loaded) continue;
+        for (const pt of cache[key].points) {
+          if (pt.wx && pt.wx.hourly) {
+            map.set(((pt.lat * 50) | 0) + ':' + ((pt.lng * 50) | 0), pt);
+          }
+        }
+      }
+    }
+    for (const s of SPOTS) { if (s.wx && s.wx.hourly) map.set('S:' + s.name, s); }
+    allPoints = Array.from(map.values());
+    allPointsDirty = false;
+    return allPoints;
+  }
+
+  function markDirty() { allPointsDirty = true; }
+  function getCurrentLOD() { return currentLOD; }
+  function stats() {
+    let tiles = 0, points = 0, loaded = 0;
+    for (const k in cache) { tiles++; if (cache[k].loaded) { loaded++; points += cache[k].points.length; } }
+    return { tiles, loaded, points };
+  }
+
+  function clearCache() {
+    for (const k in cache) delete cache[k];
+    allPoints = []; allPointsDirty = true;
+  }
+
+  return { loadL1, onViewportChanged, getAllPoints, markDirty, clearCache, stats, LODS, getCurrentLOD };
+})();
+
+/* ── STATE (cleaned — no unused vars) ────────────────────────── */
+const State = {
+  map: null,
+  colorCvs: null, colorCtx: null,
+  windCvs: null, windCtx: null,
+  offscreenCvs: null, offscreenCtx: null,
+  particles: [],
+  markers: [],
+  currentHourIdx: 0,
+  windField: [],
+  activeLayer: 'wind',
+  activeModel: 'icon_eu',
+  dpr: 1,
+  isPlaying: false,
+  playTimer: null,
+  lastDataLoad: 0,
+  refreshTimer: null,
+  sheetSpot: null,
+  errorCount: 0,
+  _panning: false,
+  _tlTimes: null, _tlSpeeds: null, _tlDirs: null, _tlTicks: [],
+};
+
+/* ── TOAST ────────────────────────────────────────────────────── */
+const Toast = {
+  _timer: null,
+  show(msg, dur) {
+    const el = document.getElementById('toast');
+    el.textContent = msg; el.classList.add('show');
+    clearTimeout(this._timer);
+    this._timer = setTimeout(() => el.classList.remove('show'), dur || 4000);
+  }
+};
+
+/* ── LEGEND ───────────────────────────────────────────────────── */
+function buildLegend() {
+  document.getElementById('legend-title').textContent = 'm/s';
+  const stops = [{val:0,label:'0'},{val:4,label:'4'},{val:8,label:'8'},{val:12,label:'12'},{val:15,label:'15 !'},{val:20,label:'20+'}];
+  const bar = document.getElementById('legend-bar'), tks = document.getElementById('legend-ticks');
+  bar.style.cssText = 'background:linear-gradient(to top,' + stops.map(s => { const c = ColorRamp.rgb(s.val); return 'rgb('+c.r+','+c.g+','+c.b+')'; }).join(',') + ');height:' + stops.length * 18 + 'px;';
+  tks.style.height = stops.length * 18 + 'px'; tks.innerHTML = '';
+  stops.slice().reverse().forEach(s => {
+    const el = document.createElement('div'); el.className = 'ltick'; el.textContent = s.label;
+    const c = ColorRamp.rgb(s.val); el.style.color = 'rgb('+c.r+','+c.g+','+c.b+')'; tks.appendChild(el);
+  });
 }
 
-// Open-Meteo batch fetch — one HTTP request for up to 500 points
-// API: https://api.open-meteo.com/v1/forecast?latitude=A,B,C&longitude=X,Y,Z&current=wind_speed_10m,...
-const OM_BASE  = 'https://api.open-meteo.com/v1/forecast';
-const OM_BATCH = 500; // max locations per request
+/* ── LOD BADGE ────────────────────────────────────────────────── */
+function updateLODBadge() {
+  const el = document.getElementById('lod-badge');
+  if (!el) return;
+  const lod = TileEngine.getCurrentLOD();
+  const lodLabels = { L1: '~55km', L2: '~20km', L3: '~7km' };
+  const modelLabels = { icon_eu: 'ICON-EU', ecmwf_ifs025: 'ECMWF', gfs_seamless: 'GFS' };
+  el.textContent = (modelLabels[State.activeModel] || State.activeModel) + ' ' + (lodLabels[lod] || lod);
+}
+function updateHeatmapBlur() {
+  if (!State.map || !State.colorCvs) return;
+  const z = State.map.getZoom();
+  /* Zoom ≤5: 18px (soft overview), 7: 12px, 9: 6px, 11+: 3px */
+  const blur = Math.max(3, Math.round(18 - (z - 4) * 2.5));
+  State.colorCvs.style.filter = 'blur(' + blur + 'px)';
+  State.colorCvs.style.webkitFilter = 'blur(' + blur + 'px)';
+}
 
-async function fetchOpenMeteo(points) {
-  // points: [{lat, lng, tk}, ...]
-  const lats = points.map(p=>p.lat.toFixed(4)).join(',');
-  const lons  = points.map(p=>p.lng.toFixed(4)).join(',');
-  const url = `${OM_BASE}?latitude=${lats}&longitude=${lons}` +
-              `&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m` +
-              `&wind_speed_unit=kn`;   // knots directly, no conversion needed
-  const res = await fetch(url);
-  if (!res.ok) throw Object.assign(new Error('OM HTTP '+res.status), {status:res.status});
-  const json = await res.json();
+/* ── MAP ──────────────────────────────────────────────────────── */
+function initMap() {
+  const map = L.map('map', {
+    center: [62.5, 25.5], zoom: 5, zoomControl: false, attributionControl: true,
+    minZoom: 4, maxZoom: 13, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5,
+    maxBounds: [[52, 12], [72, 38]], maxBoundsViscosity: 0.8
+  });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+  }).addTo(map);
+  State.map = map;
+  map.on('moveend', () => {
+    flagHeatmapDirty(); renderSpots(State.currentHourIdx);
+    TileEngine.onViewportChanged(map);
+    GeoProject.update(map);
+    /* Restore particle canvas after pan */
+    State.windCvs.style.opacity = '1';
+    State._panning = false;
+    for (const p of State.particles) respawn(p);
+    const target = nParticles();
+    while (State.particles.length > target) State.particles.pop();
+    while (State.particles.length < target) State.particles.push(makeParticle(true));
+    /* Rebuild WindTexture if zoomed in and viewport moved outside texture bounds */
+    if (map.getZoom() >= 6.5 && State.windField.length) {
+      const b = map.getBounds();
+      if (b.getSouth() < WindTexture.latMin + 0.3 || b.getNorth() > WindTexture.latMax - 0.3 ||
+          b.getWest() < WindTexture.lngMin + 0.3 || b.getEast() > WindTexture.lngMax - 0.3) {
+        WindTexture.build(State.windField, b).then(() => flagHeatmapDirty());
+      }
+    }
+  });
+  map.on('movestart', () => {
+    State._panning = true;
+  });
+  map.on('move', () => {
+    /* Fade particle canvas during pan — Windy-style: particles don't follow map */
+    if (State.windCvs) State.windCvs.style.opacity = '0.15';
+  });
+  let _prevZoom = map.getZoom();
+  map.on('zoomend', () => {
+    updateScaleBar(); TileEngine.onViewportChanged(map); updateLODBadge(); updateHeatmapBlur();
+    GeoProject.update(map);
+    const newZoom = map.getZoom();
+    const dz = _prevZoom - newZoom;
+    _prevZoom = newZoom;
+    /* Zooming out: check if particles are clustered in a small viewport area.
+       If so, redistribute to fill the new wider viewport evenly. */
+    if (dz > 0 && State.particles.length > 10) {
+      const bounds = map.getBounds();
+      const vLat = bounds.getNorth() - bounds.getSouth();
+      const vLng = bounds.getEast() - bounds.getWest();
+      /* Find particle bounding box */
+      let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      for (const p of State.particles) {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lng < minLng) minLng = p.lng;
+        if (p.lng > maxLng) maxLng = p.lng;
+      }
+      const pLat = maxLat - minLat, pLng = maxLng - minLng;
+      const coverage = (pLat * pLng) / (vLat * vLng); /* 0-1: how much viewport particles cover */
+      /* If particles cover less than 50% of viewport, redistribute the excess */
+      if (coverage < 0.5) {
+        const toRedist = Math.floor(State.particles.length * (1 - coverage));
+        for (let i = 0; i < toRedist; i++) {
+          const idx = Math.floor(Math.random() * State.particles.length);
+          respawn(State.particles[idx]);
+        }
+      }
+    }
+  });
+  map.on('zoom', () => {
+    GeoProject.invalidate();
+    /* Fade particles instead of instant clear during zoom */
+    if (State.windCtx) {
+      State.windCtx.globalCompositeOperation = 'destination-in';
+      State.windCtx.fillStyle = 'rgba(0,0,0,0.3)';
+      State.windCtx.fillRect(0, 0, State.windCvs.width / State.dpr, State.windCvs.height / State.dpr);
+      State.windCtx.globalCompositeOperation = 'source-over';
+    }
+  });
+  updateScaleBar();
+  GeoProject.update(map);
+}
 
-  // Open-Meteo returns either a single object or an array when multiple locations
-  const results = Array.isArray(json) ? json : [json];
-  const now = Date.now();
+/* ── CANVAS ───────────────────────────────────────────────────── */
+function initCanvases() {
+  State.colorCvs = document.getElementById('c-color');
+  State.colorCtx = State.colorCvs.getContext('2d');
+  State.windCvs = document.getElementById('c-wind');
+  State.windCtx = State.windCvs.getContext('2d');
+  State.dpr = window.devicePixelRatio || 1;
+  resizeCanvases();
+  window.addEventListener('resize', () => { resizeCanvases(); flagHeatmapDirty(); resetParticles(); }, { passive: true });
+  window.addEventListener('orientationchange', () => { setTimeout(() => { resizeCanvases(); flagHeatmapDirty(); resetParticles(); }, 250); }, { passive: true });
+}
 
-  results.forEach((r, i) => {
-    const pt = points[i];
-    if (!pt || !r?.current) return;
-    const speed = r.current.wind_speed_10m    ?? 0;
-    const dir   = r.current.wind_direction_10m ?? 0;
-    const gust  = r.current.wind_gusts_10m    ?? speed;
-    const rec   = { lat:pt.lat, lng:pt.lng, speed, dir, gust, ts:now };
-    const wKey  = `${pt.lat.toFixed(4)},${pt.lng.toFixed(4)}`;
-    windCache.set(wKey, rec);
-    tileFetched.add(pt.tk);
-    lsSave(pt.tk, [rec]);
+function resizeCanvases() {
+  const w = window.innerWidth, h = window.innerHeight, dpr = State.dpr;
+  [State.colorCvs, State.windCvs].forEach(cvs => {
+    cvs.width = w * dpr; cvs.height = h * dpr;
+    cvs.style.width = w + 'px'; cvs.style.height = h + 'px';
+    cvs.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+  });
+  if (!State.offscreenCvs) { State.offscreenCvs = document.createElement('canvas'); State.offscreenCtx = State.offscreenCvs.getContext('2d'); }
+}
+
+/* ── SPATIAL INDEX ────────────────────────────────────────────── */
+const SpatialIndex = {
+  cells: {}, cellSize: 0.35,
+  build(wf) {
+    this.cells = {};
+    for (let i = 0; i < wf.length; i++) {
+      const f = wf[i], k = this._key(f.lat, f.lng);
+      if (!this.cells[k]) this.cells[k] = [];
+      this.cells[k].push(f);
+    }
+  },
+  _key(lat, lng) { return (Math.floor(lat / this.cellSize) << 16) | (Math.floor(lng / this.cellSize) & 0xFFFF); },
+  nearby(lat, lng, r) {
+    const r0 = Math.floor(lat / this.cellSize), c0 = Math.floor(lng / this.cellSize), out = [];
+    for (let dr = -r; dr <= r; dr++) for (let dc = -r; dc <= r; dc++) {
+      const cell = this.cells[((r0+dr)<<16)|((c0+dc)&0xFFFF)];
+      if (cell) for (let i = 0; i < cell.length; i++) out.push(cell[i]);
+    }
+    return out;
+  }
+};
+
+/* ── SURFACE TYPE — Smooth Finnish coastline gradient ─────────
+   Returns 0.0 (deep inland) → 0.5 (coast) → 1.0 (open sea).
+   Smooth transitions over ~25-30km. Covers all Finnish coast. ─ */
+function isMarine(lat, lng) {
+  /* Helper: smooth gradient from coast.
+     coastVal=latitude or longitude of coastline.
+     pos=query position on the same axis.
+     seaDir=-1 means sea is south/west, +1 means sea is north/east.
+     Returns 0→1 with smooth transition. */
+  function coastGrad(pos, coastVal, seaDir) {
+    const d = (pos - coastVal) * seaDir; /* positive = sea side */
+    if (d > 0.20) return 1.0;            /* open sea */
+    if (d > 0.0)  return 0.5 + 0.5 * (d / 0.20); /* coast→sea */
+    if (d > -0.15) return 0.5 * (1.0 + d / 0.15); /* land→coast */
+    if (d > -0.30) return 0.15 * (1.0 + (d + 0.15) / 0.15); /* land edge */
+    return 0.0; /* deep inland */
+  }
+
+  /* === 1. Gulf of Finland (lng 23-28.5, lat < 60.8): latitude-based coast === */
+  if (lng >= 23.0 && lng <= 28.5 && lat <= 60.8) {
+    /* Finnish coast: ~60.17 at Helsinki, ~60.15 east, flatter curve */
+    const finCoast = lng < 24.5 ? 60.12 : lng < 26.0 ? 60.14 : lng < 27.5 ? 60.10 : 60.06;
+    const fin = coastGrad(lat, finCoast, -1);
+    /* Estonian coast */
+    const estCoast = lng < 25.0 ? 59.50 : lng < 26.5 ? 59.45 : 59.40;
+    const est = coastGrad(lat, estCoast, 1);
+    return Math.min(fin, est);
+  }
+
+  /* === 2. Hanko-Turku transition (lng 22-23, lat < 61) === */
+  if (lng >= 22.0 && lng < 23.0 && lat <= 61.0) {
+    const finCoast = 60.12 + (23.0 - lng) * 0.30; /* rises to ~60.42 at Turku */
+    return coastGrad(lat, finCoast, -1);
+  }
+
+  /* === 3. Archipelago Sea (lng 19.5-22, lat < 60.7) === */
+  if (lng >= 19.5 && lng < 22.0 && lat < 60.7) {
+    const coastLat = 60.30 + (lng - 19.5) * 0.06;
+    if (lat > coastLat + 0.25) return 0.0;
+    if (lat > coastLat) return 0.5 * (1.0 - (lat - coastLat) / 0.25);
+    if (lat > 59.5) return 0.7 + 0.3 * Math.min(1, (coastLat - lat) / 0.5);
+    return 1.0;
+  }
+
+  /* === 4. Bothnian Sea: west coast Rauma-Vaasa (lat 60.7-63) === */
+  if (lat >= 60.7 && lat < 63.0 && lng <= 22.5) {
+    const coastLng = lat < 61.0 ? 21.5 : lat < 61.8 ? 21.4 : 21.0 + (lat - 61.8) * 0.3;
+    return coastGrad(lng, coastLng, -1);
+  }
+  /* === 5. Kvarken: Vaasa-Kokkola (lat 63-64) === */
+  if (lat >= 63.0 && lat < 64.0 && lng <= 23.5) {
+    const coastLng = 21.3 + (lat - 63.0) * 1.7; /* coast swings east */
+    return coastGrad(lng, coastLng, -1);
+  }
+  /* === 6. Bay of Bothnia: Kokkola-Tornio (lat 64-65.8) === */
+  if (lat >= 64.0 && lat <= 65.8 && lng <= 26.0) {
+    const coastLng = 23.5 + (lat - 64.0) * 0.83; /* 23.5 at 64N -> 25.0 at 65.8N */
+    return coastGrad(lng, coastLng, -1);
+  }
+
+  /* === 7. Open water defaults === */
+  /* Open Baltic south/west */
+  if (lng < 19.5 && lat < 60.5) return 1.0;
+  /* Open Bothnian Sea (well west of coast) */
+  if (lat >= 60.5 && lat < 63.0 && lng < 20.5) return 1.0;
+  /* Open Kvarken/Bay of Bothnia */
+  if (lat >= 63.0 && lat < 66.0) {
+    const coastLng = lat < 64.0 ? 21.3 + (lat-63)*1.7 : 23.5 + (lat-64)*0.83;
+    if (lng < coastLng - 0.5) return 1.0;
+  }
+
+  return 0.0; /* Default: inland */
+}
+
+function idw(lat, lng) {
+  let nb = SpatialIndex.nearby(lat, lng, 3);
+  if (!nb.length) nb = SpatialIndex.nearby(lat, lng, 6);
+  if (!nb.length) return { u: 0, v: 0, ms: 0 };
+  let sw = 0, su = 0, sv = 0;
+  const cos2 = Math.cos(lat * Math.PI / 180) ** 2;
+  const querySurface = isMarine(lat, lng); /* 0=land, 0.5=coast, 1=sea */
+  for (let i = 0; i < nb.length; i++) {
+    const f = nb[i], dlat = lat - f.lat, dlng = lng - f.lng;
+    const d2 = dlat * dlat + dlng * dlng * cos2;
+    if (d2 < 1e-6) return { u: f.u, v: f.v, ms: f.ms };
+    const d = Math.sqrt(d2), distW = 1.0 / (d * d);
+    /* Surface affinity: smooth weighting based on surface similarity.
+       same-type → ~2x boost, opposite-type → ~0.5x reduction.
+       Uses continuous function to avoid step artifacts. */
+    const ptSurface = f.marine !== undefined ? f.marine : isMarine(f.lat, f.lng);
+    const similarity = 1.0 - Math.abs(querySurface - ptSurface); /* 1=same, 0=opposite */
+    const surfaceW = 0.5 + similarity * 1.5; /* range: 0.5 (opposite) → 2.0 (same) */
+    const w = distW * surfaceW;
+    sw += w; su += f.u * w; sv += f.v * w;
+  }
+  const u = su / sw, v = sv / sw;
+  return { u, v, ms: Math.sqrt(u * u + v * v) };
+}
+
+function px2ll(x, y) { const ll = State.map.containerPointToLatLng(L.point(x, y)); return { lat: ll.lat, lng: ll.lng }; }
+
+/* ── WIND TEXTURE — Pre-rendered wind field in geo coordinates ──
+   Renders entire wind field once when data changes. drawColorField()
+   just projects the cached texture to screen (one drawImage call).
+   Particles sample u,v via O(1) array lookup instead of IDW.
+   ============================================================ */
+const WindTexture = {
+  canvas: null, ctx: null,
+  uData: null, vData: null, msData: null,
+  cols: 0, rows: 0,
+  latMin: 0, latMax: 0, lngMin: 0, lngMax: 0,
+  
+  build(windField, viewportBounds) {
+    return new Promise((resolve) => {
+      if (!windField.length) { resolve(); return; }
+      /* Use viewport bounds when zoomed in, else full data extent */
+      const zoom = State.map ? State.map.getZoom() : 5;
+      const useViewport = viewportBounds && zoom >= 6.5;
+      let laMin = 90, laMax = -90, loMin = 180, loMax = -180;
+      if (useViewport) {
+        const vPad = 0.5; /* extra padding around viewport */
+        laMin = viewportBounds.getSouth() - vPad;
+        laMax = viewportBounds.getNorth() + vPad;
+        loMin = viewportBounds.getWest() - vPad;
+        loMax = viewportBounds.getEast() + vPad;
+      } else {
+        for (const f of windField) {
+          if (f.lat < laMin) laMin = f.lat; if (f.lat > laMax) laMax = f.lat;
+          if (f.lng < loMin) loMin = f.lng; if (f.lng > loMax) loMax = f.lng;
+        }
+      }
+      const pad = useViewport ? 0.2 : 0.8;
+      this.latMin = laMin - pad; this.latMax = laMax + pad;
+      this.lngMin = loMin - pad; this.lngMax = loMax + pad;
+      const latSpan = this.latMax - this.latMin;
+      const lngSpan = this.lngMax - this.lngMin;
+      /* Zoom-scaled resolution: overview=60, city=150, street=250 */
+      const baseRES = useViewport
+        ? Math.min(250, Math.max(80, Math.round(120 + (zoom - 6.5) * 30)))
+        : Math.min(100, Math.max(40, Math.round(Math.sqrt(windField.length) * 2.5)));
+      this.cols = Math.min(800, Math.ceil(lngSpan * baseRES));
+      this.rows = Math.min(800, Math.ceil(latSpan * baseRES));
+      if (!this.canvas) { this.canvas = document.createElement('canvas'); this.ctx = this.canvas.getContext('2d'); }
+      this.canvas.width = this.cols; this.canvas.height = this.rows;
+      const n = this.cols * this.rows;
+      this.uData = new Float32Array(n);
+      this.vData = new Float32Array(n);
+      this.msData = new Float32Array(n);
+      const img = this.ctx.createImageData(this.cols, this.rows);
+      const d = img.data;
+      const latStep = latSpan / this.rows, lngStep = lngSpan / this.cols;
+      const self = this;
+      const CHUNK = self.cols > 400 ? 4 : self.cols > 200 ? 6 : 8;
+      let row = 0;
+      
+      function processChunk() {
+        const end = Math.min(row + CHUNK, self.rows);
+        for (let r = row; r < end; r++) {
+          const lat = self.latMax - r * latStep;
+          for (let c = 0; c < self.cols; c++) {
+            const lng = self.lngMin + c * lngStep;
+            const w = idw(lat, lng);
+            const idx = r * self.cols + c;
+            self.uData[idx] = w.u; self.vData[idx] = w.v; self.msData[idx] = w.ms;
+            const base = idx * 4;
+            const rgb = ColorRamp.rgb(w.ms);
+            /* S-curve alpha: 0-2 m/s transparent, 2-5 rapid rise, 5+ plateau 0.50-0.65
+               Windy-style: calm = see-through map, strong = opaque overlay */
+            const t = w.ms / Config.MAX_MS;
+            const a = w.ms < 1.5 ? 0 : Math.min(0.65, 0.65 * (1 - Math.exp(-3.5 * (t - 0.075))));
+            d[base] = rgb.r; d[base+1] = rgb.g; d[base+2] = rgb.b; d[base+3] = Math.round(a * 255);
+          }
+        }
+        row = end;
+        if (row < self.rows) {
+          setTimeout(processChunk, 0);
+        } else {
+          self.ctx.putImageData(img, 0, 0);
+          console.log('[WindTexture]', self.cols + 'x' + self.rows, '=', n, 'px, RES=' + RES);
+          resolve();
+        }
+      }
+      processChunk();
+    });
+  },
+  
+  sampleWind(lat, lng) {
+    if (!this.msData) return { u: 0, v: 0, ms: 0 };
+    const c = ((lng - this.lngMin) / (this.lngMax - this.lngMin) * this.cols) | 0;
+    const r = ((this.latMax - lat) / (this.latMax - this.latMin) * this.rows) | 0;
+    if (r < 0 || r >= this.rows || c < 0 || c >= this.cols) return { u: 0, v: 0, ms: 0 };
+    const idx = r * this.cols + c;
+    return { u: this.uData[idx], v: this.vData[idx], ms: this.msData[idx] };
+  }
+};
+
+function drawColorField() {
+  const { colorCtx, map } = State;
+  if (!colorCtx || !WindTexture.canvas || !map) return;
+  const W = window.innerWidth, H = window.innerHeight;
+  colorCtx.clearRect(0, 0, W, H);
+  const nw = map.latLngToContainerPoint(L.latLng(WindTexture.latMax, WindTexture.lngMin));
+  const se = map.latLngToContainerPoint(L.latLng(WindTexture.latMin, WindTexture.lngMax));
+  const dw = se.x - nw.x, dh = se.y - nw.y;
+  if (dw <= 0 || dh <= 0) return;
+  colorCtx.imageSmoothingEnabled = true;
+  colorCtx.imageSmoothingQuality = 'high';
+  colorCtx.drawImage(WindTexture.canvas, 0, 0, WindTexture.cols, WindTexture.rows, nw.x, nw.y, dw, dh);
+}
+
+/* ── PARTICLE SYSTEM — Tapered trails ─────────────────────────── */
+function nParticles() {
+  const z = State.map ? State.map.getZoom() : 5;
+  if (z <= 5) return 600;
+  if (z <= 7) return 500;
+  if (z <= 8) return 350;
+  if (z <= 9) return 250;
+  if (z <= 10) return 180;
+  return 120; /* zoom 11+: very close, small viewport area */
+}
+function particleLineWidth(ms) {
+  return 1.6 + (ms / Config.MAX_MS) * 1.4;
+}
+function rndGeo() {
+  const m = State.map;
+  if (m) { const b = m.getBounds(), pad = 0.15, ls = b.getNorth() - b.getSouth(), gs = b.getEast() - b.getWest();
+    return { lat: b.getSouth() - ls * pad + Math.random() * ls * (1 + pad * 2), lng: b.getWest() - gs * pad + Math.random() * gs * (1 + pad * 2) }; }
+  return { lat: 58 + Math.random() * 12, lng: 18 + Math.random() * 13 };
+}
+/* Cached affine projection — avoids calling Leaflet per point per frame.
+   Recomputes only on moveend/zoomend. Valid for small viewports (Mercator ≈ affine). */
+const GeoProject = {
+  _ox: 0, _oy: 0, _sx: 1, _sy: 1, _valid: false,
+  update(map) {
+    const b = map.getBounds();
+    const nw = map.latLngToContainerPoint(b.getNorthWest());
+    const se = map.latLngToContainerPoint(b.getSouthEast());
+    this._ox = nw.x; this._oy = nw.y;
+    this._sx = (se.x - nw.x) / (b.getEast() - b.getWest());
+    this._sy = (se.y - nw.y) / (b.getSouth() - b.getNorth());
+    this._west = b.getWest(); this._north = b.getNorth();
+    this._valid = true;
+  },
+  project(lat, lng) {
+    return {
+      x: this._ox + (lng - this._west) * this._sx,
+      y: this._oy + (lat - this._north) * this._sy
+    };
+  },
+  invalidate() { this._valid = false; }
+};
+function geo2px(lat, lng) {
+  if (GeoProject._valid) return GeoProject.project(lat, lng);
+  const pt = State.map.latLngToContainerPoint(L.latLng(lat, lng));
+  return { x: pt.x, y: pt.y };
+}
+function makeParticle(rAge) {
+  const g = rndGeo(), trail = [];
+  for (let i = 0; i < Config.TRAIL_LEN; i++) trail.push({ lat: g.lat, lng: g.lng });
+  return { lat: g.lat, lng: g.lng, vlat: 0, vlng: 0, u: 0, v: 0, ms: 0,
+    sampleTimer: Math.floor(Math.random() * Config.WIND_SAMPLE_INTERVAL), trail, trailHead: 0,
+    age: rAge ? Math.floor(Math.random() * 320) : 0, maxAge: 180 + Math.floor(Math.random() * 160) };
+}
+function resetParticles() {
+  const { windCtx, windCvs, dpr } = State;
+  if (windCtx) windCtx.clearRect(0, 0, windCvs.width / dpr, windCvs.height / dpr);
+  State.particles = []; const n = nParticles();
+  for (let i = 0; i < n; i++) State.particles.push(makeParticle(true));
+}
+function sampleWind(p) {
+  p.sampleTimer++; if (p.sampleTimer < Config.WIND_SAMPLE_INTERVAL) return;
+  p.sampleTimer = 0; const w = WindTexture.sampleWind(p.lat, p.lng); p.u = w.u; p.v = w.v; p.ms = w.ms;
+}
+function respawn(p) {
+  const g = rndGeo(); p.lat = g.lat; p.lng = g.lng; p.vlat = 0; p.vlng = 0;
+  p.age = 0; p.maxAge = 180 + Math.floor(Math.random() * 160); p.sampleTimer = 0;
+  for (let i = 0; i < Config.TRAIL_LEN; i++) p.trail[i] = { lat: g.lat, lng: g.lng }; p.trailHead = 0;
+}
+
+/* ── UNIFIED RENDER LOOP — Single RAF for heatmap + particles ── */
+let _heatmapDirty = true;
+function flagHeatmapDirty() { _heatmapDirty = true; }
+
+function renderLoop() {
+  requestAnimationFrame(renderLoop);
+
+  /* Heatmap: only when flagged dirty */
+  if (_heatmapDirty && State.windField.length) { drawColorField(); _heatmapDirty = false; }
+
+  /* Particles: every frame — full redraw from geo coords (no pixel ghosts on pan) */
+  const { windCtx, windCvs, windField, map, particles, dpr } = State;
+  if (!windCtx || !windCvs.width || !windField.length || !map) return;
+  const W = window.innerWidth, H = window.innerHeight;
+  
+  /* Clear fully — all trails are redrawn from geo-stored positions each frame.
+     This means panning is perfectly clean: no stale pixel artifacts. */
+  windCtx.clearRect(0, 0, W, H);
+  windCtx.lineCap = 'round'; windCtx.lineJoin = 'round';
+  if (!GeoProject._valid) GeoProject.update(map);
+  const zoom = map.getZoom();
+  const geoSpd = Config.GEO_SPEED / Math.pow(2, zoom - 5) * (zoom >= 9 ? 0.7 : 1.0);
+  const bounds = map.getBounds();
+  const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.2;
+  const lngPad = (bounds.getEast() - bounds.getWest()) * 0.2;
+
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    sampleWind(p);
+    if (p.ms < 0.3) { p.age++; if (p.age > p.maxAge) respawn(p); continue; }
+    const cosLat = Math.cos(p.lat * Math.PI / 180);
+    p.vlat = p.vlat * Config.INERTIA + p.v * geoSpd * (1 - Config.INERTIA);
+    p.vlng = p.vlng * Config.INERTIA + (p.u * geoSpd / (cosLat > 0.1 ? cosLat : 0.1)) * (1 - Config.INERTIA);
+    p.lat += p.vlat; p.lng += p.vlng; p.age++;
+    p.trailHead = (p.trailHead + 1) % Config.TRAIL_LEN;
+    p.trail[p.trailHead] = { lat: p.lat, lng: p.lng };
+    if (p.lat < bounds.getSouth() - latPad || p.lat > bounds.getNorth() + latPad ||
+        p.lng < bounds.getWest() - lngPad || p.lng > bounds.getEast() + lngPad || p.age > p.maxAge) { respawn(p); continue; }
+    const pts = [];
+    for (let t = 0; t < Config.TRAIL_LEN; t++) {
+      const ti = (p.trailHead - Config.TRAIL_LEN + 1 + t + Config.TRAIL_LEN * 4) % Config.TRAIL_LEN;
+      pts.push(geo2px(p.trail[ti].lat, p.trail[ti].lng));
+    }
+    const head = pts[pts.length - 1];
+    if (head.x < -40 || head.x > W + 40 || head.y < -40 || head.y > H + 40) continue;
+    const lf = p.age / p.maxAge;
+    let alpha = Math.sin(lf * Math.PI) * 0.85;
+    if (alpha < 0.03) alpha = 0.03;
+    /* WINDY-STYLE TRAIL: straight tapered streak, no curves */
+    const lwMax = particleLineWidth(p.ms);
+    
+    /* Draw as single continuous path for speed, then overlay segments for taper */
+    for (let s = 1; s < pts.length; s++) {
+      const segT = s / (pts.length - 1); /* 0 at tail → 1 at head */
+      const segA = segT * alpha;
+      if (segA < 0.01) continue;
+      const taper = 0.15 + segT * 0.85;
+      windCtx.beginPath();
+      windCtx.moveTo(pts[s-1].x, pts[s-1].y);
+      windCtx.lineTo(pts[s].x, pts[s].y);
+      windCtx.lineWidth = lwMax * taper;
+      windCtx.strokeStyle = ColorRamp.css(p.ms, segA * 0.9);
+      windCtx.stroke();
+    }
+  }
+}
+
+/* ── WEATHER BATCH API ────────────────────────────────────────── */
+function buildBatchUrl(points, model) {
+  const days = model === 'icon_eu' ? 3 : 7;
+  return 'https://api.open-meteo.com/v1/forecast?latitude=' + points.map(p => p.lat.toFixed(4)).join(',')
+    + '&longitude=' + points.map(p => p.lng.toFixed(4)).join(',')
+    + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,wind_speed_80m,wind_direction_80m'
+    + '&wind_speed_unit=ms&timezone=Europe%2FHelsinki&forecast_days=' + days + '&models=' + model;
+}
+/* Map new API names to our internal names for backward compat */
+function normalizeHourly(h) {
+  if (!h) return h;
+  const map = {
+    'wind_speed_10m': 'windspeed_10m', 'wind_direction_10m': 'winddirection_10m',
+    'wind_gusts_10m': 'windgusts_10m', 'wind_speed_80m': 'windspeed_80m',
+    'wind_direction_80m': 'winddirection_80m'
+  };
+  for (const [newName, oldName] of Object.entries(map)) {
+    if (h[newName] && !h[oldName]) h[oldName] = h[newName];
+  }
+  return h;
+}
+function processBatchResponse(j) {
+  if (!j || !j.hourly) return j;
+  normalizeHourly(j.hourly);
+  if (j.hourly.windspeed_80m) {
+    const d10 = j.hourly.winddirection_10m, d80 = j.hourly.winddirection_80m;
+    for (let i = 0; i < d10.length; i++) {
+      if (d80[i] != null) {
+        const a10 = d10[i] * Math.PI / 180, a80 = d80[i] * Math.PI / 180;
+        d10[i] = (Math.atan2(0.7 * Math.sin(a10) + 0.3 * Math.sin(a80), 0.7 * Math.cos(a10) + 0.3 * Math.cos(a80)) * 180 / Math.PI + 360) % 360;
+      }
+    }
+  }
+  return j;
+}
+let _rateLimited = false;
+const _batchCache = {};
+
+/* Check if we were rate limited recently (persists across reloads) */
+try {
+  const rlTime = sessionStorage.getItem('foilspot_rl');
+  if (rlTime && Date.now() - parseInt(rlTime) < 3600000) {
+    _rateLimited = true; /* Still within 1 hour of last rate limit */
+  }
+} catch(e) {}
+
+function setRateLimited() {
+  _rateLimited = true;
+  try { sessionStorage.setItem('foilspot_rl', Date.now().toString()); } catch(e) {}
+  Toast.show('⚠ Open-Meteo päiväraja täynnä. Nollautuu klo 02:00 (UTC 00:00). Kokeile myöhemmin.');
+}
+
+function loadBatch(points) {
+  if (_rateLimited) return Promise.resolve(); /* Stop all fetches if rate limited */
+  
+  /* Simple cache key from first+last point coords */
+  const cacheKey = points.map(p => p.lat.toFixed(3) + ',' + p.lng.toFixed(3)).join('|');
+  if (_batchCache[cacheKey]) {
+    const cached = _batchCache[cacheKey];
+    cached.forEach((wx, i) => { if (i < points.length && wx) points[i].wx = wx; });
+    return Promise.resolve();
+  }
+  
+  function tryModel(model, retries) {
+    if (_rateLimited) return Promise.resolve();
+    return fetch(buildBatchUrl(points, model))
+      .then(r => {
+        if (r.status === 429) {
+          if (retries > 0) {
+            const wait = (4 - retries) * 2000 + Math.random() * 1000;
+            console.log('[API] 429 rate limit, retry in', Math.round(wait), 'ms');
+            return new Promise(resolve => setTimeout(resolve, wait)).then(() => tryModel(model, retries - 1));
+          }
+          throw new Error('429');
+        }
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      })
+      .then(data => {
+        const arr = Array.isArray(data) ? data : [data];
+        let anySuccess = false;
+        arr.forEach((j, i) => {
+          if (i < points.length) {
+            if (j && !j.error && j.hourly) {
+              points[i].wx = processBatchResponse(j);
+              anySuccess = true;
+            } else {
+              points[i].wx = points[i].wx || null;
+            }
+          }
+        });
+        if (anySuccess) {
+          _batchCache[cacheKey] = points.map(p => p.wx || null);
+        }
+        if (!anySuccess) throw new Error('no valid data');
+      });
+  }
+  return tryModel(State.activeModel, 2)
+    .catch(e => {
+      if (e.message === '429') return tryModel('best_match', 1);
+      throw e;
+    })
+    .catch(e => {
+      if (e.message === '429') {
+        setRateLimited();
+        console.error('[API] Rate limited on all models — daily limit likely reached');
+      }
+    });
+}
+
+/* ── WIND FIELD BUILDER ───────────────────────────────────────── */
+function buildWindField(hourIdx) {
+  State.windField = [];
+  TileEngine.markDirty();
+  const all = TileEngine.getAllPoints();
+  const layer = State.activeLayer;
+  for (let i = 0; i < all.length; i++) {
+    const pt = all[i];
+    if (!pt.wx || !pt.wx.hourly) continue;
+    const h = pt.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
+    const ms = layer === 'gust' ? ((h.windgusts_10m && h.windgusts_10m[idx]) || h.windspeed_10m[idx] || 0) : (h.windspeed_10m[idx] || 0);
+    const rad = (h.winddirection_10m[idx] || 0) * Math.PI / 180;
+    State.windField.push({ lat: pt.lat, lng: pt.lng, u: -ms * Math.sin(rad), v: -ms * Math.cos(rad), ms, marine: isMarine(pt.lat, pt.lng) });
+  }
+  SpatialIndex.build(State.windField);
+  console.log('[buildWindField] hour=' + hourIdx + ', points=' + State.windField.length);
+  const vb = State.map ? State.map.getBounds() : null;
+  return WindTexture.build(State.windField, vb).catch(e => console.error('[WindTexture]', e));
+}
+
+/* ── SPOT MARKERS ─────────────────────────────────────────────── */
+function dirArrow(deg) { return ['\u2193','\u2199','\u2190','\u2196','\u2191','\u2197','\u2192','\u2198'][Math.round((deg % 360) / 45) % 8]; }
+function windLabel(ms) {
+  if (ms < 5)  return ['Tyyni \u2013 ei sovi','b-calm'];
+  if (ms < 8)  return ['Heikko \u2013 ehk\u00e4','b-light'];
+  if (ms < 12) return ['Hyv\u00e4 \u2013 foilaile!','b-good'];
+  if (ms < 15) return ['T\u00e4ydellinen!','b-perfect'];
+  if (ms < 20) return ['Kova \u2013 kokenut','b-strong'];
+  return ['Liian kova','b-danger'];
+}
+function renderSpots(hourIdx) {
+  for (const m of State.markers) m.remove(); State.markers = [];
+  const layer = State.activeLayer, zoom = State.map ? State.map.getZoom() : 5;
+  for (const spot of SPOTS) {
+    if (!spot.wx || !spot.wx.hourly) continue;
+    const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
+    const ms = h.windspeed_10m[idx] || 0, gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
+    const dms = layer === 'gust' ? gst : ms, c = ColorRamp.rgb(dms), col = 'rgb('+c.r+','+c.g+','+c.b+')';
+    const sz = zoom <= 6 ? 6 : zoom <= 8 ? 8 : 10, bw = zoom <= 7 ? 1 : 1.5;
+    const icon = L.divIcon({ className: '',
+      html: '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';border:'+bw+'px solid rgba(255,255,255,.45);box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer"></div>',
+      iconSize: [sz, sz], iconAnchor: [sz/2, sz/2] });
+    State.markers.push(L.marker([spot.lat, spot.lng], { icon }).on('click', () => openSheet(spot, hourIdx)).addTo(State.map));
+  }
+}
+
+/* ── BOTTOM SHEET ─────────────────────────────────────────────── */
+function fmtHour(iso) { if (!iso) return '--'; const d = new Date(iso); return ('0'+d.getHours()).slice(-2)+':00'; }
+function openSheet(spot, hourIdx) {
+  if (!spot.wx || !spot.wx.hourly) return;
+  State.sheetSpot = spot;
+  const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
+  const ms = h.windspeed_10m[idx]||0, dir = h.winddirection_10m[idx]||0, gst = (h.windgusts_10m&&h.windgusts_10m[idx])||ms;
+  const lbl = windLabel(ms);
+  let bars = '', cs = idx, ce = Math.min(h.windspeed_10m.length, cs+12), mx = 1;
+  for (let i=cs;i<ce;i++) { const v=h.windspeed_10m[i]||0; if(v>mx)mx=v; }
+  for (let i=cs;i<ce;i++) { const v=h.windspeed_10m[i]||0,c=ColorRamp.rgb(v); bars+='<div class="sh-bar" style="height:'+Math.max(4,v/mx*100)+'%;background:rgb('+c.r+','+c.g+','+c.b+')"></div>'; }
+  document.getElementById('sheet-content').innerHTML = '<div class="sh-name">'+spot.name+'</div><div class="sh-desc">'+spot.desc+'</div>'
+    +'<div class="sh-grid"><div class="sh-card"><div class="sh-card-label">Tuuli</div><div class="sh-card-value" style="color:'+ColorRamp.css(ms)+'">'+ms.toFixed(1)+'<span class="sh-card-unit">m/s</span></div></div>'
+    +'<div class="sh-card"><div class="sh-card-label">Puuska</div><div class="sh-card-value" style="color:'+ColorRamp.css(gst)+'">'+gst.toFixed(1)+'<span class="sh-card-unit">m/s</span></div></div>'
+    +'<div class="sh-card"><div class="sh-card-label">Suunta</div><div class="sh-card-value">'+Math.round(dir)+'\u00b0<span class="sh-card-unit">'+dirArrow(dir)+'</span></div></div></div>'
+    +'<div class="sh-badge '+lbl[1]+'">'+lbl[0]+'</div>'
+    +'<div class="sh-chart-wrap"><div class="sh-chart-title">Seuraavat 12h</div><div class="sh-chart">'+bars+'</div><div class="sh-chart-labels"><span>'+fmtHour(h.time[cs])+'</span><span>+12h</span></div></div>';
+  document.getElementById('sheet').classList.add('open');
+  document.getElementById('sheet-overlay').classList.add('open');
+}
+function closeSheet() { document.getElementById('sheet').classList.remove('open'); document.getElementById('sheet-overlay').classList.remove('open'); }
+document.getElementById('sheet-overlay').addEventListener('click', closeSheet, { passive: true });
+document.getElementById('sheet-handle').addEventListener('click', closeSheet, { passive: true });
+
+/* ── TIMELINE ─────────────────────────────────────────────────── */
+function nowIdx(times) {
+  if (!times || !times.length) return 0;
+  const now = Date.now(); let best = 0, bd = Infinity;
+  for (let i = 0; i < times.length; i++) { const diff = Math.abs(new Date(times[i]).getTime() - now); if (diff < bd) { bd = diff; best = i; } }
+  return best;
+}
+function renderTimeline(times, speeds, dirs, activeIdx) {
+  const tl = document.getElementById('tl-scroll'); tl.innerHTML = '';
+  if (!times || !times.length) return;
+  State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
+  State._tlTicks = []; State._tlSelecting = false;
+  const ITEM_W = 56; /* must match CSS flex-basis */
+  const DAY = ['Su','Ma','Ti','Ke','To','Pe','La']; let lastDay = -1;
+
+  /* Left spacer — half viewport so first item can snap to center */
+  const spacerL = document.createElement('div');
+  spacerL.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - ITEM_W / 2) + 'px';
+  tl.appendChild(spacerL);
+
+  for (let i = 0; i < times.length; i++) {
+    const d = new Date(times[i]), day = d.getDay();
+    if (day !== lastDay) { lastDay = day; const sep = document.createElement('div'); sep.className = 'day-sep'; sep.textContent = DAY[day]+' '+d.getDate()+'.'; tl.appendChild(sep); }
+    const ms = speeds[i]||0, c = ColorRamp.rgb(ms), tick = document.createElement('div');
+    tick.className = 'htick'; tick.dataset.idx = i;
+    tick.innerHTML = '<span class="ht">'+fmtHour(times[i])+'</span><span class="hs" style="color:rgb('+c.r+','+c.g+','+c.b+')">'+Math.round(ms)+'</span><span class="hd">'+(dirs&&dirs[i]!=null?dirArrow(dirs[i]):'')+'</span>';
+    tl.appendChild(tick);
+    State._tlTicks.push(tick);
+  }
+
+  /* Right spacer */
+  const spacerR = document.createElement('div');
+  spacerR.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - ITEM_W / 2) + 'px';
+  tl.appendChild(spacerR);
+
+  /* Scroll to active index (no animation on init) */
+  requestAnimationFrame(() => {
+    const target = State._tlTicks[activeIdx];
+    if (target) tl.scrollLeft = target.offsetLeft - tl.offsetWidth / 2 + ITEM_W / 2;
+    _tlUpdateVisuals(tl);
   });
 
-  return results.length;
+  /* Scroll handler — detect centered item and update weather */
+  let _scrollTimer = null;
+  tl.addEventListener('scroll', () => {
+    _tlUpdateVisuals(tl);
+    clearTimeout(_scrollTimer);
+    _scrollTimer = setTimeout(() => _tlSnapSelect(tl), 120);
+  }, { passive: true });
 }
 
-async function fetchLive() {
-  if (busy) return;
-  const sig=viewSig();
-  if (sig===lastSig) return;
-  lastSig=sig; busy=true;
-
-  const todo=buildTodoList();
-
-  if (!todo.length) {
-    // Everything from cache
-    rebuildWPts();
-    buildGrid(()=>{ drawWind(); schedDraw(); });
-    busy=false;
-    setStatus('live','LIVE');
-    toast(`⚡ Välimuistista (${windCache.size} pistettä)`);
-    return;
+/* Update visual perspective: scale/opacity based on distance from center */
+function _tlUpdateVisuals(tl) {
+  const center = tl.scrollLeft + tl.offsetWidth / 2;
+  for (const tick of State._tlTicks) {
+    const tickCenter = tick.offsetLeft + 28; /* half of ITEM_W */
+    const dist = Math.abs(center - tickCenter);
+    const norm = Math.min(1, dist / 180); /* 0 = center, 1 = far */
+    const scale = 1 - norm * 0.2;
+    const opacity = 1 - norm * 0.55;
+    tick.style.transform = 'scale(' + scale.toFixed(3) + ')';
+    tick.style.opacity = opacity.toFixed(2);
   }
+}
 
-  setStatus('loading',`LADATAAN ${todo.length}`);
+/* Select whichever item is closest to center after scroll stops */
+function _tlSnapSelect(tl) {
+  const center = tl.scrollLeft + tl.offsetWidth / 2;
+  let bestIdx = 0, bestDist = Infinity;
+  for (let i = 0; i < State._tlTicks.length; i++) {
+    const tick = State._tlTicks[i];
+    const tickCenter = tick.offsetLeft + 28;
+    const dist = Math.abs(center - tickCenter);
+    if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+  }
+  if (bestIdx !== State.currentHourIdx) {
+    State.currentHourIdx = bestIdx;
+    document.getElementById('tl-now').textContent = fmtHour(State._tlTimes[bestIdx]);
+    buildWindField(bestIdx).then(() => { flagHeatmapDirty(); resetParticles(); });
+    renderSpots(bestIdx);
+    if (State.sheetSpot) openSheet(State.sheetSpot, bestIdx);
+  }
+}
 
-  try {
-    // Split into batches of OM_BATCH
-    let fetched=0;
-    for (let i=0; i<todo.length; i+=OM_BATCH) {
-      const batch=todo.slice(i, i+OM_BATCH);
-      const n=await fetchOpenMeteo(batch);
-      fetched+=n;
-      // Show partial data as it arrives
-      rebuildWPts();
-      buildGrid(()=>{ drawWind(); schedDraw(); });
+/* Programmatic scroll to index (for play button) */
+function scrollTimelineTo(idx) {
+  const tl = document.getElementById('tl-scroll');
+  if (!tl || !State._tlTicks || !State._tlTicks[idx]) return;
+  const target = State._tlTicks[idx];
+  tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 28, behavior: 'smooth' });
+}
+
+
+/* ── PLAY ─────────────────────────────────────────────────────── */
+function togglePlay() {
+  const btn = document.getElementById('btn-play'), icon = document.getElementById('play-icon');
+  if (State.isPlaying) { stopPlay(); return; }
+  State.isPlaying = true; btn.classList.add('playing');
+  icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+  if (!State._tlTicks || !State._tlTicks.length) { stopPlay(); return; }
+  let cur = State.currentHourIdx || 0;
+  State.playTimer = setInterval(() => { cur++; if (cur >= State._tlTicks.length) cur = 0; scrollTimelineTo(cur); }, Config.PLAY_INTERVAL_MS);
+}
+function stopPlay() {
+  State.isPlaying = false; clearInterval(State.playTimer);
+  document.getElementById('btn-play').classList.remove('playing');
+  document.getElementById('play-icon').innerHTML = '<path d="M8 5v14l11-7z"/>';
+}
+
+/* ── SCALE BAR ────────────────────────────────────────────────── */
+function updateScaleBar() {
+  if (!State.map) return;
+  const mpp = 156543.03392 * Math.cos(State.map.getCenter().lat * Math.PI / 180) / Math.pow(2, State.map.getZoom());
+  const nice = [{m:50,l:'50 m'},{m:100,l:'100 m'},{m:200,l:'200 m'},{m:500,l:'500 m'},{m:1000,l:'1 km'},{m:2000,l:'2 km'},{m:5000,l:'5 km'},{m:10000,l:'10 km'},{m:20000,l:'20 km'},{m:50000,l:'50 km'},{m:100000,l:'100 km'},{m:200000,l:'200 km'}];
+  let best = nice[0], bpx = nice[0].m / mpp;
+  for (const n of nice) { const px = n.m / mpp; if (px >= 50 && px <= 120) { best = n; bpx = px; break; } if (px < 50) { best = n; bpx = px; } }
+  document.getElementById('scale-label').textContent = best.l;
+  document.getElementById('scale-line').style.width = Math.round(bpx) + 'px';
+}
+
+/* ── CLOCK ────────────────────────────────────────────────────── */
+function updateClock() { const n = new Date(); document.getElementById('clock').textContent = ('0'+n.getHours()).slice(-2)+':'+('0'+n.getMinutes()).slice(-2); }
+updateClock(); setInterval(updateClock, 30000);
+
+/* ── CONTROLS ─────────────────────────────────────────────────── */
+document.getElementById('btn-in').addEventListener('click', () => State.map.zoomIn(), { passive: true });
+document.getElementById('btn-out').addEventListener('click', () => State.map.zoomOut(), { passive: true });
+document.getElementById('btn-loc').addEventListener('click', () => {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(p => State.map.flyTo([p.coords.latitude,p.coords.longitude],9,{duration:1.2}), () => Toast.show('\ud83d\udccd Sijainnin haku ep\u00e4onnistui'));
+}, { passive: true });
+document.getElementById('btn-play').addEventListener('click', togglePlay, { passive: true });
+document.getElementById('layers').addEventListener('click', e => {
+  const b = e.target.closest('.lbtn'); if (!b) return;
+  const layer = b.dataset.layer; if (!layer || layer === State.activeLayer) return;
+  document.querySelectorAll('#layers .lbtn').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
+  State.activeLayer = layer; buildLegend(); buildWindField(State.currentHourIdx).then(() => { flagHeatmapDirty(); resetParticles(); }); renderSpots(State.currentHourIdx);
+  const ref = SPOTS.find(s => s.wx && s.wx.hourly);
+  if (ref) { const t = ref.wx.hourly.time, sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m; renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, State.currentHourIdx); }
+}, { passive: true });
+document.getElementById('models').addEventListener('click', e => {
+  const b = e.target.closest('.lbtn'); if (!b) return;
+  const model = b.dataset.model; if (!model || model === State.activeModel) return;
+  document.querySelectorAll('#models .lbtn').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
+  State.activeModel = model;
+  /* Clear all caches and reload with new model */
+  WeatherCache.clear();
+  TileEngine.clearCache();
+  Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
+  Toast.show('Vaihdetaan malliin: ' + model.replace('_', ' ').toUpperCase() + '...', 3000);
+  const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
+  TileEngine.loadL1((done, total) => {}).then(() => {
+    const ref = SPOTS.find(s => s.wx && s.wx.hourly) || TileEngine.getAllPoints().find(p => p.wx && p.wx.hourly);
+    if (ref) {
+      const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
+      buildWindField(ni).then(() => { flagHeatmapDirty(); resetParticles(); });
+      const layer = State.activeLayer;
+      const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
+      renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
+      renderSpots(ni);
     }
-    busy=false;
-    setStatus('live','LIVE');
-    const cached=todo.length-fetched;
-    toast(`✅ ${fetched} pistettä haettu${cached>0?' · '+cached+' välimuistista':''}`);
-  } catch(e) {
-    busy=false;
-    lastSig=''; // allow retry
-    if (e.status===429) {
-      setStatus('err','RAJA'); toast('⚠ Liian monta pyyntöä – odota hetki');
-    } else if (!navigator.onLine) {
-      setStatus('err','OFFLINE'); toast('⚠ Ei verkkoyhteyttä');
+    setTimeout(() => dot.classList.remove('pulse'), 1500);
+  });
+}, { passive: true });
+const tlScroll = document.getElementById('tl-scroll');
+tlScroll.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+tlScroll.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
+
+/* ── LOADING & REFRESH ────────────────────────────────────────── */
+function updateLoadText(msg) { const el = document.getElementById('load-txt'); if (el) el.textContent = msg; }
+function hideLoading() { const el = document.getElementById('loading'); el.classList.add('out'); setTimeout(() => { el.style.display = 'none'; }, 600); }
+function scheduleRefresh() {
+  clearInterval(State.refreshTimer);
+  State.refreshTimer = setInterval(() => {
+    const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
+    WeatherCache.clear(); /* Force fresh API data */
+    TileEngine.loadL1().then(() => {
+      buildWindField(State.currentHourIdx).then(() => {
+        flagHeatmapDirty(); resetParticles(); renderSpots(State.currentHourIdx);
+      });
+      State.lastDataLoad = Date.now(); TileEngine.onViewportChanged(State.map);
+      setTimeout(() => dot.classList.remove('pulse'), 1500);
+    });
+  }, Config.DATA_REFRESH_MS);
+}
+
+/* ── MAIN ─────────────────────────────────────────────────────── */
+function main() {
+  const bail = setTimeout(() => { hideLoading(); renderLoop(); }, 20000);
+  buildLegend(); initMap(); initCanvases(); updateLODBadge(); updateHeatmapBlur();
+  updateLoadText('Haetaan s\u00e4\u00e4dataa (L1)...');
+
+  TileEngine.loadL1((done, total) => { updateLoadText('L1 ladataan... ' + Math.round(done / total * 100) + '%'); })
+  .then(() => {
+    updateLoadText('Rakennetaan tuulikentt\u00e4\u00e4...');
+    const ref = SPOTS.find(s => s.wx && s.wx.hourly) || TileEngine.getAllPoints().find(p => p.wx && p.wx.hourly);
+    console.log('[Init] Spots with wx:', SPOTS.filter(s => s.wx && s.wx.hourly).length, '/ L1 pts:', TileEngine.stats().points, '/ ref:', !!ref);
+    if (ref) {
+      const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
+      buildWindField(ni).then(() => {
+        flagHeatmapDirty(); resetParticles(); renderLoop();
+      });
+      renderTimeline(ref.wx.hourly.time, ref.wx.hourly.windspeed_10m, ref.wx.hourly.winddirection_10m, ni);
+      renderSpots(ni);
     } else {
-      setStatus('err','VIRHE'); toast('⚠ Tiedonhaku epäonnistui – yritä uudelleen');
+      if (_rateLimited) {
+        Toast.show('⚠ Open-Meteo päiväraja täynnä. Nollautuu klo 02:00. Kokeile myöhemmin.');
+      } else {
+        Toast.show('⚠ Säädataa ei saatavilla');
+      }
+      renderLoop();
     }
-    // Show whatever we have from cache
-    rebuildWPts();
-    buildGrid(()=>{ drawWind(); schedDraw(); });
-  }
+    State.lastDataLoad = Date.now(); scheduleRefresh();
+    setTimeout(() => TileEngine.onViewportChanged(State.map), 500);
+    console.log('[FoilSpot] L1:', TileEngine.stats().points, 'pts');
+  })
+  .catch(err => { console.error('[FoilSpot]', err); Toast.show('\u26a0 Virhe s\u00e4\u00e4datan latauksessa'); renderLoop(); })
+  .finally(() => { clearTimeout(bail); hideLoading(); });
 }
 
-let fetchTimer=null;
-function schedFetch() { clearTimeout(fetchTimer); fetchTimer=setTimeout(fetchLive,600); }
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', main);
+else main();
 
-// ── PAN / ZOOM ────────────────────────────────────────────────
-function doZoom(delta,px,py) {
-  px=px??vw()/2; py=py??vh()/2;
-  const {lat:pLat,lng:pLng}=fs(px,py);
-  const nz=Math.max(2,Math.min(13,S.zoom+delta));
-  if (Math.abs(nz-S.zoom)<0.0001) return;
-  S.zoom=nz;
-  const after=ts(pLat,pLng), cw=tw(S.lat,S.lng,S.zoom);
-  const nc=fw(cw.x+after.x-px, cw.y+after.y-py, S.zoom);
-  S.lat=clampLat(nc.lat); S.lng=normLng(nc.lng);
-  schedDraw();
-}
-let zoomAnim=null;
-function smoothZoomTo(targetZ,px,py) {
-  if (zoomAnim) cancelAnimationFrame(zoomAnim);
-  const startZ=S.zoom, diff=Math.max(2,Math.min(13,targetZ))-startZ;
-  if (Math.abs(diff)<0.01) return;
-  const startT=performance.now(), dur=220;
-  function step(now) {
-    const t=Math.min(1,(now-startT)/dur), ease=1-(1-t)**3;
-    doZoom(startZ+diff*ease-S.zoom, px, py);
-    if (t<1) zoomAnim=requestAnimationFrame(step);
-    else { zoomAnim=null; schedFetch(); }
-  }
-  zoomAnim=requestAnimationFrame(step);
-}
-
-let drag=null;
-function pStart(x,y) { drag={x,y,lat:S.lat,lng:S.lng,moved:false,ox:x,oy:y}; }
-function pMove(x,y) {
-  if (!drag) return;
-  drag.moved=drag.moved||(Math.hypot(x-drag.ox,y-drag.oy)>4);
-  const cw=tw(drag.lat,drag.lng,S.zoom);
-  const nc=fw(cw.x-(x-drag.ox),cw.y-(y-drag.oy),S.zoom);
-  S.lat=clampLat(nc.lat); S.lng=normLng(nc.lng);
-  drag.x=x; drag.y=y; schedDraw();
-}
-function pEnd(x,y) {
-  if (!drag) return;
-  if (!drag.moved) {
-    const pop=document.getElementById('popup');
-    if (pop.classList.contains('show')) closePopup();
-    else showWindPopup(x,y);
-  } else schedFetch();
-  drag=null;
-}
-
-// ── MOUSE ─────────────────────────────────────────────────────
-MC.addEventListener('mousedown', e=>{MC.classList.add('grabbing');pStart(e.clientX,e.clientY);});
-MC.addEventListener('mousemove', e=>{
-  const {lat,lng}=fs(e.clientX,e.clientY);
-  document.getElementById('cLat').textContent=`${Math.abs(lat).toFixed(2)}°${lat>=0?'N':'S'}`;
-  document.getElementById('cLng').textContent=`${Math.abs(lng).toFixed(2)}°${lng>=0?'E':'W'}`;
-  if (drag) pMove(e.clientX,e.clientY);
-});
-MC.addEventListener('mouseup',    e=>{MC.classList.remove('grabbing');pEnd(e.clientX,e.clientY);});
-MC.addEventListener('mouseleave', ()=>{if(drag){if(drag.moved)schedFetch();drag=null;MC.classList.remove('grabbing');}});
-MC.addEventListener('wheel', e=>{
-  e.preventDefault();
-  const raw=e.deltaY, lines=e.deltaMode===1?raw*33:e.deltaMode===2?raw*500:raw;
-  smoothZoomTo(S.zoom-Math.sign(lines)*Math.min(1,Math.abs(lines)/120), e.clientX, e.clientY);
-},{passive:false});
-
-// ── TOUCH ─────────────────────────────────────────────────────
-let tArr=[], pinchDist=0, pinchMidX=0, pinchMidY=0;
-MC.addEventListener('touchstart', e=>{
-  e.preventDefault(); tArr=[...e.touches];
-  if (tArr.length===1) pStart(tArr[0].clientX,tArr[0].clientY);
-  else if (tArr.length===2) {
-    drag=null;
-    pinchDist=Math.hypot(tArr[1].clientX-tArr[0].clientX,tArr[1].clientY-tArr[0].clientY);
-    pinchMidX=(tArr[0].clientX+tArr[1].clientX)/2;
-    pinchMidY=(tArr[0].clientY+tArr[1].clientY)/2;
-  }
-},{passive:false});
-MC.addEventListener('touchmove', e=>{
-  e.preventDefault(); tArr=[...e.touches];
-  if (tArr.length===1&&drag) pMove(tArr[0].clientX,tArr[0].clientY);
-  else if (tArr.length===2) {
-    const d=Math.hypot(tArr[1].clientX-tArr[0].clientX,tArr[1].clientY-tArr[0].clientY);
-    const mx=(tArr[0].clientX+tArr[1].clientX)/2, my=(tArr[0].clientY+tArr[1].clientY)/2;
-    if (pinchDist>0) doZoom(Math.log2(d/pinchDist)*0.85, mx, my);
-    if (Math.abs(mx-pinchMidX)>1||Math.abs(my-pinchMidY)>1) {
-      const cw=tw(S.lat,S.lng,S.zoom);
-      const nc=fw(cw.x-(mx-pinchMidX),cw.y-(my-pinchMidY),S.zoom);
-      S.lat=clampLat(nc.lat); S.lng=normLng(nc.lng); schedDraw();
-    }
-    pinchDist=d; pinchMidX=mx; pinchMidY=my;
-  }
-},{passive:false});
-MC.addEventListener('touchend', e=>{
-  const prev=tArr; tArr=[...e.touches];
-  if (prev.length===2&&tArr.length<2) {
-    schedFetch(); pinchDist=0;
-    if (tArr.length===1) drag={x:tArr[0].clientX,y:tArr[0].clientY,lat:S.lat,lng:S.lng,moved:true,ox:tArr[0].clientX,oy:tArr[0].clientY};
-  } else if (prev.length===1&&tArr.length===0&&drag) pEnd(prev[0].clientX,prev[0].clientY);
-  else drag=null;
-});
-
-// ── WIND POPUP ────────────────────────────────────────────────
-function showWindPopup(sx,sy) {
-  const {lat,lng}=fs(sx,sy), spd=gridLookup(lat,lng);
-  if (spd<0) return;
-  let minD=Infinity, nearPt=null;
-  for (const p of wPts) { const d=Math.hypot(lat-p.lat,lng-p.lng); if(d<minD){minD=d;nearPt=p;} }
-  const nearDir=nearPt?.dir??0, nearGust=nearPt?.gust??spd;
-  document.getElementById('pKts').textContent=spd.toFixed(1);
-  document.getElementById('pMs').textContent=(spd/1.94384).toFixed(1)+' m/s';
-  document.getElementById('pGust').textContent=nearGust.toFixed(1);
-  const cards='N NE E SE S SW W NW'.split(' ');
-  document.getElementById('pDir').textContent=`${Math.round(nearDir)}° ${cards[Math.round(nearDir/45)%8]}`;
-  const rt=wingRating(spd);
-  const badge=document.getElementById('pBadge');
-  badge.textContent=rt.label;
-  badge.style.cssText=`background:${rt.c}22;color:${rt.c};border:1px solid ${rt.c}55`;
-  document.getElementById('pLat').textContent=`${Math.abs(lat).toFixed(3)}°${lat>=0?'N':'S'}`;
-  document.getElementById('pLng').textContent=`${Math.abs(lng).toFixed(3)}°${lng>=0?'E':'W'}`;
-  const pop=document.getElementById('popup');
-  pop.classList.add('show');
-  const PW=pop.offsetWidth||210, PH=pop.offsetHeight||185;
-  let px=Math.min(vw()-PW-8,Math.max(8,sx+18));
-  let py=sy-PH-12;
-  if(py<60) py=sy+18;
-  if(py+PH>vh()-24) py=vh()-PH-24;
-  pop.style.left=px+'px'; pop.style.top=py+'px';
-  clearTimeout(pop._t);
-}
-function closePopup() {
-  const pop=document.getElementById('popup');
-  pop.classList.remove('show');
-  clearTimeout(pop._t);
-}
-function wingRating(k) {
-  if(k<8)  return {label:'🌀 LIIAN TYYNTÄ',c:'#4060d0'};
-  if(k<12) return {label:'🔵 KEVYT',c:'#0064d4'};
-  if(k<16) return {label:'🟢 RAKENTUU',c:'#00b478'};
-  if(k<22) return {label:'✅ HYVÄ',c:'#32d232'};
-  if(k<28) return {label:'⭐ TÄYDELLINEN',c:'#ffc800'};
-  if(k<36) return {label:'💪 KOVA',c:'#ff7800'};
-  return    {label:'⚠️ ÄÄRIMMÄINEN',c:'#ff1e1e'};
-}
-
-// ── STATUS / TOAST ────────────────────────────────────────────
-function setStatus(cls,txt) {
-  document.getElementById('dot').className=cls;
-  document.getElementById('pillTxt').textContent=txt;
-}
-let toastTimer=null;
-function toast(msg) {
-  const el=document.getElementById('toast');
-  el.textContent=msg; el.classList.add('on');
-  clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>el.classList.remove('on'),3500);
-}
-
-// ── MODAL (info only) ────────────────────────────────────────
-function openModal()  { document.getElementById('modal').classList.remove('off'); }
-function closeModal() { document.getElementById('modal').classList.add('off'); }
-
-document.getElementById('btnDemo').addEventListener('click', ()=>{
-  busy=false; lastSig='';
-  lsClear(); windCache.clear(); tileFetched.clear();
-  wPts=makeDemo();
-  buildGrid(()=>{ setStatus('demo','DEMO'); schedDraw(); });
-  closeModal();
-});
-document.getElementById('btnClose').addEventListener('click', ()=>{
-  closeModal();
-  // If we're in demo mode, restart live fetch when closing info
-  if (document.getElementById('dot').className==='demo') schedFetch();
-});
-document.getElementById('popupClose').addEventListener('click', e=>{e.stopPropagation();closePopup();});
-document.getElementById('settingsBtn').addEventListener('click', openModal);
-document.getElementById('pill').addEventListener('click', openModal);
-document.getElementById('zIn').addEventListener('click',  ()=>smoothZoomTo(S.zoom+1));
-document.getElementById('zOut').addEventListener('click', ()=>smoothZoomTo(S.zoom-1));
-document.getElementById('opSlider').addEventListener('input', e=>{S.opacity=e.target.value/100;drawWind();});
-
-// ── BOOT ──────────────────────────────────────────────────────
-resize();
-const cachedCount=lsBootstrap();
-
-if (cachedCount>0) {
-  // Cached live data found — show immediately, refresh in background
-  rebuildWPts();
-  buildGrid(()=>{ setStatus('live','LIVE'); schedDraw(); });
-  schedFetch();
-} else {
-  // No cache — show demo while first live fetch runs
-  wPts=makeDemo();
-  buildGrid(()=>{ setStatus('loading','LADATAAN'); schedDraw(); schedFetch(); });
-}
-document.fonts.ready.then(schedDraw);
 </script>
 
 </body>
