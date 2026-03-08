@@ -182,7 +182,7 @@ cursor: pointer;
 
 #tl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding: 0 2px; pointer-events: none; }
 #tl-lbl { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); letter-spacing: 2px; text-transform: uppercase; }
-#tl-now { font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–accent); }
+#tl-now { font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–accent); letter-spacing: 0.3px; }
 
 #tl-wrap {
 position: relative; pointer-events: all; height: 68px;
@@ -1261,9 +1261,23 @@ function drawColorField() {
   const se = map.latLngToContainerPoint(L.latLng(WindTexture.latMin, WindTexture.lngMax));
   const dw = se.x - nw.x, dh = se.y - nw.y;
   if (dw <= 0 || dh <= 0) return;
+  
+  /* Multi-pass upscale: 2 passes of bilinear interp ≈ bicubic smoothing.
+     Pass 1: WindTexture → 2× intermediate (browser bilinear)
+     Pass 2: intermediate → screen (browser bilinear again)
+     Result is much smoother than single drawImage at full scale. */
+  const oc = State.offscreenCvs, octx = State.offscreenCtx;
+  const midW = Math.min(1200, WindTexture.cols * 3);
+  const midH = Math.min(1200, WindTexture.rows * 3);
+  oc.width = midW; oc.height = midH;
+  octx.imageSmoothingEnabled = true;
+  octx.imageSmoothingQuality = 'high';
+  octx.drawImage(WindTexture.canvas, 0, 0, WindTexture.cols, WindTexture.rows, 0, 0, midW, midH);
+  
+  /* Pass 2: intermediate → screen */
   colorCtx.imageSmoothingEnabled = true;
   colorCtx.imageSmoothingQuality = 'high';
-  colorCtx.drawImage(WindTexture.canvas, 0, 0, WindTexture.cols, WindTexture.rows, nw.x, nw.y, dw, dh);
+  colorCtx.drawImage(oc, 0, 0, midW, midH, nw.x, nw.y, dw, dh);
 }
 
 /* ── PARTICLE SYSTEM — Screen-space trail fade ───────────────── */
@@ -1561,6 +1575,12 @@ function renderSpots(hourIdx) {
 
 /* ── BOTTOM SHEET ─────────────────────────────────────────────── */
 function fmtHour(iso) { if (!iso) return '--'; const d = new Date(iso); return ('0'+d.getHours()).slice(-2)+':00'; }
+function fmtDateTime(iso) {
+  if (!iso) return '--';
+  const d = new Date(iso);
+  const DAY = ['Su','Ma','Ti','Ke','To','Pe','La'];
+  return DAY[d.getDay()] + ' ' + d.getDate() + '.' + (d.getMonth()+1) + '. ' + ('0'+d.getHours()).slice(-2) + ':00';
+}
 function openSheet(spot, hourIdx) {
   if (!spot.wx || !spot.wx.hourly) return;
   State.sheetSpot = spot;
@@ -1579,7 +1599,7 @@ function openSheet(spot, hourIdx) {
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet-overlay').classList.add('open');
 }
-function closeSheet() { document.getElementById('sheet').classList.remove('open'); document.getElementById('sheet-overlay').classList.remove('open'); }
+function closeSheet() { State.sheetSpot = null; document.getElementById('sheet').classList.remove('open'); document.getElementById('sheet-overlay').classList.remove('open'); }
 document.getElementById('sheet-overlay').addEventListener('click', closeSheet, { passive: true });
 document.getElementById('sheet-handle').addEventListener('click', closeSheet, { passive: true });
 
@@ -1660,7 +1680,7 @@ function _tlSnapSelect(tl) {
   }
   if (bestIdx !== State.currentHourIdx) {
     State.currentHourIdx = bestIdx;
-    document.getElementById('tl-now').textContent = fmtHour(State._tlTimes[bestIdx]);
+    document.getElementById('tl-now').textContent = fmtDateTime(State._tlTimes[bestIdx]);
     buildWindField(bestIdx).then(() => { flagHeatmapDirty(); resetParticles(); });
     renderSpots(bestIdx);
     if (State.sheetSpot) openSheet(State.sheetSpot, bestIdx);
