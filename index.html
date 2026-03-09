@@ -68,14 +68,15 @@ MAP  z:1
 /* ============================================================
 WIND CANVASES  z:2-3
 ============================================================ */
-#c-color, #c-wind {
+#c-wind {
 position: absolute; top: 0; left: 0;
 pointer-events: none;
 -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
 will-change: contents;
 -webkit-backface-visibility: hidden; backface-visibility: hidden;
 }
-#c-color { z-index: 2; opacity: 0.95; filter: blur(16px); -webkit-filter: blur(16px); transition: filter 0.3s, -webkit-filter 0.3s; }
+/* Heatmap overlay managed by Leaflet — CSS blur for smoothing */
+.heatmap-overlay { filter: blur(14px); -webkit-filter: blur(14px); opacity: 0.95; }
 #c-wind  { z-index: 3; transition: opacity 0.15s; }
 
 /* ============================================================
@@ -419,7 +420,6 @@ animation: pulse-dot 1s ease infinite;
   </div>
 
   <div id="map"></div>
-  <canvas id="c-color"></canvas>
   <canvas id="c-wind"></canvas>
 
   <div id="topbar">
@@ -527,12 +527,11 @@ const Config = {
   INERTIA: 0.78,             // Slightly snappier for screen-space trails
   GEO_SPEED: 0.003,          // Slightly faster — trails are shorter with fade
   WIND_SAMPLE_INTERVAL: 2,
-  FADE_OPACITY: 0.93,        // Screen-space trail fade: lower = shorter tails (0.93 ≈ 14 frames)
+  FADE_OPACITY: 0.94,        // Screen-space trail fade: 0.94 ≈ 16 frames (0.27s trail)
   DROP_RATE: 0.003,          // Base particle reset rate per frame
   DROP_RATE_BUMP: 0.008,     // Extra reset rate for fast particles (density balance)
   DATA_REFRESH_MS: 60 * 60 * 1000,
   PLAY_INTERVAL_MS: 800,
-  FINLAND_BOUNDS: { latMin: 52, latMax: 72, lngMin: 14, lngMax: 37 },
 };
 
 /* ── COLOUR RAMP ────────────────────────────────────────────── */
@@ -776,7 +775,7 @@ const TileEngine = (() => {
   let _debounce = null;
   function onViewportChanged(map) {
     clearTimeout(_debounce);
-    _debounce = setTimeout(() => _loadForViewport(map), 350);
+    _debounce = setTimeout(() => _loadForViewport(map), 800);
   }
 
   function _loadForViewport(map) {
@@ -813,7 +812,7 @@ const TileEngine = (() => {
       dot.classList.add('pulse');
       Promise.allSettled(promises).then(() => {
         buildWindField(State.currentHourIdx).then(() => {
-          flagHeatmapDirty();
+          drawColorField();
           resetParticles();
           renderSpots(State.currentHourIdx);
           setTimeout(() => dot.classList.remove('pulse'), 800);
@@ -860,9 +859,8 @@ const TileEngine = (() => {
 /* ── STATE (cleaned — no unused vars) ────────────────────────── */
 const State = {
   map: null,
-  colorCvs: null, colorCtx: null,
+  heatmapOverlay: null,
   windCvs: null, windCtx: null,
-  offscreenCvs: null, offscreenCtx: null,
   particles: [],
   markers: [],
   currentHourIdx: 0,
@@ -875,9 +873,7 @@ const State = {
   lastDataLoad: 0,
   refreshTimer: null,
   sheetSpot: null,
-  errorCount: 0,
   _panning: false,
-  _panStartTransform: null,
   _tlTimes: null, _tlSpeeds: null, _tlDirs: null, _tlTicks: [],
 };
 
@@ -918,24 +914,14 @@ function updateLODBadge() {
   if (fcEl) fcEl.textContent = State.activeModel === 'icon_eu' ? 'Live + 3 pv' : 'Live + 7 pv';
 }
 function updateHeatmapBlur() {
-  if (!State.map || !State.colorCvs) return;
+  if (!State.map) return;
   const z = State.map.getZoom();
-  /* Zoom ≤5: 18px (soft overview), 7: 12px, 9: 6px, 11+: 3px */
   const blur = Math.max(3, Math.round(18 - (z - 4) * 2.5));
-  State.colorCvs.style.filter = 'blur(' + blur + 'px)';
-  State.colorCvs.style.webkitFilter = 'blur(' + blur + 'px)';
-}
-
-/* Helper: read Leaflet map pane translate offset from CSS transform */
-function _getMapPaneOffset() {
-  const pane = document.querySelector('.leaflet-map-pane');
-  if (!pane) return { x: 0, y: 0 };
-  const t = window.getComputedStyle(pane).transform;
-  if (!t || t === 'none') return { x: 0, y: 0 };
-  const m = t.match(/matrix.*\((.+)\)/);
-  if (!m) return { x: 0, y: 0 };
-  const v = m[1].split(',').map(Number);
-  return { x: v[4] || 0, y: v[5] || 0 };
+  /* Update CSS on any existing heatmap overlay elements */
+  document.querySelectorAll('.heatmap-overlay').forEach(el => {
+    el.style.filter = 'blur(' + blur + 'px)';
+    el.style.webkitFilter = 'blur(' + blur + 'px)';
+  });
 }
 
 /* ── MAP ──────────────────────────────────────────────────────── */
@@ -951,42 +937,29 @@ function initMap() {
   }).addTo(map);
   State.map = map;
   map.on('moveend', () => {
-    /* Reset heatmap canvas transform — drawColorField will render at correct position */
-    if (State.colorCvs) State.colorCvs.style.transform = '';
-    flagHeatmapDirty(); renderSpots(State.currentHourIdx);
+    renderSpots(State.currentHourIdx);
     TileEngine.onViewportChanged(map);
     GeoProject.update(map);
-    /* Restore particle canvas after pan */
     State.windCvs.style.opacity = '1';
     State._panning = false;
     for (const p of State.particles) respawn(p);
     const target = nParticles();
     while (State.particles.length > target) State.particles.pop();
     while (State.particles.length < target) State.particles.push(makeParticle(true));
-    /* Rebuild WindTexture if zoomed in and viewport moved outside texture bounds */
+    /* Rebuild heatmap only when zoomed in AND viewport outside texture */
     if (map.getZoom() >= 6.5 && State.windField.length) {
       const b = map.getBounds();
       if (b.getSouth() < WindTexture.latMin + 0.3 || b.getNorth() > WindTexture.latMax - 0.3 ||
           b.getWest() < WindTexture.lngMin + 0.3 || b.getEast() > WindTexture.lngMax - 0.3) {
-        WindTexture.build(State.windField, b).then(() => flagHeatmapDirty());
+        WindTexture.build(State.windField, b).then(() => drawColorField());
       }
     }
   });
   map.on('movestart', () => {
     State._panning = true;
-    /* Record initial map pane position for pan offset calculation */
-    State._panStartTransform = _getMapPaneOffset();
   });
   map.on('move', () => {
-    /* Fade particle canvas during pan */
     if (State.windCvs) State.windCvs.style.opacity = '0.15';
-    /* Sync heatmap canvas with map pane movement — keeps heatmap stuck to map */
-    if (State.colorCvs) {
-      const curr = _getMapPaneOffset();
-      const dx = curr.x - (State._panStartTransform ? State._panStartTransform.x : curr.x);
-      const dy = curr.y - (State._panStartTransform ? State._panStartTransform.y : curr.y);
-      State.colorCvs.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
-    }
   });
   let _prevZoom = map.getZoom();
   map.on('zoomend', () => {
@@ -1022,7 +995,7 @@ function initMap() {
     }
     /* Rebuild WindTexture at new zoom level for resolution scaling */
     if (State.windField.length) {
-      WindTexture.build(State.windField, map.getBounds()).then(() => flagHeatmapDirty());
+      WindTexture.build(State.windField, map.getBounds()).then(() => drawColorField());
     }
   });
   map.on('zoom', () => {
@@ -1041,24 +1014,20 @@ function initMap() {
 
 /* ── CANVAS ───────────────────────────────────────────────────── */
 function initCanvases() {
-  State.colorCvs = document.getElementById('c-color');
-  State.colorCtx = State.colorCvs.getContext('2d');
   State.windCvs = document.getElementById('c-wind');
   State.windCtx = State.windCvs.getContext('2d');
   State.dpr = window.devicePixelRatio || 1;
   resizeCanvases();
-  window.addEventListener('resize', () => { resizeCanvases(); flagHeatmapDirty(); resetParticles(); }, { passive: true });
-  window.addEventListener('orientationchange', () => { setTimeout(() => { resizeCanvases(); flagHeatmapDirty(); resetParticles(); }, 250); }, { passive: true });
+  window.addEventListener('resize', () => { resizeCanvases(); drawColorField(); resetParticles(); }, { passive: true });
+  window.addEventListener('orientationchange', () => { setTimeout(() => { resizeCanvases(); drawColorField(); resetParticles(); }, 250); }, { passive: true });
 }
 
 function resizeCanvases() {
   const w = window.innerWidth, h = window.innerHeight, dpr = State.dpr;
-  [State.colorCvs, State.windCvs].forEach(cvs => {
-    cvs.width = w * dpr; cvs.height = h * dpr;
-    cvs.style.width = w + 'px'; cvs.style.height = h + 'px';
-    cvs.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
-  });
-  if (!State.offscreenCvs) { State.offscreenCvs = document.createElement('canvas'); State.offscreenCtx = State.offscreenCvs.getContext('2d'); }
+  const cvs = State.windCvs;
+  cvs.width = w * dpr; cvs.height = h * dpr;
+  cvs.style.width = w + 'px'; cvs.style.height = h + 'px';
+  cvs.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 /* ── SPATIAL INDEX ────────────────────────────────────────────── */
@@ -1198,12 +1167,11 @@ const WindTexture = {
   build(windField, viewportBounds) {
     return new Promise((resolve) => {
       if (!windField.length) { resolve(); return; }
-      /* Use viewport bounds when zoomed in, else full data extent */
       const zoom = State.map ? State.map.getZoom() : 5;
       const useViewport = viewportBounds && zoom >= 6.5;
       let laMin = 90, laMax = -90, loMin = 180, loMax = -180;
       if (useViewport) {
-        const vPad = 0.5; /* extra padding around viewport */
+        const vPad = 0.5;
         laMin = viewportBounds.getSouth() - vPad;
         laMax = viewportBounds.getNorth() + vPad;
         loMin = viewportBounds.getWest() - vPad;
@@ -1219,12 +1187,12 @@ const WindTexture = {
       this.lngMin = loMin - pad; this.lngMax = loMax + pad;
       const latSpan = this.latMax - this.latMin;
       const lngSpan = this.lngMax - this.lngMin;
-      /* Zoom-scaled resolution: overview=60, city=150, street=250 */
       const baseRES = useViewport
-        ? Math.min(250, Math.max(80, Math.round(120 + (zoom - 6.5) * 30)))
-        : Math.min(100, Math.max(40, Math.round(Math.sqrt(windField.length) * 2.5)));
-      this.cols = Math.min(800, Math.ceil(lngSpan * baseRES));
-      this.rows = Math.min(800, Math.ceil(latSpan * baseRES));
+        ? Math.min(200, Math.max(60, Math.round(100 + (zoom - 6.5) * 25)))
+        : Math.min(80, Math.max(30, Math.round(Math.sqrt(windField.length) * 2)));
+      const maxDim = (window.devicePixelRatio || 1) > 1.5 ? 350 : 600;
+      this.cols = Math.min(maxDim, Math.ceil(lngSpan * baseRES));
+      this.rows = Math.min(maxDim, Math.ceil(latSpan * baseRES));
       if (!this.canvas) { this.canvas = document.createElement('canvas'); this.ctx = this.canvas.getContext('2d'); }
       this.canvas.width = this.cols; this.canvas.height = this.rows;
       const n = this.cols * this.rows;
@@ -1235,12 +1203,10 @@ const WindTexture = {
       const d = img.data;
       const latStep = latSpan / this.rows, lngStep = lngSpan / this.cols;
       const self = this;
-      const CHUNK = self.cols > 400 ? 4 : self.cols > 200 ? 6 : 8;
-      let row = 0;
-      
-      function processChunk() {
-        const end = Math.min(row + CHUNK, self.rows);
-        for (let r = row; r < end; r++) {
+
+      /* Build synchronously for small textures, chunked for large */
+      function buildAll() {
+        for (let r = 0; r < self.rows; r++) {
           const lat = self.latMax - r * latStep;
           for (let c = 0; c < self.cols; c++) {
             const lng = self.lngMin + c * lngStep;
@@ -1249,23 +1215,23 @@ const WindTexture = {
             self.uData[idx] = w.u; self.vData[idx] = w.v; self.msData[idx] = w.ms;
             const base = idx * 4;
             const rgb = ColorRamp.rgb(w.ms);
-            /* S-curve alpha: 0-2 m/s transparent, 2-5 rapid rise, 5+ plateau 0.50-0.65
-               Windy-style: calm = see-through map, strong = opaque overlay */
             const t = w.ms / Config.MAX_MS;
             const a = w.ms < 1.5 ? 0 : Math.min(0.65, 0.65 * (1 - Math.exp(-3.5 * (t - 0.075))));
             d[base] = rgb.r; d[base+1] = rgb.g; d[base+2] = rgb.b; d[base+3] = Math.round(a * 255);
           }
         }
-        row = end;
-        if (row < self.rows) {
-          setTimeout(processChunk, 0);
-        } else {
-          self.ctx.putImageData(img, 0, 0);
-          console.log('[WindTexture]', self.cols + 'x' + self.rows, '=', n, 'px, RES=' + baseRES);
-          resolve();
-        }
+        self.ctx.putImageData(img, 0, 0);
+        console.log('[WindTexture]', self.cols + 'x' + self.rows, '=', n, 'px');
+        resolve();
       }
-      processChunk();
+
+      if (n < 120000) {
+        /* Small texture: build synchronously (< 120k px ≈ < 20ms on mobile) */
+        buildAll();
+      } else {
+        /* Large texture: defer to avoid blocking UI */
+        setTimeout(buildAll, 0);
+      }
     });
   },
   
@@ -1295,31 +1261,21 @@ const WindTexture = {
 };
 
 function drawColorField() {
-  const { colorCtx, map } = State;
-  if (!colorCtx || !WindTexture.canvas || !map) return;
-  const W = window.innerWidth, H = window.innerHeight;
-  colorCtx.clearRect(0, 0, W, H);
-  const nw = map.latLngToContainerPoint(L.latLng(WindTexture.latMax, WindTexture.lngMin));
-  const se = map.latLngToContainerPoint(L.latLng(WindTexture.latMin, WindTexture.lngMax));
-  const dw = se.x - nw.x, dh = se.y - nw.y;
-  if (dw <= 0 || dh <= 0) return;
-  
-  /* Multi-pass upscale: 2 passes of bilinear interp ≈ bicubic smoothing.
-     Pass 1: WindTexture → 2× intermediate (browser bilinear)
-     Pass 2: intermediate → screen (browser bilinear again)
-     Result is much smoother than single drawImage at full scale. */
-  const oc = State.offscreenCvs, octx = State.offscreenCtx;
-  const midW = Math.min(1200, WindTexture.cols * 3);
-  const midH = Math.min(1200, WindTexture.rows * 3);
-  oc.width = midW; oc.height = midH;
-  octx.imageSmoothingEnabled = true;
-  octx.imageSmoothingQuality = 'high';
-  octx.drawImage(WindTexture.canvas, 0, 0, WindTexture.cols, WindTexture.rows, 0, 0, midW, midH);
-  
-  /* Pass 2: intermediate → screen */
-  colorCtx.imageSmoothingEnabled = true;
-  colorCtx.imageSmoothingQuality = 'high';
-  colorCtx.drawImage(oc, 0, 0, midW, midH, nw.x, nw.y, dw, dh);
+  if (!WindTexture.canvas || !State.map) return;
+  const bounds = L.latLngBounds(
+    L.latLng(WindTexture.latMin, WindTexture.lngMin),
+    L.latLng(WindTexture.latMax, WindTexture.lngMax)
+  );
+  const url = WindTexture.canvas.toDataURL();
+  if (State.heatmapOverlay) {
+    State.heatmapOverlay.setUrl(url);
+    State.heatmapOverlay.setBounds(bounds);
+  } else {
+    State.heatmapOverlay = L.imageOverlay(url, bounds, {
+      opacity: 1, interactive: false, className: 'heatmap-overlay', pane: 'overlayPane'
+    }).addTo(State.map);
+  }
+  updateHeatmapBlur();
 }
 
 /* ── PARTICLE SYSTEM — Screen-space trail fade ───────────────── */
@@ -1388,21 +1344,9 @@ function respawn(p) {
   p.vlat = 0; p.vlng = 0; p.age = 0; p.sampleTimer = 0;
 }
 
-/* ── UNIFIED RENDER LOOP — Screen-space trail fade technique ──
-   Same technique as earth.nullschool, Esri Wind-JS, Mapbox webgl-wind:
-   1. Fade previous frame (destination-in composite)
-   2. Draw one dot per particle at current position
-   Trail emerges from persistence of previous pixels.
-   ~600 draw calls vs old 9000 (15× faster).
-   ============================================================ */
-let _heatmapDirty = true;
-function flagHeatmapDirty() { _heatmapDirty = true; }
-
+/* ── RENDER LOOP — Screen-space trail fade + line segments ────── */
 function renderLoop() {
   requestAnimationFrame(renderLoop);
-
-  /* Heatmap: only when flagged dirty */
-  if (_heatmapDirty && State.windField.length) { drawColorField(); _heatmapDirty = false; }
 
   /* Particles */
   const { windCtx, windCvs, windField, map, particles, dpr } = State;
@@ -1412,7 +1356,7 @@ function renderLoop() {
 
   /* Short trail fade: 0.88 = ~7 frame persistence = very short crisp streaks */
   windCtx.globalCompositeOperation = 'destination-in';
-  windCtx.fillStyle = 'rgba(0,0,0,0.88)';
+  windCtx.fillStyle = 'rgba(0,0,0,' + Config.FADE_OPACITY + ')';
   windCtx.fillRect(0, 0, W, H);
   windCtx.globalCompositeOperation = 'source-over';
   windCtx.lineCap = 'round';
@@ -1423,8 +1367,7 @@ function renderLoop() {
   const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.2;
   const lngPad = (bounds.getEast() - bounds.getWest()) * 0.2;
 
-  /* Step 2: Update physics + draw line from prev to current position */
-  windCtx.lineCap = 'round';
+  /* Update physics + draw line from prev→curr, trail from fade persistence */
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
     sampleWind(p);
@@ -1522,8 +1465,9 @@ function setRateLimited() {
 function loadBatch(points) {
   if (_rateLimited) return Promise.resolve(); /* Stop all fetches if rate limited */
   
-  /* Simple cache key from first+last point coords */
-  const cacheKey = points.map(p => p.lat.toFixed(3) + ',' + p.lng.toFixed(3)).join('|');
+  /* Cache key from first+last point (unique for grid batches, much shorter) */
+  const p0 = points[0], pN = points[points.length - 1];
+  const cacheKey = p0.lat.toFixed(3) + ',' + p0.lng.toFixed(3) + '|' + pN.lat.toFixed(3) + ',' + pN.lng.toFixed(3) + '|' + points.length;
   if (_batchCache[cacheKey]) {
     const cached = _batchCache[cacheKey];
     cached.forEach((wx, i) => { if (i < points.length && wx) points[i].wx = wx; });
@@ -1729,7 +1673,7 @@ function _tlSnapSelect(tl) {
   if (bestIdx !== State.currentHourIdx) {
     State.currentHourIdx = bestIdx;
     document.getElementById('tl-now').textContent = fmtDateTime(State._tlTimes[bestIdx]);
-    buildWindField(bestIdx).then(() => { flagHeatmapDirty(); resetParticles(); });
+    buildWindField(bestIdx).then(() => { drawColorField(); resetParticles(); });
     renderSpots(bestIdx);
     if (State.sheetSpot) openSheet(State.sheetSpot, bestIdx);
   }
@@ -1825,7 +1769,7 @@ document.getElementById('layers').addEventListener('click', e => {
   const b = e.target.closest('.lbtn'); if (!b) return;
   const layer = b.dataset.layer; if (!layer || layer === State.activeLayer) return;
   document.querySelectorAll('#layers .lbtn').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
-  State.activeLayer = layer; buildLegend(); buildWindField(State.currentHourIdx).then(() => { flagHeatmapDirty(); resetParticles(); }); renderSpots(State.currentHourIdx);
+  State.activeLayer = layer; buildLegend(); buildWindField(State.currentHourIdx).then(() => { drawColorField(); resetParticles(); }); renderSpots(State.currentHourIdx);
   const ref = SPOTS.find(s => s.wx && s.wx.hourly);
   if (ref) { const t = ref.wx.hourly.time, sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m; renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, State.currentHourIdx); }
 }, { passive: true });
@@ -1846,7 +1790,7 @@ document.getElementById('models').addEventListener('click', e => {
     const ref = SPOTS.find(s => s.wx && s.wx.hourly) || TileEngine.getAllPoints().find(p => p.wx && p.wx.hourly);
     if (ref) {
       const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
-      buildWindField(ni).then(() => { flagHeatmapDirty(); resetParticles(); });
+      buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
       const layer = State.activeLayer;
       const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
       renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
@@ -1869,7 +1813,7 @@ function scheduleRefresh() {
     WeatherCache.clear(); /* Force fresh API data */
     TileEngine.loadL1().then(() => {
       buildWindField(State.currentHourIdx).then(() => {
-        flagHeatmapDirty(); resetParticles(); renderSpots(State.currentHourIdx);
+        drawColorField(); resetParticles(); renderSpots(State.currentHourIdx);
       });
       State.lastDataLoad = Date.now(); TileEngine.onViewportChanged(State.map);
       setTimeout(() => dot.classList.remove('pulse'), 1500);
@@ -1892,7 +1836,7 @@ function main() {
     if (ref) {
       const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
       buildWindField(ni).then(() => {
-        flagHeatmapDirty(); resetParticles(); renderLoop();
+        drawColorField(); resetParticles(); renderLoop();
       });
       renderTimeline(ref.wx.hourly.time, ref.wx.hourly.windspeed_10m, ref.wx.hourly.winddirection_10m, ni);
       renderSpots(ni);
