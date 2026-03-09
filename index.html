@@ -103,7 +103,7 @@ background: linear-gradient(135deg, #c8eeff 0%, var(–accent) 100%);
 LEGEND  z:20
 ============================================================ */
 #legend {
-position: absolute; right: calc(var(–sar) + 12px); top: calc(var(–sat) + 280px); z-index: 20;
+position: absolute; right: calc(var(–sar) + 10px); bottom: calc(var(–sab) + 200px); z-index: 20;
 background: var(–panel); border: 1px solid var(–border); border-radius: 10px; padding: 8px;
 -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); pointer-events: none;
 transition: opacity .3s;
@@ -118,7 +118,7 @@ transition: opacity .3s;
 MAP CONTROLS  z:20
 ============================================================ */
 #map-ctrls {
-position: absolute; right: calc(var(–sar) + 12px); top: calc(var(–sat) + 70px);
+position: absolute; left: calc(var(–sal) + 12px); bottom: calc(var(–sab) + 220px);
 z-index: 20; display: flex; flex-direction: column; gap: 6px;
 }
 .mctl {
@@ -215,12 +215,20 @@ pointer-events: none;
 }
 .htick.show-lbl .htick-lbl { opacity: 1; }
 
-/* Center indicator line */
+/* Center indicator line — prominent selection marker */
 #tl-indicator {
-position: absolute; top: 0; left: 50%; width: 2px; height: 100%;
+position: absolute; top: -4px; left: 50%; width: 3px; height: calc(100% + 4px);
 transform: translateX(-50%); pointer-events: none; z-index: 2;
 background: var(–accent);
-box-shadow: 0 0 8px rgba(0,207,255,0.4);
+box-shadow: 0 0 10px rgba(0,207,255,0.6), 0 0 20px rgba(0,207,255,0.2);
+border-radius: 2px;
+}
+#tl-indicator::before {
+content: ‘’; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
+width: 0; height: 0;
+border-left: 6px solid transparent; border-right: 6px solid transparent;
+border-top: 6px solid var(–accent);
+filter: drop-shadow(0 0 4px rgba(0,207,255,0.5));
 }
 
 /* Day separator */
@@ -1402,8 +1410,12 @@ function renderLoop() {
   const W = window.innerWidth, H = window.innerHeight;
   if (!GeoProject._valid) GeoProject.update(map);
 
-  /* Clear fully each frame — no trail persistence, just moving dots */
-  windCtx.clearRect(0, 0, W, H);
+  /* Short trail fade: 0.88 = ~7 frame persistence = very short crisp streaks */
+  windCtx.globalCompositeOperation = 'destination-in';
+  windCtx.fillStyle = 'rgba(0,0,0,0.88)';
+  windCtx.fillRect(0, 0, W, H);
+  windCtx.globalCompositeOperation = 'source-over';
+  windCtx.lineCap = 'round';
 
   const zoom = map.getZoom();
   const geoSpd = Config.GEO_SPEED / Math.pow(2, zoom - 5) * (zoom >= 9 ? 0.7 : 1.0);
@@ -1443,13 +1455,15 @@ function renderLoop() {
     const curr = geo2px(p.lat, p.lng);
     if (curr.x < -10 || curr.x > W + 10 || curr.y < -10 || curr.y > H + 10) continue;
 
-    /* Draw dot at current position — no tail, just a moving point */
+    /* Draw short line segment — fade persistence creates crisp streak */
     const lw = particleLineWidth(p.ms);
     const alpha = Math.min(0.9, 0.3 + speedT * 0.6);
-    windCtx.fillStyle = ColorRamp.css(p.ms, alpha);
     windCtx.beginPath();
-    windCtx.arc(curr.x, curr.y, lw * 0.5, 0, 6.283);
-    windCtx.fill();
+    windCtx.moveTo(prev.x, prev.y);
+    windCtx.lineTo(curr.x, curr.y);
+    windCtx.lineWidth = lw;
+    windCtx.strokeStyle = ColorRamp.css(p.ms, alpha);
+    windCtx.stroke();
   }
 }
 
