@@ -75,8 +75,7 @@ pointer-events: none;
 will-change: contents;
 -webkit-backface-visibility: hidden; backface-visibility: hidden;
 }
-/* Heatmap overlay managed by Leaflet — CSS blur for smoothing */
-.heatmap-overlay { filter: blur(14px); -webkit-filter: blur(14px); opacity: 0.95; }
+
 #c-wind  { z-index: 3; transition: opacity 0.15s; }
 
 /* ============================================================
@@ -241,6 +240,17 @@ letter-spacing: 0.5px; text-transform: uppercase; opacity: .6;
 border-left: 1px solid rgba(0,207,255,.25);
 writing-mode: vertical-rl; text-orientation: mixed;
 }
+
+/* Foilable hour highlight */
+.htick-bar.foilable { box-shadow: 0 0 6px rgba(80,237,120,0.5); }
+/* Gust index colors */
+.gi-steady  { color: rgb(80,237,120); }
+.gi-gusty   { color: rgb(240,220,0); }
+.gi-extreme { color: rgb(255,90,90); }
+/* Wind trend arrow on spot markers */
+.spot-trend { font-size: 8px; color: var(–muted); margin-top: 1px; text-align: center; }
+/* Water temp card */
+.sh-card-small { font-size: 16px; }
 
 /* ============================================================
 BOTTOM SHEET  z:30
@@ -432,7 +442,7 @@ animation: pulse-dot 1s ease infinite;
       </svg>
       <div>
         <div id="logo-text">FoilSpot</div>
-        <div id="logo-sub">Wingfoil Finland</div>
+        <div id="logo-sub">Wingfoil</div>
       </div>
     </div>
     <div id="timebox">
@@ -471,9 +481,10 @@ animation: pulse-dot 1s ease infinite;
 
   <div id="bottom">
     <div id="models" style="display:flex;gap:5px;margin-bottom:6px;pointer-events:all">
-      <div class="lbtn active" data-model="icon_eu" style="font-size:9px"><span class="l-icon">🇪🇺</span>ICON-EU 7km</div>
-      <div class="lbtn" data-model="ecmwf_ifs025" style="font-size:9px"><span class="l-icon">🌍</span>ECMWF 9km</div>
-      <div class="lbtn" data-model="gfs_seamless" style="font-size:9px"><span class="l-icon">🇺🇸</span>GFS 11km</div>
+      <div class="lbtn active" data-model="best_match" style="font-size:9px"><span class="l-icon">🌐</span>Auto</div>
+      <div class="lbtn" data-model="icon_eu" style="font-size:9px"><span class="l-icon">🇪🇺</span>ICON-EU</div>
+      <div class="lbtn" data-model="ecmwf_ifs025" style="font-size:9px"><span class="l-icon">🌍</span>ECMWF</div>
+      <div class="lbtn" data-model="gfs_seamless" style="font-size:9px"><span class="l-icon">🇺🇸</span>GFS</div>
     </div>
     <div id="layers">
       <div class="lbtn active" data-layer="wind"><span class="l-icon">💨</span>Tuuli</div>
@@ -518,8 +529,8 @@ animation: pulse-dot 1s ease infinite;
 'use strict';
 
 /* ╔══════════════════════════════════════════════════════════════╗
-   ║  FoilSpot v3 — Progressive Tile-Based Wind Engine           ║
-   ║  Optimized: Bilinear interp, CSS blur, unified render loop  ║
+   ║  FoilSpot v4 — Global Wind Particles + Wingfoil Features           ║
+   ║  Viewport-based adaptive grid, screen-space trail particles  ║
    ╚══════════════════════════════════════════════════════════════╝ */
 
 const Config = {
@@ -589,284 +600,174 @@ const SPOTS = [
   { name: 'Lohja',             lat: 60.243, lng: 23.998, desc: 'Sisäjärvi' }
 ];
 
-/* ── WEATHER CACHE — localStorage persistence ────────────────
-   Saves L1 + spot weather data so page reloads don't burn API calls.
-   TTL: 30 min. ~2MB compressed JSON fits in localStorage (5MB limit).
+/* ── VIEWPORT GRID — Global adaptive wind data loading ────────
+   Loads wind data for visible map area at adaptive resolution.
+   Caches per 10°×10° tile in localStorage. Works globally.
    ============================================================ */
-const WeatherCache = {
-  KEY: 'foilspot_wx_v4_',
-  _key() { return this.KEY + State.activeModel; },
-  TTL: 60 * 60 * 1000, /* 60 minutes */
+const ViewportGrid = {
+  _points: new Map(),
+  TILE_DEG: 10,
+  CACHE_TTL: 90 * 60 * 1000,
 
-  save(points, spots) {
-    try {
-      const data = {
-        ts: Date.now(),
-        pts: points.filter(p => p.wx && p.wx.hourly).map(p => ({
-          lat: p.lat, lng: p.lng, wx: p.wx
-        })),
-        spots: spots.filter(s => s.wx && s.wx.hourly).map(s => ({
-          name: s.name, wx: s.wx
-        }))
-      };
-      localStorage.setItem(this._key(), JSON.stringify(data));
-      console.log('[Cache] Saved', data.pts.length, 'pts +', data.spots.length, 'spots');
-    } catch(e) {
-      console.warn('[Cache] Save failed:', e.message);
+  gridStep(zoom) {
+    if (zoom <= 3) return 4;
+    if (zoom <= 5) return 2;
+    if (zoom <= 7) return 0.8;
+    if (zoom <= 9) return 0.35;
+    return 0.15;
+  },
+
+  _tileKey(lat, lng) {
+    const d = this.TILE_DEG;
+    return 'fg_' + State.activeModel + '_' + (Math.floor(lat/d)*d) + '_' + (Math.floor(lng/d)*d);
+  },
+
+  _ptKey(lat, lng) { return lat.toFixed(2) + ',' + lng.toFixed(2); },
+
+  getViewportPoints(bounds, zoom) {
+    const step = this.gridStep(zoom);
+    const pad = step * 2;
+    const s = Math.max(-80, bounds.getSouth() - pad);
+    const n = Math.min(80, bounds.getNorth() + pad);
+    const w = bounds.getWest() - pad;
+    const e = bounds.getEast() + pad;
+    const pts = [];
+    for (let lat = Math.floor(s / step) * step; lat <= n; lat += step) {
+      for (let lng = Math.floor(w / step) * step; lng <= e; lng += step) {
+        pts.push({ lat: Math.round(lat * 100) / 100, lng: Math.round(lng * 100) / 100 });
+      }
+    }
+    /* Cap at 600 points to stay within API budget */
+    if (pts.length > 600) {
+      const every = Math.ceil(pts.length / 600);
+      return pts.filter((_, i) => i % every === 0);
+    }
+    return pts;
+  },
+
+  _restoreCache(points) {
+    const tiles = {};
+    points.forEach(p => {
+      const tk = this._tileKey(p.lat, p.lng);
+      if (!tiles[tk]) tiles[tk] = [];
+      tiles[tk].push(p);
+    });
+    let restored = 0;
+    for (const [tk, pts] of Object.entries(tiles)) {
+      try {
+        const raw = localStorage.getItem(tk);
+        if (!raw) continue;
+        const data = JSON.parse(raw);
+        if (Date.now() - data.ts > this.CACHE_TTL) { localStorage.removeItem(tk); continue; }
+        pts.forEach(p => {
+          const pk = this._ptKey(p.lat, p.lng);
+          if (data.pts && data.pts[pk]) {
+            p.wx = data.pts[pk];
+            this._points.set(pk, p);
+            restored++;
+          }
+        });
+      } catch (e) {}
+    }
+    if (restored > 0) console.log('[Cache] Restored', restored, 'points');
+    return restored;
+  },
+
+  _saveCache(points) {
+    const tiles = {};
+    points.forEach(p => {
+      const tk = this._tileKey(p.lat, p.lng);
+      if (!tiles[tk]) tiles[tk] = {};
+      const pk = this._ptKey(p.lat, p.lng);
+      const pt = this._points.get(pk);
+      if (pt && pt.wx) tiles[tk][pk] = pt.wx;
+    });
+    for (const [tk, pts] of Object.entries(tiles)) {
+      if (Object.keys(pts).length === 0) continue;
+      try {
+        localStorage.setItem(tk, JSON.stringify({ ts: Date.now(), pts }));
+      } catch (e) { this._pruneOldCache(); }
     }
   },
 
-  load(points, spots) {
-    try {
-      const raw = localStorage.getItem(this._key());
-      if (!raw) return false;
-      const data = JSON.parse(raw);
-      if (Date.now() - data.ts > this.TTL) {
-        console.log('[Cache] Expired (' + Math.round((Date.now() - data.ts)/60000) + 'min old)');
-        localStorage.removeItem(this._key());
-        return false;
-      }
-      /* Restore wx data to matching points by lat/lng */
-      const ptMap = {};
-      for (const p of data.pts) ptMap[p.lat.toFixed(4) + ',' + p.lng.toFixed(4)] = p.wx;
-      let restored = 0;
-      for (const p of points) {
-        const key = p.lat.toFixed(4) + ',' + p.lng.toFixed(4);
-        if (ptMap[key]) { p.wx = ptMap[key]; restored++; }
-      }
-      /* Restore spots by name */
-      const spotMap = {};
-      for (const s of data.spots) spotMap[s.name] = s.wx;
-      let spotRestored = 0;
-      for (const s of spots) {
-        if (spotMap[s.name]) { s.wx = spotMap[s.name]; spotRestored++; }
-      }
-      console.log('[Cache] Restored', restored + '/' + points.length, 'pts,', spotRestored + '/' + spots.length, 'spots (' + Math.round((Date.now() - data.ts)/1000) + 's old)');
-      return restored > 0;
-    } catch(e) {
-      console.warn('[Cache] Load failed:', e.message);
-      return false;
+  _pruneOldCache() {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('fg_')) keys.push(k);
     }
+    keys.slice(0, Math.ceil(keys.length / 2)).forEach(k => localStorage.removeItem(k));
   },
 
-  clear() {
-    try { localStorage.removeItem(this._key()); } catch(e) {}
+  async loadViewport(map, onProgress) {
+    const bounds = map.getBounds();
+    const zoom = map.getZoom();
+    const gridPoints = this.getViewportPoints(bounds, zoom);
+
+    this._restoreCache(gridPoints);
+
+    /* Find unloaded points */
+    const toLoad = gridPoints.filter(p => !this._points.has(this._ptKey(p.lat, p.lng)));
+    if (toLoad.length === 0) {
+      if (onProgress) onProgress(gridPoints.length, gridPoints.length);
+      return;
+    }
+
+    /* Load in batches, 4 concurrent */
+    const batchSize = 80;
+    const batches = [];
+    for (let i = 0; i < toLoad.length; i += batchSize) batches.push(toLoad.slice(i, i + batchSize));
+    let done = 0;
+    const total = toLoad.length;
+    for (let i = 0; i < batches.length; i += 4) {
+      const wave = batches.slice(i, i + 4);
+      await Promise.allSettled(wave.map(b =>
+        loadBatch(b).then(() => {
+          b.forEach(p => { if (p.wx) this._points.set(this._ptKey(p.lat, p.lng), p); });
+          done += b.length;
+          if (onProgress) onProgress(done, total);
+        })
+      ));
+    }
+    this._saveCache(gridPoints);
+    console.log('[ViewportGrid] Loaded', done, '/', total, 'new points, step=' + this.gridStep(zoom));
+  },
+
+  async loadSpots() {
+    /* Load spots with 7-day forecast for detailed view */
+    const toLoad = SPOTS.filter(s => !s.wx);
+    if (!toLoad.length) return;
+    const batches = [];
+    for (let i = 0; i < toLoad.length; i += 80) batches.push(toLoad.slice(i, i + 80));
+    for (const b of batches) await loadBatch(b, 7);
+  },
+
+  getAllPoints() {
+    return Array.from(this._points.values()).concat(SPOTS).filter(p => p.wx && p.wx.hourly);
+  },
+
+  clearAll() {
+    this._points.clear();
+    SPOTS.forEach(s => { s.wx = null; });
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('fg_')) localStorage.removeItem(k);
+    }
   }
 };
 
-const TileEngine = (() => {
-  const LODS = {
-    L1: { latStep: 0.5,  lngStep: 0.85, minZoom: 0,  tileLatSize: 99, tileLngSize: 99, label: 'L1 ~55km' },
-    L2: { latStep: 0.18, lngStep: 0.30, minZoom: 7,  tileLatSize: 2.0, tileLngSize: 3.0, label: 'L2 ~20km' },
-    L3: { latStep: 0.065,lngStep: 0.12, minZoom: 9,  tileLatSize: 0.8, tileLngSize: 1.2, label: 'L3 ~7km' }
-  };
-  const cache = {};
-  let allPoints = [];
-  let allPointsDirty = true;
-  let currentLOD = 'L1';
 
-  function tileKey(level, r, c) { return level + ':' + r + ':' + c; }
-
-  function generateTilePoints(lod, latMin, latMax, lngMin, lngMax) {
-    const pts = [];
-    for (let lat = latMin; lat <= latMax; lat += lod.latStep) {
-      for (let lng = lngMin; lng <= lngMax; lng += lod.lngStep) {
-        pts.push({ lat: +lat.toFixed(4), lng: +lng.toFixed(4) });
-      }
-    }
-    return pts;
-  }
-
-  function getL1Points() {
-    const pts = [];
-    /* Standard Finland grid */
-    for (let lat = 58.5; lat <= 70.5; lat += LODS.L1.latStep) {
-      for (let lng = 18.5; lng <= 31.5; lng += LODS.L1.lngStep) {
-        pts.push({ lat: +lat.toFixed(4), lng: +lng.toFixed(4) });
-      }
-    }
-    /* Coastal densification: south coast marine band (Gulf of Finland).
-       Adds ~55 points at 0.15° lat × 0.35° lng spacing.
-       These capture the true land→sea wind gradient from ICON-EU
-       that the 55km L1 grid misses across the narrow Gulf. */
-    const seen = new Set(pts.map(p => p.lat + ',' + p.lng));
-    const coastal = [
-      /* Gulf of Finland marine band: 59.60–60.05°N, 22.5–27.5°E */
-      { latMin: 59.60, latMax: 60.05, lngMin: 22.5, lngMax: 27.5, latStep: 0.15, lngStep: 0.35 },
-      /* Archipelago Sea: 59.60–60.20°N, 19.8–22.5°E */
-      { latMin: 59.60, latMax: 60.20, lngMin: 19.8, lngMax: 22.5, latStep: 0.18, lngStep: 0.40 },
-    ];
-    for (const band of coastal) {
-      for (let lat = band.latMin; lat <= band.latMax; lat += band.latStep) {
-        for (let lng = band.lngMin; lng <= band.lngMax; lng += band.lngStep) {
-          const key = lat.toFixed(4) + ',' + lng.toFixed(4);
-          if (!seen.has(key)) {
-            pts.push({ lat: +lat.toFixed(4), lng: +lng.toFixed(4) });
-            seen.add(key);
-          }
-        }
-      }
-    }
-    console.log('[L1] Grid:', pts.length, 'pts (incl. coastal densification)');
-    return pts;
-  }
-
-  function getTilesForBounds(level, bounds, pad) {
-    const lod = LODS[level];
-    const latMin = bounds.getSouth() - pad, latMax = bounds.getNorth() + pad;
-    const lngMin = bounds.getWest() - pad, lngMax = bounds.getEast() + pad;
-    const rMin = Math.floor(latMin / lod.tileLatSize), rMax = Math.floor(latMax / lod.tileLatSize);
-    const cMin = Math.floor(lngMin / lod.tileLngSize), cMax = Math.floor(lngMax / lod.tileLngSize);
-    const tiles = [];
-    for (let r = rMin; r <= rMax; r++) {
-      for (let c = cMin; c <= cMax; c++) {
-        tiles.push({ key: tileKey(level, r, c), level, row: r, col: c,
-          latMin: r * lod.tileLatSize, latMax: (r + 1) * lod.tileLatSize,
-          lngMin: c * lod.tileLngSize, lngMax: (c + 1) * lod.tileLngSize });
-      }
-    }
-    return tiles;
-  }
-
-  function loadTile(tile) {
-    const key = tile.key;
-    if (cache[key] && (cache[key].loaded || cache[key].loading)) return Promise.resolve();
-    const lod = LODS[tile.level];
-    const points = generateTilePoints(lod, tile.latMin, tile.latMax, tile.lngMin, tile.lngMax);
-    if (!points.length) return Promise.resolve();
-    cache[key] = { points, loaded: false, loading: true };
-    const batches = [];
-    for (let i = 0; i < points.length; i += 80) batches.push(points.slice(i, i + 80));
-    return Promise.allSettled(batches.map(loadBatch)).then(() => {
-      cache[key].loaded = true; cache[key].loading = false; allPointsDirty = true;
-    });
-  }
-
-  function loadL1(onProgress) {
-    const key = tileKey('L1', 0, 0);
-    const points = getL1Points();
-    cache[key] = { points, loaded: false, loading: true };
-
-    /* Try localStorage cache first — 0 API calls if fresh */
-    if (WeatherCache.load(points, SPOTS)) {
-      cache[key].loaded = true; cache[key].loading = false; allPointsDirty = true;
-      if (onProgress) onProgress(points.length + SPOTS.length, points.length + SPOTS.length);
-      return Promise.resolve();
-    }
-
-    const batches = [];
-    for (let i = 0; i < points.length; i += 80) batches.push(points.slice(i, i + 80));
-    const spotBatches = [];
-    for (let i = 0; i < SPOTS.length; i += 80) spotBatches.push(SPOTS.slice(i, i + 80));
-    const allBatches = batches.concat(spotBatches);
-    let done = 0;
-    const total = points.length + SPOTS.length;
-    function wave(idx) {
-      const w = allBatches.slice(idx, idx + 4);
-      if (!w.length) return Promise.resolve();
-      return Promise.allSettled(w.map(b => loadBatch(b).then(() => { done += b.length; if (onProgress) onProgress(done, total); }))).then(() => wave(idx + 4));
-    }
-    return wave(0).then(() => {
-      cache[key].loaded = true; cache[key].loading = false; allPointsDirty = true;
-      WeatherCache.save(points, SPOTS);
-    });
-  }
-
-  let _debounce = null;
-  function onViewportChanged(map) {
-    clearTimeout(_debounce);
-    _debounce = setTimeout(() => _loadForViewport(map), 800);
-  }
-
-  function _loadForViewport(map) {
-    const zoom = map.getZoom();
-    const bounds = map.getBounds();
-    const promises = [];
-    let bestLOD = 'L1';
-
-    if (zoom >= LODS.L2.minZoom) {
-      bestLOD = 'L2';
-      const pad = zoom >= 9 ? 0.3 : 0.8;
-      const needed = [];
-      for (const tile of getTilesForBounds('L2', bounds, pad)) {
-        if (!cache[tile.key] || (!cache[tile.key].loaded && !cache[tile.key].loading)) needed.push(tile);
-      }
-      /* Limit to 3 tiles per viewport change to prevent API explosion */
-      for (const tile of needed.slice(0, 3)) promises.push(loadTile(tile));
-    }
-    if (zoom >= LODS.L3.minZoom) {
-      bestLOD = 'L3';
-      const needed = [];
-      for (const tile of getTilesForBounds('L3', bounds, 0.15)) {
-        if (!cache[tile.key] || (!cache[tile.key].loaded && !cache[tile.key].loading)) needed.push(tile);
-      }
-      for (const tile of needed.slice(0, 2)) promises.push(loadTile(tile));
-    }
-
-    /* Update LOD badge */
-    currentLOD = bestLOD;
-    updateLODBadge();
-
-    if (promises.length > 0) {
-      const dot = document.getElementById('refresh-dot');
-      dot.classList.add('pulse');
-      Promise.allSettled(promises).then(() => {
-        buildWindField(State.currentHourIdx).then(() => {
-          drawColorField();
-          resetParticles();
-          renderSpots(State.currentHourIdx);
-          setTimeout(() => dot.classList.remove('pulse'), 800);
-        });
-      });
-    }
-  }
-
-  function getAllPoints() {
-    if (!allPointsDirty) return allPoints;
-    const map = new Map();
-    for (const level of ['L1', 'L2', 'L3']) {
-      for (const key in cache) {
-        if (!key.startsWith(level + ':') || !cache[key].loaded) continue;
-        for (const pt of cache[key].points) {
-          if (pt.wx && pt.wx.hourly) {
-            map.set(((pt.lat * 50) | 0) + ':' + ((pt.lng * 50) | 0), pt);
-          }
-        }
-      }
-    }
-    for (const s of SPOTS) { if (s.wx && s.wx.hourly) map.set('S:' + s.name, s); }
-    allPoints = Array.from(map.values());
-    allPointsDirty = false;
-    return allPoints;
-  }
-
-  function markDirty() { allPointsDirty = true; }
-  function getCurrentLOD() { return currentLOD; }
-  function stats() {
-    let tiles = 0, points = 0, loaded = 0;
-    for (const k in cache) { tiles++; if (cache[k].loaded) { loaded++; points += cache[k].points.length; } }
-    return { tiles, loaded, points };
-  }
-
-  function clearCache() {
-    for (const k in cache) delete cache[k];
-    allPoints = []; allPointsDirty = true;
-  }
-
-  return { loadL1, onViewportChanged, getAllPoints, markDirty, clearCache, stats, LODS, getCurrentLOD };
-})();
 
 /* ── STATE (cleaned — no unused vars) ────────────────────────── */
 const State = {
   map: null,
-  heatmapOverlay: null,
   windCvs: null, windCtx: null,
   particles: [],
   markers: [],
   currentHourIdx: 0,
   windField: [],
   activeLayer: 'wind',
-  activeModel: 'icon_eu',
+  activeModel: 'best_match',
   dpr: 1,
   isPlaying: false,
   playTimer: null,
@@ -904,32 +805,21 @@ function buildLegend() {
 /* ── LOD BADGE ────────────────────────────────────────────────── */
 function updateLODBadge() {
   const el = document.getElementById('lod-badge');
-  if (!el) return;
-  const lod = TileEngine.getCurrentLOD();
-  const lodLabels = { L1: '~55km', L2: '~20km', L3: '~7km' };
-  const modelLabels = { icon_eu: 'ICON-EU', ecmwf_ifs025: 'ECMWF', gfs_seamless: 'GFS' };
-  el.textContent = (modelLabels[State.activeModel] || State.activeModel) + ' ' + (lodLabels[lod] || lod);
-  /* Update forecast horizon label */
-  const fcEl = document.getElementById('fc-lbl');
-  if (fcEl) fcEl.textContent = State.activeModel === 'icon_eu' ? 'Live + 3 pv' : 'Live + 7 pv';
-}
-function updateHeatmapBlur() {
-  if (!State.map) return;
+  if (!el || !State.map) return;
   const z = State.map.getZoom();
-  const blur = Math.max(3, Math.round(18 - (z - 4) * 2.5));
-  /* Update CSS on any existing heatmap overlay elements */
-  document.querySelectorAll('.heatmap-overlay').forEach(el => {
-    el.style.filter = 'blur(' + blur + 'px)';
-    el.style.webkitFilter = 'blur(' + blur + 'px)';
-  });
+  const step = ViewportGrid.gridStep(z);
+  const modelLabels = { best_match: 'Auto', icon_eu: 'ICON-EU', ecmwf_ifs025: 'ECMWF', gfs_seamless: 'GFS' };
+  el.textContent = (modelLabels[State.activeModel] || State.activeModel) + ' ~' + Math.round(step * 111) + 'km';
+  const fcEl = document.getElementById('fc-lbl');
+  if (fcEl) fcEl.textContent = 'Live + 3 pv';
 }
 
 /* ── MAP ──────────────────────────────────────────────────────── */
 function initMap() {
   const map = L.map('map', {
     center: [62.5, 25.5], zoom: 5, zoomControl: false, attributionControl: true,
-    minZoom: 4, maxZoom: 13, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5,
-    maxBounds: [[52, 12], [72, 38]], maxBoundsViscosity: 0.8
+    minZoom: 2, maxZoom: 13, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5,
+    worldCopyJump: true
   });
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd', maxZoom: 19,
@@ -938,7 +828,7 @@ function initMap() {
   State.map = map;
   map.on('moveend', () => {
     renderSpots(State.currentHourIdx);
-    TileEngine.onViewportChanged(map);
+    _scheduleViewportLoad();
     GeoProject.update(map);
     State.windCvs.style.opacity = '1';
     State._panning = false;
@@ -961,9 +851,25 @@ function initMap() {
   map.on('move', () => {
     if (State.windCvs) State.windCvs.style.opacity = '0.15';
   });
+
+  let _vpDebounce = null;
+  function _scheduleViewportLoad() {
+    clearTimeout(_vpDebounce);
+    _vpDebounce = setTimeout(() => {
+      const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
+      ViewportGrid.loadViewport(map).then(() => {
+        buildWindField(State.currentHourIdx).then(() => {
+          resetParticles(); renderSpots(State.currentHourIdx);
+          updateLODBadge();
+          setTimeout(() => dot.classList.remove('pulse'), 800);
+        });
+      });
+    }, 600);
+  }
+
   let _prevZoom = map.getZoom();
   map.on('zoomend', () => {
-    updateScaleBar(); TileEngine.onViewportChanged(map); updateLODBadge(); updateHeatmapBlur();
+    updateScaleBar(); _scheduleViewportLoad(); updateLODBadge();
     GeoProject.update(map);
     const newZoom = map.getZoom();
     const dz = _prevZoom - newZoom;
@@ -1018,8 +924,8 @@ function initCanvases() {
   State.windCtx = State.windCvs.getContext('2d');
   State.dpr = window.devicePixelRatio || 1;
   resizeCanvases();
-  window.addEventListener('resize', () => { resizeCanvases(); drawColorField(); resetParticles(); }, { passive: true });
-  window.addEventListener('orientationchange', () => { setTimeout(() => { resizeCanvases(); drawColorField(); resetParticles(); }, 250); }, { passive: true });
+  window.addEventListener('resize', () => { resizeCanvases(); resetParticles(); }, { passive: true });
+  window.addEventListener('orientationchange', () => { setTimeout(() => { resizeCanvases(); resetParticles(); }, 250); }, { passive: true });
 }
 
 function resizeCanvases() {
@@ -1260,23 +1166,8 @@ const WindTexture = {
   }
 };
 
-function drawColorField() {
-  if (!WindTexture.canvas || !State.map) return;
-  const bounds = L.latLngBounds(
-    L.latLng(WindTexture.latMin, WindTexture.lngMin),
-    L.latLng(WindTexture.latMax, WindTexture.lngMax)
-  );
-  const url = WindTexture.canvas.toDataURL();
-  if (State.heatmapOverlay) {
-    State.heatmapOverlay.setUrl(url);
-    State.heatmapOverlay.setBounds(bounds);
-  } else {
-    State.heatmapOverlay = L.imageOverlay(url, bounds, {
-      opacity: 1, interactive: false, className: 'heatmap-overlay', pane: 'overlayPane'
-    }).addTo(State.map);
-  }
-  updateHeatmapBlur();
-}
+/* No heatmap in v4 — particles only */
+function drawColorField() { /* no-op */ }
 
 /* ── PARTICLE SYSTEM — Screen-space trail fade ───────────────── */
 function nParticles() {
@@ -1411,8 +1302,8 @@ function renderLoop() {
 }
 
 /* ── WEATHER BATCH API ────────────────────────────────────────── */
-function buildBatchUrl(points, model) {
-  const days = model === 'icon_eu' ? 3 : 7;
+function buildBatchUrl(points, model, forecastDays) {
+  const days = forecastDays || 3;
   return 'https://api.open-meteo.com/v1/forecast?latitude=' + points.map(p => p.lat.toFixed(4)).join(',')
     + '&longitude=' + points.map(p => p.lng.toFixed(4)).join(',')
     + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,wind_speed_80m,wind_direction_80m'
@@ -1462,7 +1353,7 @@ function setRateLimited() {
   Toast.show('⚠ Open-Meteo päiväraja täynnä. Nollautuu klo 02:00 (UTC 00:00). Kokeile myöhemmin.');
 }
 
-function loadBatch(points) {
+function loadBatch(points, forecastDays) {
   if (_rateLimited) return Promise.resolve(); /* Stop all fetches if rate limited */
   
   /* Cache key from first+last point (unique for grid batches, much shorter) */
@@ -1474,9 +1365,9 @@ function loadBatch(points) {
     return Promise.resolve();
   }
   
-  function tryModel(model, retries) {
+  function tryModel(model, retries, fd) {
     if (_rateLimited) return Promise.resolve();
-    return fetch(buildBatchUrl(points, model))
+    return fetch(buildBatchUrl(points, model, fd))
       .then(r => {
         if (r.status === 429) {
           if (retries > 0) {
@@ -1508,9 +1399,9 @@ function loadBatch(points) {
         if (!anySuccess) throw new Error('no valid data');
       });
   }
-  return tryModel(State.activeModel, 2)
+  return tryModel(State.activeModel, 2, forecastDays)
     .catch(e => {
-      if (e.message === '429') return tryModel('best_match', 1);
+      if (e.message === '429') return tryModel('best_match', 1, forecastDays);
       throw e;
     })
     .catch(e => {
@@ -1524,8 +1415,7 @@ function loadBatch(points) {
 /* ── WIND FIELD BUILDER ───────────────────────────────────────── */
 function buildWindField(hourIdx) {
   State.windField = [];
-  TileEngine.markDirty();
-  const all = TileEngine.getAllPoints();
+  const all = ViewportGrid.getAllPoints();
   const layer = State.activeLayer;
   for (let i = 0; i < all.length; i++) {
     const pt = all[i];
@@ -1551,6 +1441,23 @@ function windLabel(ms) {
   if (ms < 20) return ['Kova \u2013 kokenut','b-strong'];
   return ['Liian kova','b-danger'];
 }
+function windTrend(h, idx) {
+  /* Compare current hour to 3 hours ahead */
+  const future = Math.min(idx + 3, h.windspeed_10m.length - 1);
+  const now = h.windspeed_10m[idx] || 0, later = h.windspeed_10m[future] || 0;
+  const diff = later - now;
+  if (diff > 2) return { arrow: '↑', label: 'Nouseva', cls: 'gi-gusty' };
+  if (diff < -2) return { arrow: '↓', label: 'Laskeva', cls: 'gi-steady' };
+  return { arrow: '→', label: 'Vakaa', cls: '' };
+}
+function gustIndex(ms, gst) {
+  if (ms < 1) return { val: 1, label: 'Tyyni', cls: 'gi-steady' };
+  const gi = gst / ms;
+  if (gi < 1.2) return { val: gi, label: 'Tasainen', cls: 'gi-steady' };
+  if (gi < 1.5) return { val: gi, label: 'Puuskainen', cls: 'gi-gusty' };
+  return { val: gi, label: 'Hyvin puuskainen', cls: 'gi-extreme' };
+}
+
 function renderSpots(hourIdx) {
   for (const m of State.markers) m.remove(); State.markers = [];
   const layer = State.activeLayer, zoom = State.map ? State.map.getZoom() : 5;
@@ -1560,9 +1467,11 @@ function renderSpots(hourIdx) {
     const ms = h.windspeed_10m[idx] || 0, gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
     const dms = layer === 'gust' ? gst : ms, c = ColorRamp.rgb(dms), col = 'rgb('+c.r+','+c.g+','+c.b+')';
     const sz = zoom <= 6 ? 6 : zoom <= 8 ? 8 : 10, bw = zoom <= 7 ? 1 : 1.5;
+    const trend = windTrend(h, idx);
+    const trendHtml = zoom >= 7 ? '<div class="spot-trend">' + trend.arrow + '</div>' : '';
     const icon = L.divIcon({ className: '',
-      html: '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';border:'+bw+'px solid rgba(255,255,255,.45);box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer"></div>',
-      iconSize: [sz, sz], iconAnchor: [sz/2, sz/2] });
+      html: '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';border:'+bw+'px solid rgba(255,255,255,.45);box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer"></div>' + trendHtml,
+      iconSize: [sz, sz + (zoom >= 7 ? 12 : 0)], iconAnchor: [sz/2, sz/2] });
     State.markers.push(L.marker([spot.lat, spot.lng], { icon }).on('click', () => openSheet(spot, hourIdx)).addTo(State.map));
   }
 }
@@ -1584,10 +1493,16 @@ function openSheet(spot, hourIdx) {
   let bars = '', cs = idx, ce = Math.min(h.windspeed_10m.length, cs+12), mx = 1;
   for (let i=cs;i<ce;i++) { const v=h.windspeed_10m[i]||0; if(v>mx)mx=v; }
   for (let i=cs;i<ce;i++) { const v=h.windspeed_10m[i]||0,c=ColorRamp.rgb(v); bars+='<div class="sh-bar" style="height:'+Math.max(4,v/mx*100)+'%;background:rgb('+c.r+','+c.g+','+c.b+')"></div>'; }
+  const gi = gustIndex(ms, gst);
+  const trend = windTrend(h, idx);
+  const waterTemp = spot._waterTemp != null ? spot._waterTemp.toFixed(1) + '°C' : '—';
   document.getElementById('sheet-content').innerHTML = '<div class="sh-name">'+spot.name+'</div><div class="sh-desc">'+spot.desc+'</div>'
     +'<div class="sh-grid"><div class="sh-card"><div class="sh-card-label">Tuuli</div><div class="sh-card-value" style="color:'+ColorRamp.css(ms)+'">'+ms.toFixed(1)+'<span class="sh-card-unit">m/s</span></div></div>'
     +'<div class="sh-card"><div class="sh-card-label">Puuska</div><div class="sh-card-value" style="color:'+ColorRamp.css(gst)+'">'+gst.toFixed(1)+'<span class="sh-card-unit">m/s</span></div></div>'
     +'<div class="sh-card"><div class="sh-card-label">Suunta</div><div class="sh-card-value">'+Math.round(dir)+'\u00b0<span class="sh-card-unit">'+dirArrow(dir)+'</span></div></div></div>'
+    +'<div class="sh-grid" style="margin-top:8px"><div class="sh-card"><div class="sh-card-label">Puuskaisuus</div><div class="sh-card-value sh-card-small '+gi.cls+'">'+gi.label+'</div></div>'
+    +'<div class="sh-card"><div class="sh-card-label">Trendi 3h</div><div class="sh-card-value sh-card-small '+trend.cls+'">'+trend.arrow+' '+trend.label+'</div></div>'
+    +'<div class="sh-card"><div class="sh-card-label">Vesi</div><div class="sh-card-value sh-card-small">'+waterTemp+'</div></div></div>'
     +'<div class="sh-badge '+lbl[1]+'">'+lbl[0]+'</div>'
     +'<div class="sh-chart-wrap"><div class="sh-chart-title">Seuraavat 12h</div><div class="sh-chart">'+bars+'</div><div class="sh-chart-labels"><span>'+fmtHour(h.time[cs])+'</span><span>+12h</span></div></div>';
   document.getElementById('sheet').classList.add('open');
@@ -1634,8 +1549,9 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     tick.className = 'htick' + (hour % 3 === 0 ? ' show-lbl' : '');
     tick.dataset.idx = i;
 
-    const barH = Math.max(4, (ms / maxMs) * 36); /* max 36px bar height */
-    tick.innerHTML = '<div class="htick-bar" style="height:' + barH + 'px;background:rgb(' + c.r + ',' + c.g + ',' + c.b + ')"></div>'
+    const barH = Math.max(4, (ms / maxMs) * 36);
+    const foilable = ms >= 8;
+    tick.innerHTML = '<div class="htick-bar' + (foilable ? ' foilable' : '') + '" style="height:' + barH + 'px;background:rgb(' + c.r + ',' + c.g + ',' + c.b + ')' + (foilable ? ';border-bottom:2px solid rgb(80,237,120)' : '') + '"></div>'
       + '<span class="htick-lbl">' + ('0'+hour).slice(-2) + '</span>';
     tl.appendChild(tick);
     State._tlTicks.push(tick);
@@ -1673,7 +1589,7 @@ function _tlSnapSelect(tl) {
   if (bestIdx !== State.currentHourIdx) {
     State.currentHourIdx = bestIdx;
     document.getElementById('tl-now').textContent = fmtDateTime(State._tlTimes[bestIdx]);
-    buildWindField(bestIdx).then(() => { drawColorField(); resetParticles(); });
+    buildWindField(bestIdx).then(() => { resetParticles(); });
     renderSpots(bestIdx);
     if (State.sheetSpot) openSheet(State.sheetSpot, bestIdx);
   }
@@ -1769,7 +1685,7 @@ document.getElementById('layers').addEventListener('click', e => {
   const b = e.target.closest('.lbtn'); if (!b) return;
   const layer = b.dataset.layer; if (!layer || layer === State.activeLayer) return;
   document.querySelectorAll('#layers .lbtn').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
-  State.activeLayer = layer; buildLegend(); buildWindField(State.currentHourIdx).then(() => { drawColorField(); resetParticles(); }); renderSpots(State.currentHourIdx);
+  State.activeLayer = layer; buildLegend(); buildWindField(State.currentHourIdx).then(() => { resetParticles(); }); renderSpots(State.currentHourIdx);
   const ref = SPOTS.find(s => s.wx && s.wx.hourly);
   if (ref) { const t = ref.wx.hourly.time, sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m; renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, State.currentHourIdx); }
 }, { passive: true });
@@ -1781,16 +1697,15 @@ document.getElementById('models').addEventListener('click', e => {
   _rateLimited = false;
   try { sessionStorage.removeItem('foilspot_rl'); } catch(e) {}
   updateLODBadge();
-  /* Clear localStorage and batch cache, but keep tile cache to avoid re-fetching */
-  WeatherCache.clear();
+  ViewportGrid.clearAll();
   Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
   Toast.show('Vaihdetaan malliin: ' + model.replace('_', ' ').toUpperCase() + '...', 3000);
   const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
-  TileEngine.loadL1((done, total) => {}).then(() => {
-    const ref = SPOTS.find(s => s.wx && s.wx.hourly) || TileEngine.getAllPoints().find(p => p.wx && p.wx.hourly);
+  ViewportGrid.loadViewport(State.map).then(() => ViewportGrid.loadSpots()).then(() => {
+    const ref = SPOTS.find(s => s.wx && s.wx.hourly) || ViewportGrid.getAllPoints().find(p => p.wx && p.wx.hourly);
     if (ref) {
       const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
-      buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
+      buildWindField(ni).then(() => { resetParticles(); });
       const layer = State.activeLayer;
       const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
       renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
@@ -1810,33 +1725,56 @@ function scheduleRefresh() {
   clearInterval(State.refreshTimer);
   State.refreshTimer = setInterval(() => {
     const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
-    WeatherCache.clear(); /* Force fresh API data */
-    TileEngine.loadL1().then(() => {
+    ViewportGrid.clearAll();
+    ViewportGrid.loadViewport(State.map).then(() => ViewportGrid.loadSpots()).then(() => {
       buildWindField(State.currentHourIdx).then(() => {
-        drawColorField(); resetParticles(); renderSpots(State.currentHourIdx);
+        resetParticles(); renderSpots(State.currentHourIdx);
       });
-      State.lastDataLoad = Date.now(); TileEngine.onViewportChanged(State.map);
+      State.lastDataLoad = Date.now();
       setTimeout(() => dot.classList.remove('pulse'), 1500);
     });
   }, Config.DATA_REFRESH_MS);
 }
 
+
+/* ── MARINE API — Water temperature for spots ─────────────── */
+async function loadMarineTemp() {
+  try {
+    const lats = SPOTS.map(s => s.lat.toFixed(2)).join(',');
+    const lngs = SPOTS.map(s => s.lng.toFixed(2)).join(',');
+    const url = 'https://marine-api.open-meteo.com/v1/marine?latitude=' + lats + '&longitude=' + lngs + '&current=sea_surface_temperature';
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    const arr = Array.isArray(data) ? data : [data];
+    arr.forEach((d, i) => {
+      if (i < SPOTS.length && d && d.current && d.current.sea_surface_temperature != null) {
+        SPOTS[i]._waterTemp = d.current.sea_surface_temperature;
+      }
+    });
+    console.log('[Marine] Water temp loaded for', arr.filter(d => d && d.current).length, 'spots');
+  } catch (e) {
+    console.log('[Marine] Water temp unavailable:', e.message);
+  }
+}
+
 /* ── MAIN ─────────────────────────────────────────────────────── */
 function main() {
   const bail = setTimeout(() => { hideLoading(); renderLoop(); }, 20000);
-  buildLegend(); initMap(); initCanvases(); updateLODBadge(); updateHeatmapBlur();
+  buildLegend(); initMap(); initCanvases(); updateLODBadge();
   WindTip.init();
   updateLoadText('Haetaan s\u00e4\u00e4dataa (L1)...');
 
-  TileEngine.loadL1((done, total) => { updateLoadText('L1 ladataan... ' + Math.round(done / total * 100) + '%'); })
+  ViewportGrid.loadViewport(State.map, (done, total) => { updateLoadText('Ladataan... ' + Math.round(done / total * 100) + '%'); })
+  .then(() => ViewportGrid.loadSpots())
   .then(() => {
     updateLoadText('Rakennetaan tuulikentt\u00e4\u00e4...');
-    const ref = SPOTS.find(s => s.wx && s.wx.hourly) || TileEngine.getAllPoints().find(p => p.wx && p.wx.hourly);
-    console.log('[Init] Spots with wx:', SPOTS.filter(s => s.wx && s.wx.hourly).length, '/ L1 pts:', TileEngine.stats().points, '/ ref:', !!ref);
+    const ref = SPOTS.find(s => s.wx && s.wx.hourly) || ViewportGrid.getAllPoints().find(p => p.wx && p.wx.hourly);
+    console.log('[Init] Points:', ViewportGrid.getAllPoints().length, '/ ref:', !!ref);
     if (ref) {
       const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
       buildWindField(ni).then(() => {
-        drawColorField(); resetParticles(); renderLoop();
+        resetParticles(); renderLoop();
       });
       renderTimeline(ref.wx.hourly.time, ref.wx.hourly.windspeed_10m, ref.wx.hourly.winddirection_10m, ni);
       renderSpots(ni);
@@ -1849,8 +1787,9 @@ function main() {
       renderLoop();
     }
     State.lastDataLoad = Date.now(); scheduleRefresh();
-    setTimeout(() => TileEngine.onViewportChanged(State.map), 500);
-    console.log('[FoilSpot] L1:', TileEngine.stats().points, 'pts');
+
+    loadMarineTemp(); /* async, doesn't block */
+    console.log('[FoilSpot] Global wind grid loaded');
   })
   .catch(err => { console.error('[FoilSpot]', err); Toast.show('\u26a0 Virhe s\u00e4\u00e4datan latauksessa'); renderLoop(); })
   .finally(() => { clearTimeout(bail); hideLoading(); });
