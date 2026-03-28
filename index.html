@@ -137,9 +137,11 @@ background: linear-gradient(135deg, #c8eeff 0%, var(–accent) 100%);
 #timebox { display: none; }
 /* Vertical wind scale — top right */
 #wind-scale {
-position: absolute; left: calc(var(–sal) + 12px); top: calc(var(–sat) + 62px);
-z-index: 20; display: flex; align-items: center; gap: 4px;
+position: absolute; left: calc(var(–sal) + 12px); top: calc(var(–sat) + 84px);
+z-index: 21; display: flex; align-items: center; gap: 4px;
 pointer-events: none;
+background: var(–panel); border: 1px solid var(–border); border-radius: 8px;
+padding: 6px; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
 #wind-scale-bar {
 width: 7px; height: 90px; border-radius: 3.5px;
