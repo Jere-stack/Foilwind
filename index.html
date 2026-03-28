@@ -1442,6 +1442,12 @@ function respawn(p) {
 }
 
 /* ── RENDER LOOP — Screen-space trail fade + line segments ────── */
+let _renderLoopRunning = false;
+function startRenderLoop() {
+  if (_renderLoopRunning) return;
+  _renderLoopRunning = true;
+  requestAnimationFrame(renderLoop);
+}
 function renderLoop(ts) {
   requestAnimationFrame(renderLoop);
   PerfTracker.frame(ts || performance.now());
@@ -1912,11 +1918,20 @@ document.getElementById('models').addEventListener('click', e => {
   _rateLimited = false;
   try { sessionStorage.removeItem('foilspot_rl'); } catch(e) {}
   updateLODBadge();
-  ViewportGrid.clearAll();
+  /* Atomic swap: DON'T clearAll — keep old data alive so particles continue.
+     Only clear fetch cache so new API calls use new model.
+     Old windField + heatmap stay visible during 2-5s load. */
   Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
+  ViewportGrid._globalBase.clear(); /* Will be rebuilt for new model */
   Toast.show('Vaihdetaan malliin: ' + model.replace('_', ' ').toUpperCase() + '...', 3000);
   const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
-  ViewportGrid.loadViewport(State.map).then(() => ViewportGrid.loadSpots()).then(() => {
+  /* Load new model data — old particles keep running in parallel */
+  ViewportGrid.loadGlobalCoarse().then(() =>
+    ViewportGrid.loadViewport(State.map)
+  ).then(() =>
+    ViewportGrid.loadSpots()
+  ).then(() => {
+    /* NOW swap atomically: rebuild windField from new data */
     const ref = SPOTS.find(s => s.wx && s.wx.hourly) || ViewportGrid.getAllPoints().find(p => p.wx && p.wx.hourly);
     if (ref) {
       const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
@@ -1926,6 +1941,9 @@ document.getElementById('models').addEventListener('click', e => {
       renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
       renderSpots(ni);
     }
+    /* Clean old model viewport cache */
+    ViewportGrid._points.clear();
+    ViewportGrid.loadViewport(State.map);
     setTimeout(() => dot.classList.remove('pulse'), 1500);
   });
 }, { passive: true });
@@ -1940,7 +1958,9 @@ function scheduleRefresh() {
   clearInterval(State.refreshTimer);
   State.refreshTimer = setInterval(() => {
     const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
-    ViewportGrid.clearAll();
+    /* Atomic refresh: load new data while old stays visible */
+    Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
+    ViewportGrid._points.clear(); /* Force re-fetch, global base stays */
     ViewportGrid.loadViewport(State.map).then(() => ViewportGrid.loadSpots()).then(() => {
       buildWindField(State.currentHourIdx).then(() => {
         drawColorField(); resetParticles(); renderSpots(State.currentHourIdx);
@@ -2067,7 +2087,7 @@ async function loadMarineTemp() {
 
 /* ── MAIN ─────────────────────────────────────────────────────── */
 function main() {
-  const bail = setTimeout(() => { hideLoading(); renderLoop(); }, 20000);
+  const bail = setTimeout(() => { hideLoading(); startRenderLoop(); }, 20000);
   buildLegend(); initMap(); initCanvases(); updateLODBadge();
   WindTip.init(); Search.init();
 
@@ -2083,15 +2103,15 @@ function main() {
       if (ref) {
         const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
         buildWindField(ni).then(() => {
-          drawColorField(); resetParticles(); renderLoop();
+          drawColorField(); resetParticles(); startRenderLoop();
           console.log('[Phase 1] Coarse wind ready:', all.length, 'pts');
         });
         renderTimeline(ref.wx.hourly.time, ref.wx.hourly.windspeed_10m, ref.wx.hourly.winddirection_10m, ni);
       } else {
-        renderLoop();
+        startRenderLoop();
       }
     } else {
-      renderLoop();
+      startRenderLoop();
     }
 
     /* Phase 2: Load fine viewport data + spots in background → refine */
@@ -2110,7 +2130,7 @@ function main() {
       console.log('[Phase 2] Fine data ready:', ViewportGrid.getAllPoints().length, 'pts');
     }).catch(e => console.warn('[Phase 2]', e));
   })
-  .catch(err => { console.error('[FoilSpot]', err); Toast.show('\u26a0 Virhe säädatan latauksessa'); renderLoop(); })
+  .catch(err => { console.error('[FoilSpot]', err); Toast.show('\u26a0 Virhe säädatan latauksessa'); startRenderLoop(); })
   .finally(() => { clearTimeout(bail); hideLoading(); });
 }
 
