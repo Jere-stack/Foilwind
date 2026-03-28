@@ -259,12 +259,13 @@ pointer-events: none;
 
 #tl-wrap {
 position: relative; pointer-events: all; height: 56px;
--webkit-mask-image: linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%);
-mask-image: linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%);
+overflow: visible; padding-top: 28px; /* space for time bubble */
 }
 #tl-scroll {
 display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
 -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 0;
+-webkit-mask-image: linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%);
+mask-image: linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%);
 overscroll-behavior-x: contain; height: 100%;
 touch-action: pan-x; align-items: flex-end;
 }
@@ -286,7 +287,7 @@ pointer-events: none; opacity: 0;
 }
 .htick.show-lbl .htick-lbl { opacity: 0.7; }
 
-/* Center indicator — strong line with floating time */
+/* Center indicator — line + floating time bubble above */
 #tl-indicator {
 position: absolute; top: 0; left: 50%; width: 3px; height: 100%;
 transform: translateX(-50%); pointer-events: none; z-index: 2;
@@ -294,6 +295,32 @@ background: var(–accent);
 box-shadow: 0 0 10px rgba(0,207,255,0.6), 0 0 4px rgba(0,207,255,0.3);
 border-radius: 1.5px;
 }
+#tl-time-bubble {
+position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+margin-bottom: 4px;
+background: var(–accent);
+color: #000; font-family: ‘DM Mono’, monospace; font-size: 11px; font-weight: 700;
+padding: 3px 8px; border-radius: 8px; white-space: nowrap;
+box-shadow: 0 2px 8px rgba(0,207,255,.3);
+letter-spacing: 0.3px;
+}
+#tl-time-bubble::after {
+content: ‘’; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+border: 4px solid transparent; border-top-color: var(–accent);
+}
+/* “Now” marker — fixed at current real time */
+.tl-now-marker {
+flex: 0 0 2px; height: 100%; background: rgba(255,255,255,.7);
+position: relative; z-index: 1;
+box-shadow: 0 0 6px rgba(255,255,255,.3);
+}
+.tl-now-label {
+position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%);
+font-family: ‘DM Mono’, monospace; font-size: 7px; font-weight: 600;
+color: rgba(255,255,255,.8); white-space: nowrap; letter-spacing: 0.5px;
+}
+/* Past hours dimmer */
+.htick.past .htick-bar { opacity: 0.45; }
 
 /* Day separator — inline, same height, clear visual break */
 .day-sep {
@@ -589,7 +616,7 @@ animation: pulse-dot 1s ease infinite;
       </div>
     </div>
     <div id="tl-wrap">
-      <div id="tl-indicator"></div>
+      <div id="tl-indicator"><div id="tl-time-bubble">--:--</div></div>
       <div id="tl-scroll"></div>
     </div>
   </div>
@@ -1799,6 +1826,10 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
   spacerL.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - TICK_W / 2) + 'px';
   tl.appendChild(spacerL);
 
+  /* Find real "now" index for the marker */
+  const realNowIdx = nowIdx(times);
+  let nowMarkerInserted = false;
+
   for (let i = 0; i < times.length; i++) {
     const d = new Date(times[i]), day = d.getDay(), hour = d.getHours();
     if (day !== lastDay) {
@@ -1807,9 +1838,20 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
       sep.textContent = DAY[day] + ' ' + d.getDate() + '.';
       tl.appendChild(sep);
     }
+
+    /* Insert "now" marker right before the current real time tick */
+    if (!nowMarkerInserted && i >= realNowIdx) {
+      const nowLine = document.createElement('div');
+      nowLine.className = 'tl-now-marker';
+      nowLine.innerHTML = '<span class="tl-now-label">NYT</span>';
+      tl.appendChild(nowLine);
+      nowMarkerInserted = true;
+    }
+
     const ms = speeds[i]||0, c = ColorRamp.rgb(ms);
     const tick = document.createElement('div');
-    tick.className = 'htick' + (hour % 6 === 0 ? ' show-lbl' : '');
+    const isPast = i < realNowIdx;
+    tick.className = 'htick' + (hour % 6 === 0 ? ' show-lbl' : '') + (isPast ? ' past' : '');
     tick.dataset.idx = i;
 
     const barH = Math.max(3, (ms / maxMs) * 32);
@@ -1843,10 +1885,15 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
 function _tlUpdateNow(idx) {
   if (!State._tlTimes || !State._tlTimes[idx]) return;
   const d = new Date(State._tlTimes[idx]);
+  const DAY = ['Su','Ma','Ti','Ke','To','Pe','La'];
+  const hh = ('0'+d.getHours()).slice(-2), mm = ('0'+d.getMinutes()).slice(-2);
+  /* Time bubble above indicator line */
+  const bubble = document.getElementById('tl-time-bubble');
+  if (bubble) bubble.textContent = hh + ':' + mm;
+  /* Bottom bar */
   const timeEl = document.getElementById('bottom-bar-time');
   const dateEl = document.getElementById('bottom-bar-date');
-  const DAY = ['Su','Ma','Ti','Ke','To','Pe','La'];
-  if (timeEl) timeEl.textContent = ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+  if (timeEl) timeEl.textContent = hh + ':' + mm;
   if (dateEl) dateEl.textContent = DAY[d.getDay()] + ' ' + d.getDate() + '.' + (d.getMonth()+1) + '.';
 }
 
