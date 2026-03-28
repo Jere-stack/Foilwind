@@ -604,8 +604,9 @@ const Config = {
 /* ── COLOUR RAMP ────────────────────────────────────────────── */
 const ColorRamp = (() => {
   const RAMP = [
-    { t: 0.00, r: 5,   g: 10,  b: 200 },
-    { t: 0.10, r: 0,   g: 100, b: 255 },
+    { t: 0.00, r: 20,  g: 40,  b: 80  },  /* Near-zero: dark grey-blue, not bright — blends with dark map */
+    { t: 0.05, r: 30,  g: 70,  b: 140 },  /* Very light: muted steel blue */
+    { t: 0.12, r: 0,   g: 120, b: 255 },
     { t: 0.22, r: 0,   g: 200, b: 255 },
     { t: 0.34, r: 0,   g: 245, b: 175 },
     { t: 0.46, r: 30,  g: 245, b: 70  },
@@ -1269,7 +1270,7 @@ const WindTexture = {
             const base = idx * 4;
             const rgb = ColorRamp.rgb(w.ms);
             const t = w.ms / Config.MAX_MS;
-            const a = w.ms < 1.5 ? 0 : Math.min(0.65, 0.65 * (1 - Math.exp(-3.5 * (t - 0.075))));
+            const a = w.ms < 0.3 ? 0.08 : Math.min(0.65, 0.10 + 0.55 * (1 - Math.exp(-2.5 * t)));
             d[base] = rgb.r; d[base+1] = rgb.g; d[base+2] = rgb.b; d[base+3] = Math.round(a * 255);
           }
         }
