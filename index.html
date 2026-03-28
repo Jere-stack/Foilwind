@@ -170,23 +170,56 @@ color: var(–text); opacity: 0.7; letter-spacing: 0.3px;
 pointer-events: none; text-align: right;
 }
 
-/* Settings popup */
+/* ============================================================
+SETTINGS — Apple Liquid Glass popover
+============================================================ */
 #settings-popup {
-position: absolute; bottom: calc(var(–sab) + 110px); left: calc(var(–sal) + 12px); z-index: 25;
-background: var(–panel); border: 1px solid var(–border); border-radius: 14px;
--webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-padding: 12px; min-width: 200px;
-box-shadow: 0 8px 32px rgba(0,0,0,.5);
-transform: translateY(10px); opacity: 0; pointer-events: none;
-transition: transform .2s ease, opacity .2s ease;
+position: fixed; z-index: 30;
+background: rgba(255,255,255,.08);
+border: 1px solid rgba(255,255,255,.15);
+border-radius: 16px;
+-webkit-backdrop-filter: blur(24px) saturate(1.4);
+backdrop-filter: blur(24px) saturate(1.4);
+padding: 14px 16px;
+box-shadow:
+0 0 0 0.5px rgba(255,255,255,.06) inset,
+0 12px 40px rgba(0,0,0,.45),
+0 2px 8px rgba(0,0,0,.2);
+transform: translateY(8px) scale(0.95);
+opacity: 0; pointer-events: none;
+transition: transform .25s cubic-bezier(.2,.9,.3,1.2), opacity .2s ease;
+transform-origin: bottom left;
 }
-#settings-popup.open { transform: translateY(0); opacity: 1; pointer-events: all; }
-#settings-popup .sp-label {
-font-family: ‘DM Mono’, monospace; font-size: 8px; color: var(–muted);
-letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 6px;
+#settings-popup.open {
+transform: translateY(0) scale(1);
+opacity: 1; pointer-events: all;
 }
-#settings-popup .sp-row { display: flex; gap: 5px; margin-bottom: 10px; }
-#settings-popup .sp-row:last-child { margin-bottom: 0; }
+.sp-section { margin-bottom: 12px; }
+.sp-section:last-child { margin-bottom: 0; }
+.sp-label {
+font-family: ‘DM Mono’, monospace; font-size: 9px; font-weight: 500;
+color: rgba(255,255,255,.4); letter-spacing: 1.2px; text-transform: uppercase;
+margin-bottom: 8px;
+}
+/* Pill chips */
+.sp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.sp-chip {
+height: 32px; border-radius: 16px; padding: 0 12px;
+border: 1px solid rgba(255,255,255,.1);
+background: rgba(255,255,255,.04);
+color: rgba(255,255,255,.6);
+font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 500;
+display: flex; align-items: center; gap: 4px; cursor: pointer;
+transition: all .15s ease;
+-webkit-user-select: none; user-select: none;
+}
+.sp-chip:active { transform: scale(0.95); }
+.sp-chip.active {
+background: rgba(0,207,255,.15);
+border-color: rgba(0,207,255,.4);
+color: var(–accent);
+}
+.sp-chip .l-icon { font-size: 11px; }
 
 /* ============================================================
 SCALE BAR  z:20
@@ -222,19 +255,7 @@ background: linear-gradient(to top, rgba(6,9,18,.98) 0%, rgba(6,9,18,.80) 55%, t
 pointer-events: none;
 }
 #layers { display: flex; gap: 5px; pointer-events: all; }
-.lbtn {
-flex: 1; min-height: 44px; border-radius: 10px; border: 1px solid var(–border);
-background: rgba(6,9,18,.8); color: var(–muted);
-font-family: ‘DM Mono’, monospace; font-size: 10px; letter-spacing: .5px; text-transform: uppercase;
-display: flex; align-items: center; justify-content: center; gap: 5px;
-cursor: pointer;
--webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
--webkit-user-select: none; user-select: none; touch-action: manipulation;
--webkit-appearance: none; transition: border-color .15s, color .15s, background .15s;
--webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
-}
-.lbtn.active { border-color: var(–accent); color: var(–accent); background: rgba(0,207,255,.1); }
-.lbtn .l-icon { font-size: 13px; }
+/* Layers/models use .sp-chip now (see settings popup CSS) */
 
 #tl-wrap {
 position: relative; pointer-events: all; height: 56px;
@@ -297,6 +318,31 @@ opacity: 0.7;
 /* Wind rose */
 .sh-windrose { display: flex; justify-content: center; margin: 16px 0 8px; }
 .sh-windrose svg { filter: drop-shadow(0 0 8px rgba(0,207,255,.1)); }
+
+/* ============================================================
+LOCATION DOT — Apple Maps style
+============================================================ */
+.loc-dot-outer {
+width: 22px; height: 22px; border-radius: 50%;
+background: rgba(0,122,255,.15);
+display: flex; align-items: center; justify-content: center;
+position: relative;
+}
+.loc-dot-inner {
+width: 12px; height: 12px; border-radius: 50%;
+background: #007AFF;
+border: 2.5px solid #fff;
+box-shadow: 0 0 8px rgba(0,122,255,.5);
+}
+.loc-dot-pulse {
+position: absolute; inset: -8px; border-radius: 50%;
+background: rgba(0,122,255,.12);
+animation: loc-pulse 2.5s ease-out infinite;
+}
+@keyframes loc-pulse {
+0% { transform: scale(0.6); opacity: 1; }
+100% { transform: scale(2.2); opacity: 0; }
+}
 
 /* ============================================================
 BOTTOM SHEET  z:30
@@ -503,17 +549,21 @@ animation: pulse-dot 1s ease infinite;
   <!-- Settings popup (models + layers) -->
 
   <div id="settings-popup">
-    <div class="sp-label">Säädata</div>
-    <div class="sp-row" id="models">
-      <div class="lbtn active" data-model="best_match" style="font-size:9px"><span class="l-icon">🌐</span>Auto</div>
-      <div class="lbtn" data-model="icon_eu" style="font-size:9px"><span class="l-icon">🇪🇺</span>ICON</div>
-      <div class="lbtn" data-model="ecmwf_ifs025" style="font-size:9px"><span class="l-icon">🌍</span>ECMWF</div>
-      <div class="lbtn" data-model="gfs_seamless" style="font-size:9px"><span class="l-icon">🇺🇸</span>GFS</div>
+    <div class="sp-section">
+      <div class="sp-label">Säädata</div>
+      <div class="sp-chips" id="models">
+        <div class="sp-chip active" data-model="best_match"><span class="l-icon">🌐</span>Auto</div>
+        <div class="sp-chip" data-model="icon_eu"><span class="l-icon">🇪🇺</span>ICON</div>
+        <div class="sp-chip" data-model="ecmwf_ifs025"><span class="l-icon">🌍</span>ECMWF</div>
+        <div class="sp-chip" data-model="gfs_seamless"><span class="l-icon">🇺🇸</span>GFS</div>
+      </div>
     </div>
-    <div class="sp-label">Kerros</div>
-    <div class="sp-row" id="layers">
-      <div class="lbtn active" data-layer="wind"><span class="l-icon">💨</span>Tuuli</div>
-      <div class="lbtn" data-layer="gust"><span class="l-icon">🌊</span>Puuska</div>
+    <div class="sp-section">
+      <div class="sp-label">Kerros</div>
+      <div class="sp-chips" id="layers">
+        <div class="sp-chip active" data-layer="wind"><span class="l-icon">💨</span>Tuuli</div>
+        <div class="sp-chip" data-layer="gust"><span class="l-icon">🌊</span>Puuska</div>
+      </div>
     </div>
   </div>
 
@@ -1894,10 +1944,16 @@ const WindTip = {
 };
 
 /* ── CONTROLS ─────────────────────────────────────────────────── */
-/* Settings popup toggle */
+/* Settings popup toggle — position above gear button */
 document.getElementById('btn-settings').addEventListener('click', (e) => {
   e.stopPropagation();
-  document.getElementById('settings-popup').classList.toggle('open');
+  const popup = document.getElementById('settings-popup');
+  const btn = document.getElementById('btn-settings');
+  const rect = btn.getBoundingClientRect();
+  /* Position above the button, left-aligned */
+  popup.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+  popup.style.left = rect.left + 'px';
+  popup.classList.toggle('open');
 }, { passive: false });
 document.addEventListener('click', (e) => {
   if (!e.target.closest('#settings-popup') && !e.target.closest('#btn-settings')) {
@@ -1907,22 +1963,34 @@ document.addEventListener('click', (e) => {
 
 document.getElementById('btn-loc').addEventListener('click', () => {
   if (!navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition(p => State.map.flyTo([p.coords.latitude,p.coords.longitude],9,{duration:1.2}), () => Toast.show('\ud83d\udccd Sijainnin haku ep\u00e4onnistui'));
+  navigator.geolocation.getCurrentPosition(p => {
+    const lat = p.coords.latitude, lng = p.coords.longitude;
+    State.map.flyTo([lat, lng], 9, { duration: 1.2 });
+    /* Remove old location marker */
+    if (State._locMarker) { State._locMarker.remove(); }
+    /* Apple Maps style blue dot */
+    const icon = L.divIcon({
+      className: '',
+      html: '<div class="loc-dot-outer"><div class="loc-dot-pulse"></div><div class="loc-dot-inner"></div></div>',
+      iconSize: [22, 22], iconAnchor: [11, 11]
+    });
+    State._locMarker = L.marker([lat, lng], { icon, interactive: false, zIndexOffset: 1000 }).addTo(State.map);
+  }, () => Toast.show('\ud83d\udccd Sijainnin haku epäonnistui'));
 }, { passive: true });
 document.getElementById('btn-play').addEventListener('click', togglePlay, { passive: true });
 document.getElementById('layers').addEventListener('click', e => {
-  const b = e.target.closest('.lbtn'); if (!b) return;
+  const b = e.target.closest('.sp-chip'); if (!b) return;
   const layer = b.dataset.layer; if (!layer || layer === State.activeLayer) return;
-  document.querySelectorAll('#layers .lbtn').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
+  document.querySelectorAll('#layers .sp-chip').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
   document.getElementById('settings-popup').classList.remove('open');
   State.activeLayer = layer; buildLegend(); buildWindField(State.currentHourIdx).then(() => { drawColorField(); resetParticles(); }); renderSpots(State.currentHourIdx);
   const ref = SPOTS.find(s => s.wx && s.wx.hourly);
   if (ref) { const t = ref.wx.hourly.time, sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m; renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, State.currentHourIdx); }
 }, { passive: true });
 document.getElementById('models').addEventListener('click', e => {
-  const b = e.target.closest('.lbtn'); if (!b) return;
+  const b = e.target.closest('.sp-chip'); if (!b) return;
   const model = b.dataset.model; if (!model || model === State.activeModel) return;
-  document.querySelectorAll('#models .lbtn').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
+  document.querySelectorAll('#models .sp-chip').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
   document.getElementById('settings-popup').classList.remove('open');
   State.activeModel = model;
   _rateLimited = false;
