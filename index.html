@@ -134,28 +134,12 @@ font-size: 21px; font-weight: 800; letter-spacing: -.5px;
 background: linear-gradient(135deg, #c8eeff 0%, var(–accent) 100%);
 -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
-#timebox { display: none; }
-/* Vertical wind scale — top right */
-#wind-scale {
-position: absolute; left: calc(var(–sal) + 12px); top: calc(var(–sat) + 84px);
-z-index: 21; display: flex; align-items: center; gap: 4px;
-pointer-events: none;
-background: var(–panel); border: 1px solid var(–border); border-radius: 8px;
-padding: 6px; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-}
-#wind-scale-bar {
-width: 7px; height: 90px; border-radius: 3.5px;
-border: 1px solid rgba(255,255,255,.08);
-}
-#wind-scale-ticks {
-display: flex; flex-direction: column; justify-content: space-between;
-height: 90px;
-}
-.ws-tick {
-font-family: ‘DM Mono’, monospace; font-size: 8px; line-height: 1;
-white-space: nowrap; text-align: right;
-}
-#fc-lbl { display: none; }
+#timebox { pointer-events: none; display: flex; align-items: flex-end; }
+/* Wind scale embedded in topbar right side — no absolute pos needed */
+.topbar-scale { display: flex; align-items: center; gap: 3px; pointer-events: none; }
+.topbar-scale-bar { width: 6px; height: 80px; border-radius: 3px; }
+.topbar-scale-ticks { display: flex; flex-direction: column; justify-content: space-between; height: 80px; }
+.topbar-scale-ticks .ws-tick { font-family: ‘DM Mono’, monospace; font-size: 7px; line-height: 1; text-align: right; }
 
 /* ============================================================
 LEGEND  z:20
@@ -238,7 +222,7 @@ BOTTOM PANEL  z:20
 ============================================================ */
 #bottom {
 position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
-padding: 0 calc(var(–sal) + 12px) calc(var(–sab) + 12px) calc(var(–sar) + 12px);
+padding: 0 calc(var(–sar) + 12px) calc(var(–sab) + 12px) calc(var(–sal) + 12px);
 background: linear-gradient(to top, rgba(6,9,18,.98) 0%, rgba(6,9,18,.80) 55%, transparent 100%);
 pointer-events: none;
 }
@@ -512,14 +496,10 @@ animation: pulse-dot 1s ease infinite;
       </div>
     </div>
     <div id="timebox">
-      <div id="topbar-legend">
-        <span>m/s</span>
-        <div>
-          <div id="topbar-legend-bar"></div>
-          <div id="topbar-legend-labels"><span>0</span><span>10</span><span>20</span></div>
-        </div>
+      <div class="topbar-scale">
+        <div id="wind-scale-ticks" class="topbar-scale-ticks"></div>
+        <div id="wind-scale-bar" class="topbar-scale-bar"></div>
       </div>
-      <div id="fc-lbl">Live + 3 pv</div>
     </div>
   </div>
 
@@ -529,13 +509,6 @@ animation: pulse-dot 1s ease infinite;
     <input id="search-input" type="text" placeholder="Hae paikkaa..." autocomplete="off" />
     <svg id="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
     <div id="search-results"></div>
-  </div>
-
-  <!-- Vertical wind scale — right side, centered -->
-
-  <div id="wind-scale">
-    <div id="wind-scale-ticks"></div>
-    <div id="wind-scale-bar"></div>
   </div>
 
   <div id="scale-bar">
@@ -968,8 +941,6 @@ function updateLODBadge() {
   const step = ViewportGrid.gridStep(z);
   const modelLabels = { best_match: 'Auto', icon_eu: 'ICON-EU', ecmwf_ifs025: 'ECMWF', gfs_seamless: 'GFS' };
   el.textContent = (modelLabels[State.activeModel] || State.activeModel) + ' ~' + Math.round(step * 111) + 'km';
-  const fcEl = document.getElementById('fc-lbl');
-  if (fcEl) fcEl.textContent = 'Live + 3 pv';
 }
 
 /* ── MAP ──────────────────────────────────────────────────────── */
