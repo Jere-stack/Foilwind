@@ -151,12 +151,7 @@ height: 90px;
 }
 .ws-tick {
 font-family: ‘DM Mono’, monospace; font-size: 8px; line-height: 1;
-white-space: nowrap;
-}
-#wind-scale-unit {
-font-family: ‘DM Mono’, monospace; font-size: 7px; color: var(–muted);
-letter-spacing: 1px; text-transform: uppercase; text-align: center;
-writing-mode: vertical-rl; text-orientation: mixed;
+white-space: nowrap; text-align: right;
 }
 #fc-lbl { display: none; }
 
@@ -537,9 +532,8 @@ animation: pulse-dot 1s ease infinite;
   <!-- Vertical wind scale — right side, centered -->
 
   <div id="wind-scale">
-    <div id="wind-scale-unit">m/s</div>
-    <div id="wind-scale-bar"></div>
     <div id="wind-scale-ticks"></div>
+    <div id="wind-scale-bar"></div>
   </div>
 
   <div id="scale-bar">
@@ -954,13 +948,13 @@ function buildLegend() {
   const bar = document.getElementById('wind-scale-bar');
   const ticks = document.getElementById('wind-scale-ticks');
   if (!bar || !ticks) return;
-  const stops = [{val:20},{val:15},{val:12},{val:8},{val:4},{val:0}];
+  const stops = [{val:20,lbl:'20'},{val:15,lbl:'15'},{val:12,lbl:'12'},{val:8,lbl:'8'},{val:4,lbl:'4'},{val:0,lbl:'0'}];
   bar.style.background = 'linear-gradient(to bottom,' + stops.map(s => {
     const c = ColorRamp.rgb(s.val); return 'rgb('+c.r+','+c.g+','+c.b+')';
   }).join(',') + ')';
   ticks.innerHTML = stops.map(s => {
     const c = ColorRamp.rgb(s.val);
-    return '<span class="ws-tick" style="color:rgb('+c.r+','+c.g+','+c.b+')">'+s.val+'</span>';
+    return '<span class="ws-tick" style="color:rgb('+c.r+','+c.g+','+c.b+')">'+s.lbl+'</span>';
   }).join('');
 }
 
