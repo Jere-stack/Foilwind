@@ -95,21 +95,21 @@ background: linear-gradient(to bottom, rgba(6,9,18,.96) 0%, transparent 100%);
 display: flex; align-items: flex-end; justify-content: space-between;
 pointer-events: none;
 }
-/* Search bar */
+/* Search bar — independent positioned element */
 #search-wrap {
-position: absolute; top: calc(var(–sat) + 10px); left: 50%; transform: translateX(-50%);
-z-index: 21; pointer-events: all; width: min(280px, 55vw);
+position: absolute; top: calc(var(–sat) + 12px); left: 50%; transform: translateX(-50%);
+z-index: 22; pointer-events: all; width: min(260px, 50vw);
 }
 #search-input {
-width: 100%; height: 32px; border-radius: 16px;
-background: rgba(6,9,18,.4); border: 1px solid rgba(255,255,255,.06);
--webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-color: var(–text); font-family: ‘DM Mono’, monospace; font-size: 11px;
-padding: 0 32px 0 12px; outline: none;
+width: 100%; height: 34px; border-radius: 17px;
+background: rgba(6,9,18,.5); border: 1px solid rgba(255,255,255,.1);
+-webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+color: #ffffff; font-family: ‘DM Mono’, monospace; font-size: 11px;
+padding: 0 34px 0 14px; outline: none;
 transition: border-color .2s, background .2s, box-shadow .2s;
 }
-#search-input::placeholder { color: rgba(180,215,255,.3); }
-#search-input:focus { border-color: rgba(0,207,255,.4); background: rgba(6,9,18,.7); box-shadow: 0 0 12px rgba(0,207,255,.1); }
+#search-input::placeholder { color: rgba(200,230,255,.35); }
+#search-input:focus { border-color: rgba(0,207,255,.5); background: rgba(6,9,18,.8); box-shadow: 0 0 16px rgba(0,207,255,.12); }
 #search-icon {
 position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
 color: var(–muted); pointer-events: none;
@@ -134,21 +134,31 @@ font-size: 21px; font-weight: 800; letter-spacing: -.5px;
 background: linear-gradient(135deg, #c8eeff 0%, var(–accent) 100%);
 -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
-#logo-sub { font-family: ‘DM Mono’, monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-top: -2px; color: var(–accent); -webkit-text-fill-color: var(–accent); }
-#timebox { text-align: right; pointer-events: all; }
-#topbar-legend {
-display: flex; align-items: center; gap: 4px;
-font-family: ‘DM Mono’, monospace; font-size: 8px; color: var(–muted);
+#timebox { display: none; }
+/* Vertical wind scale — right side */
+#wind-scale {
+position: absolute; right: calc(var(–sar) + 12px); top: 50%; transform: translateY(-50%);
+z-index: 20; display: flex; align-items: center; gap: 5px;
+pointer-events: none;
 }
-#topbar-legend-bar {
-width: 80px; height: 8px; border-radius: 4px;
+#wind-scale-bar {
+width: 8px; height: 120px; border-radius: 4px;
 border: 1px solid rgba(255,255,255,.08);
 }
-#topbar-legend-labels {
-display: flex; justify-content: space-between; width: 80px;
-font-size: 7px; margin-top: 1px;
+#wind-scale-ticks {
+display: flex; flex-direction: column; justify-content: space-between;
+height: 120px;
 }
-#fc-lbl { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); letter-spacing: 1px; text-transform: uppercase; }
+.ws-tick {
+font-family: ‘DM Mono’, monospace; font-size: 8px; line-height: 1;
+white-space: nowrap;
+}
+#wind-scale-unit {
+font-family: ‘DM Mono’, monospace; font-size: 7px; color: var(–muted);
+letter-spacing: 1px; text-transform: uppercase; text-align: center;
+writing-mode: vertical-rl; text-orientation: mixed;
+}
+#fc-lbl { display: none; }
 
 /* ============================================================
 LEGEND  z:20
@@ -496,13 +506,7 @@ animation: pulse-dot 1s ease infinite;
       </svg>
       <div>
         <div id="logo-text">FoilSpot</div>
-        <div id="logo-sub">Wingfoil</div>
       </div>
-    </div>
-    <div id="search-wrap">
-      <input id="search-input" type="text" placeholder="Hae paikkaa..." autocomplete="off" />
-      <svg id="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
-      <div id="search-results"></div>
     </div>
     <div id="timebox">
       <div id="topbar-legend">
@@ -514,6 +518,22 @@ animation: pulse-dot 1s ease infinite;
       </div>
       <div id="fc-lbl">Live + 3 pv</div>
     </div>
+  </div>
+
+  <!-- Search bar — independent z:22 element -->
+
+  <div id="search-wrap">
+    <input id="search-input" type="text" placeholder="Hae paikkaa..." autocomplete="off" />
+    <svg id="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+    <div id="search-results"></div>
+  </div>
+
+  <!-- Vertical wind scale — right side, centered -->
+
+  <div id="wind-scale">
+    <div id="wind-scale-unit">m/s</div>
+    <div id="wind-scale-bar"></div>
+    <div id="wind-scale-ticks"></div>
   </div>
 
   <div id="scale-bar">
@@ -922,12 +942,17 @@ const Toast = {
 
 /* ── LEGEND ───────────────────────────────────────────────────── */
 function buildLegend() {
-  const bar = document.getElementById('topbar-legend-bar');
-  if (!bar) return;
-  const stops = [{val:0},{val:4},{val:8},{val:12},{val:16},{val:20}];
-  bar.style.background = 'linear-gradient(to right,' + stops.map(s => {
+  const bar = document.getElementById('wind-scale-bar');
+  const ticks = document.getElementById('wind-scale-ticks');
+  if (!bar || !ticks) return;
+  const stops = [{val:20},{val:15},{val:12},{val:8},{val:4},{val:0}];
+  bar.style.background = 'linear-gradient(to bottom,' + stops.map(s => {
     const c = ColorRamp.rgb(s.val); return 'rgb('+c.r+','+c.g+','+c.b+')';
   }).join(',') + ')';
+  ticks.innerHTML = stops.map(s => {
+    const c = ColorRamp.rgb(s.val);
+    return '<span class="ws-tick" style="color:rgb('+c.r+','+c.g+','+c.b+')">'+s.val+'</span>';
+  }).join('');
 }
 
 /* ── LOD BADGE ────────────────────────────────────────────────── */
