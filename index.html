@@ -128,12 +128,6 @@ color: var(–text); cursor: pointer; border-bottom: 1px solid var(–border);
 .search-item:last-child { border-bottom: none; }
 .search-item:active { background: rgba(0,207,255,.1); }
 .search-sub { font-size: 9px; color: var(–muted); margin-top: 2px; }
-#logo { pointer-events: all; display: flex; align-items: center; gap: 9px; cursor: pointer; }
-#logo-text {
-font-size: 21px; font-weight: 800; letter-spacing: -.5px;
-background: linear-gradient(135deg, #c8eeff 0%, var(–accent) 100%);
--webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-}
 #timebox { pointer-events: none; display: flex; align-items: flex-end; }
 /* Wind scale embedded in topbar right side — no absolute pos needed */
 .topbar-scale { display: flex; align-items: center; gap: 3px; pointer-events: none; }
@@ -210,8 +204,9 @@ height: 2px; background: rgba(255,255,255,0.85); border-radius: 1px;
 box-shadow: 0 1px 3px rgba(0,0,0,0.5); position: relative;
 }
 #scale-line::before, #scale-line::after {
-content: ‘’; position: absolute; bottom: 0; width: 2px; height: 6px;
-background: rgba(255,255,255,0.85); border-radius: 1px;
+content: ‘’; position: absolute; width: 1.5px; height: 8px;
+top: 50%; transform: translateY(-50%);
+background: rgba(255,255,255,0.85); border-radius: 0.75px;
 box-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
 #scale-line::before { left: 0; }
@@ -484,17 +479,6 @@ animation: pulse-dot 1s ease infinite;
   <canvas id="c-wind"></canvas>
 
   <div id="topbar">
-    <div id="logo">
-      <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-        <path d="M2 22Q7 2 22 5" stroke="#00cfff" stroke-width="2.2" stroke-linecap="round"/>
-        <path d="M2 22Q12 15 22 5" stroke="rgba(0,207,255,.28)" stroke-width="1.5" stroke-linecap="round"/>
-        <circle cx="2" cy="22" r="2.4" fill="#00cfff"/>
-        <path d="M17 17L22 5L11 9Z" fill="#00cfff" opacity=".88"/>
-      </svg>
-      <div>
-        <div id="logo-text">FoilSpot</div>
-      </div>
-    </div>
     <div id="timebox">
       <div class="topbar-scale">
         <div id="wind-scale-ticks" class="topbar-scale-ticks"></div>
