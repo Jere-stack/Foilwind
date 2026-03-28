@@ -136,29 +136,30 @@ background: linear-gradient(135deg, #c8eeff 0%, var(–accent) 100%);
 }
 #logo-sub { font-family: ‘DM Mono’, monospace; font-size: 9px; letter-spacing: 2px; text-transform: uppercase; margin-top: -2px; color: var(–accent); -webkit-text-fill-color: var(–accent); }
 #timebox { text-align: right; pointer-events: all; }
-#clock { font-family: ‘DM Mono’, monospace; font-size: 14px; font-weight: 500; color: var(–text); }
+#topbar-legend {
+display: flex; align-items: center; gap: 4px;
+font-family: ‘DM Mono’, monospace; font-size: 8px; color: var(–muted);
+}
+#topbar-legend-bar {
+width: 80px; height: 8px; border-radius: 4px;
+border: 1px solid rgba(255,255,255,.08);
+}
+#topbar-legend-labels {
+display: flex; justify-content: space-between; width: 80px;
+font-size: 7px; margin-top: 1px;
+}
 #fc-lbl { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); letter-spacing: 1px; text-transform: uppercase; }
 
 /* ============================================================
 LEGEND  z:20
 ============================================================ */
-#legend {
-position: absolute; right: calc(var(–sar) + 12px); bottom: calc(var(–sab) + 120px); z-index: 20;
-background: var(–panel); border: 1px solid var(–border); border-radius: 10px; padding: 8px;
--webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); pointer-events: none;
-transition: opacity .3s;
-}
-#legend h3 { font-family: ‘DM Mono’, monospace; font-size: 8px; color: var(–muted); letter-spacing: 2px; text-transform: uppercase; text-align: center; margin-bottom: 8px; }
-#legend-body { display: flex; gap: 7px; align-items: stretch; }
-#legend-bar { width: 11px; border-radius: 5px; border: 1px solid rgba(255,255,255,.08); flex-shrink: 0; }
-#legend-ticks { display: flex; flex-direction: column; justify-content: space-between; }
-.ltick { font-family: ‘DM Mono’, monospace; font-size: 9px; line-height: 1; white-space: nowrap; }
+/* Legend is now in topbar — no separate absolute element */
 
 /* ============================================================
 MAP CONTROLS  z:20
 ============================================================ */
 #map-ctrls {
-position: absolute; right: calc(var(–sar) + 12px); bottom: calc(var(–sab) + 240px);
+position: absolute; right: calc(var(–sar) + 12px); bottom: calc(var(–sab) + 180px);
 z-index: 20; display: flex; flex-direction: column; gap: 6px;
 }
 .mctl {
@@ -220,69 +221,56 @@ cursor: pointer;
 .lbtn.active { border-color: var(–accent); color: var(–accent); background: rgba(0,207,255,.1); }
 .lbtn .l-icon { font-size: 13px; }
 
-#tl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; padding: 0 2px; pointer-events: none; }
+#tl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; padding: 0 2px; pointer-events: none; }
 #tl-lbl { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); letter-spacing: 2px; text-transform: uppercase; }
-#tl-now { font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–accent); letter-spacing: 0.3px; font-weight: 500; }
+#tl-now { font-family: ‘DM Mono’, monospace; font-size: 13px; color: var(–accent); letter-spacing: 0.3px; font-weight: 700; }
 
 #tl-wrap {
-position: relative; pointer-events: all; height: 44px;
-overflow: visible; /* allow day labels above */
+position: relative; pointer-events: all; height: 56px;
+-webkit-mask-image: linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%);
+mask-image: linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%);
 }
 #tl-scroll {
 display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
 -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 0;
 overscroll-behavior-x: contain; height: 100%;
-scroll-snap-type: x mandatory; -webkit-scroll-snap-type: x mandatory;
 touch-action: pan-x; align-items: flex-end;
 }
 #tl-scroll::-webkit-scrollbar { display: none; }
 
-/* Windy-style: thin vertical bars per hour, height = wind speed */
 .htick {
-flex: 0 0 8px; display: flex; flex-direction: column; align-items: center;
+flex: 0 0 20px; display: flex; flex-direction: column; align-items: center;
 justify-content: flex-end; height: 100%;
-scroll-snap-align: center; -webkit-scroll-snap-align: center;
 -webkit-user-select: none; user-select: none; cursor: pointer;
-position: relative;
+position: relative; padding-bottom: 14px;
 }
 .htick-bar {
-width: 6px; border-radius: 3px 3px 0 0; min-height: 4px;
-transition: opacity 0.1s;
+width: 12px; border-radius: 4px 4px 0 0; min-height: 3px;
 }
 .htick-lbl {
-position: absolute; top: 0px; font-family: ‘DM Mono’, monospace;
-font-size: 8px; color: var(–muted); white-space: nowrap; opacity: 0;
-pointer-events: none;
+position: absolute; bottom: 0; font-family: ‘DM Mono’, monospace;
+font-size: 8px; color: var(–muted); white-space: nowrap;
+pointer-events: none; opacity: 0;
 }
-.htick.show-lbl .htick-lbl { opacity: 0.8; }
+.htick.show-lbl .htick-lbl { opacity: 0.7; }
 
-/* Center indicator line — prominent selection marker */
+/* Center indicator */
 #tl-indicator {
-position: absolute; top: -4px; left: 50%; width: 3px; height: calc(100% + 4px);
+position: absolute; top: 0; left: 50%; width: 2px; height: 100%;
 transform: translateX(-50%); pointer-events: none; z-index: 2;
 background: var(–accent);
-box-shadow: 0 0 10px rgba(0,207,255,0.6), 0 0 20px rgba(0,207,255,0.2);
-border-radius: 2px;
-}
-#tl-indicator::before {
-content: ‘’; position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
-width: 0; height: 0;
-border-left: 6px solid transparent; border-right: 6px solid transparent;
-border-top: 6px solid var(–accent);
-filter: drop-shadow(0 0 4px rgba(0,207,255,0.5));
+box-shadow: 0 0 8px rgba(0,207,255,0.5);
+border-radius: 1px;
 }
 
-/* Day separator — thin line in flow + label above */
+/* Day separator — inline, same height, clear visual break */
 .day-sep {
-flex: 0 0 2px; height: 100%; scroll-snap-align: none;
-background: rgba(0,207,255,.3);
-position: relative;
-}
-.day-sep-label {
-position: absolute; bottom: calc(100% + 2px); left: 0;
+flex: 0 0 40px; display: flex; align-items: flex-end; justify-content: center;
+height: 100%; padding-bottom: 14px;
 font-family: ‘DM Mono’, monospace; font-size: 9px; font-weight: 500;
 color: var(–accent); letter-spacing: 0.3px; white-space: nowrap;
-pointer-events: none;
+border-left: 1px solid rgba(0,207,255,.25);
+opacity: 0.7;
 }
 
 /* Foilable hour highlight */
@@ -498,16 +486,14 @@ animation: pulse-dot 1s ease infinite;
       <div id="search-results"></div>
     </div>
     <div id="timebox">
-      <div id="clock">--:--</div>
+      <div id="topbar-legend">
+        <span>m/s</span>
+        <div>
+          <div id="topbar-legend-bar"></div>
+          <div id="topbar-legend-labels"><span>0</span><span>10</span><span>20</span></div>
+        </div>
+      </div>
       <div id="fc-lbl">Live + 3 pv</div>
-    </div>
-  </div>
-
-  <div id="legend">
-    <h3 id="legend-title">m/s</h3>
-    <div id="legend-body">
-      <div id="legend-bar"></div>
-      <div id="legend-ticks"></div>
     </div>
   </div>
 
@@ -914,15 +900,12 @@ const Toast = {
 
 /* ── LEGEND ───────────────────────────────────────────────────── */
 function buildLegend() {
-  document.getElementById('legend-title').textContent = 'm/s';
-  const stops = [{val:0,label:'0'},{val:4,label:'4'},{val:8,label:'8'},{val:12,label:'12'},{val:15,label:'15 !'},{val:20,label:'20+'}];
-  const bar = document.getElementById('legend-bar'), tks = document.getElementById('legend-ticks');
-  bar.style.cssText = 'background:linear-gradient(to top,' + stops.map(s => { const c = ColorRamp.rgb(s.val); return 'rgb('+c.r+','+c.g+','+c.b+')'; }).join(',') + ');height:' + stops.length * 18 + 'px;';
-  tks.style.height = stops.length * 18 + 'px'; tks.innerHTML = '';
-  stops.slice().reverse().forEach(s => {
-    const el = document.createElement('div'); el.className = 'ltick'; el.textContent = s.label;
-    const c = ColorRamp.rgb(s.val); el.style.color = 'rgb('+c.r+','+c.g+','+c.b+')'; tks.appendChild(el);
-  });
+  const bar = document.getElementById('topbar-legend-bar');
+  if (!bar) return;
+  const stops = [{val:0},{val:4},{val:8},{val:12},{val:16},{val:20}];
+  bar.style.background = 'linear-gradient(to right,' + stops.map(s => {
+    const c = ColorRamp.rgb(s.val); return 'rgb('+c.r+','+c.g+','+c.b+')';
+  }).join(',') + ')';
 }
 
 /* ── LOD BADGE ────────────────────────────────────────────────── */
@@ -1747,16 +1730,15 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
   if (!times || !times.length) return;
   State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
   State._tlTicks = [];
-  const ITEM_W = 8; /* thin bars */
+  const TICK_W = 20;
   const DAY = ['Su','Ma','Ti','Ke','To','Pe','La']; let lastDay = -1;
 
-  /* Find max wind for bar height scaling */
   let maxMs = 1;
   for (let i = 0; i < speeds.length; i++) { if ((speeds[i]||0) > maxMs) maxMs = speeds[i]; }
 
-  /* Left spacer */
+  /* Left spacer — half viewport so first tick can center */
   const spacerL = document.createElement('div');
-  spacerL.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - ITEM_W / 2) + 'px';
+  spacerL.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - TICK_W / 2) + 'px';
   tl.appendChild(spacerL);
 
   for (let i = 0; i < times.length; i++) {
@@ -1764,7 +1746,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     if (day !== lastDay) {
       lastDay = day;
       const sep = document.createElement('div'); sep.className = 'day-sep';
-      sep.innerHTML = '<span class="day-sep-label">' + DAY[day] + ' ' + d.getDate() + '.</span>';
+      sep.textContent = DAY[day] + ' ' + d.getDate() + '.';
       tl.appendChild(sep);
     }
     const ms = speeds[i]||0, c = ColorRamp.rgb(ms);
@@ -1772,7 +1754,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     tick.className = 'htick' + (hour % 6 === 0 ? ' show-lbl' : '');
     tick.dataset.idx = i;
 
-    const barH = Math.max(4, (ms / maxMs) * 36);
+    const barH = Math.max(3, (ms / maxMs) * 32);
     const foilable = ms >= 8;
     tick.innerHTML = '<div class="htick-bar' + (foilable ? ' foilable' : '') + '" style="height:' + barH + 'px;background:rgb(' + c.r + ',' + c.g + ',' + c.b + ')' + (foilable ? ';border-bottom:2px solid rgb(80,237,120)' : '') + '"></div>'
       + '<span class="htick-lbl">' + ('0'+hour).slice(-2) + '</span>';
@@ -1782,36 +1764,44 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
 
   /* Right spacer */
   const spacerR = document.createElement('div');
-  spacerR.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - ITEM_W / 2) + 'px';
+  spacerR.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - TICK_W / 2) + 'px';
   tl.appendChild(spacerR);
 
-  /* Scroll to active index */
+  /* Scroll to active index (no animation on init) */
   requestAnimationFrame(() => {
     const target = State._tlTicks[activeIdx];
-    if (target) tl.scrollLeft = target.offsetLeft - tl.offsetWidth / 2 + ITEM_W / 2;
+    if (target) tl.scrollLeft = target.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2;
+    _tlUpdateNow(activeIdx);
   });
 
-  /* Scroll handler */
+  /* Scroll handler — free scroll, debounced selection */
   let _scrollTimer = null;
   tl.addEventListener('scroll', () => {
     clearTimeout(_scrollTimer);
-    _scrollTimer = setTimeout(() => _tlSnapSelect(tl), 100);
+    _scrollTimer = setTimeout(() => _tlSnapSelect(tl), 150);
   }, { passive: true });
 }
 
-/* Select whichever item is closest to center */
+function _tlUpdateNow(idx) {
+  const el = document.getElementById('tl-now');
+  if (el && State._tlTimes && State._tlTimes[idx]) {
+    el.textContent = fmtDateTime(State._tlTimes[idx]);
+  }
+}
+
+/* Select whichever tick is closest to center */
 function _tlSnapSelect(tl) {
   const center = tl.scrollLeft + tl.offsetWidth / 2;
   let bestIdx = 0, bestDist = Infinity;
   for (let i = 0; i < State._tlTicks.length; i++) {
     const tick = State._tlTicks[i];
-    const tickCenter = tick.offsetLeft + 4; /* half of 8px */
+    const tickCenter = tick.offsetLeft + 10; /* half of 20px */
     const dist = Math.abs(center - tickCenter);
     if (dist < bestDist) { bestDist = dist; bestIdx = i; }
   }
   if (bestIdx !== State.currentHourIdx) {
     State.currentHourIdx = bestIdx;
-    document.getElementById('tl-now').textContent = fmtDateTime(State._tlTimes[bestIdx]);
+    _tlUpdateNow(bestIdx);
     buildWindField(bestIdx).then(() => { drawColorField(); resetParticles(); });
     renderSpots(bestIdx);
     if (State.sheetSpot) openSheet(State.sheetSpot, bestIdx);
@@ -1823,7 +1813,7 @@ function scrollTimelineTo(idx) {
   const tl = document.getElementById('tl-scroll');
   if (!tl || !State._tlTicks || !State._tlTicks[idx]) return;
   const target = State._tlTicks[idx];
-  tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 4, behavior: 'smooth' });
+  tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 10, behavior: 'smooth' });
 }
 
 
@@ -1853,10 +1843,6 @@ function updateScaleBar() {
   document.getElementById('scale-label').textContent = best.l;
   document.getElementById('scale-line').style.width = Math.round(bpx) + 'px';
 }
-
-/* ── CLOCK ────────────────────────────────────────────────────── */
-function updateClock() { const n = new Date(); document.getElementById('clock').textContent = ('0'+n.getHours()).slice(-2)+':'+('0'+n.getMinutes()).slice(-2); }
-updateClock(); setInterval(updateClock, 30000);
 
 /* ── WIND TOOLTIP — Show wind data at cursor/finger position ─── */
 const WindTip = {
