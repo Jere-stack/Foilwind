@@ -158,7 +158,7 @@ transition: opacity .3s;
 MAP CONTROLS  z:20
 ============================================================ */
 #map-ctrls {
-position: absolute; right: calc(var(–sar) + 12px); bottom: calc(var(–sab) + 220px);
+position: absolute; right: calc(var(–sar) + 12px); bottom: calc(var(–sab) + 240px);
 z-index: 20; display: flex; flex-direction: column; gap: 6px;
 }
 .mctl {
@@ -226,6 +226,7 @@ cursor: pointer;
 
 #tl-wrap {
 position: relative; pointer-events: all; height: 44px;
+overflow: visible; /* allow day labels above */
 }
 #tl-scroll {
 display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
@@ -271,14 +272,17 @@ border-top: 6px solid var(–accent);
 filter: drop-shadow(0 0 4px rgba(0,207,255,0.5));
 }
 
-/* Day separator — horizontal, prominent */
+/* Day separator — thin line in flow + label above */
 .day-sep {
-flex: 0 0 auto; display: flex; align-items: flex-end; justify-content: flex-start;
-height: 100%; scroll-snap-align: none; padding: 0 6px 6px 6px;
+flex: 0 0 2px; height: 100%; scroll-snap-align: none;
+background: rgba(0,207,255,.3);
+position: relative;
+}
+.day-sep-label {
+position: absolute; bottom: calc(100% + 2px); left: 0;
 font-family: ‘DM Mono’, monospace; font-size: 9px; font-weight: 500;
-color: var(–accent); letter-spacing: 0.5px; text-transform: uppercase;
-border-left: 1.5px solid rgba(0,207,255,.35);
-white-space: nowrap;
+color: var(–accent); letter-spacing: 0.3px; white-space: nowrap;
+pointer-events: none;
 }
 
 /* Foilable hour highlight */
@@ -523,8 +527,6 @@ animation: pulse-dot 1s ease infinite;
         <path d="M8 5v14l11-7z"/>
       </svg>
     </div>
-    <div class="mctl" id="btn-in">+</div>
-    <div class="mctl" id="btn-out">−</div>
   </div>
 
   <div id="bottom">
@@ -1762,7 +1764,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     if (day !== lastDay) {
       lastDay = day;
       const sep = document.createElement('div'); sep.className = 'day-sep';
-      sep.textContent = DAY[day] + ' ' + d.getDate() + '.';
+      sep.innerHTML = '<span class="day-sep-label">' + DAY[day] + ' ' + d.getDate() + '.</span>';
       tl.appendChild(sep);
     }
     const ms = speeds[i]||0, c = ColorRamp.rgb(ms);
@@ -1895,8 +1897,6 @@ const WindTip = {
 };
 
 /* ── CONTROLS ─────────────────────────────────────────────────── */
-document.getElementById('btn-in').addEventListener('click', () => State.map.zoomIn(), { passive: true });
-document.getElementById('btn-out').addEventListener('click', () => State.map.zoomOut(), { passive: true });
 document.getElementById('btn-loc').addEventListener('click', () => {
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(p => State.map.flyTo([p.coords.latitude,p.coords.longitude],9,{duration:1.2}), () => Toast.show('\ud83d\udccd Sijainnin haku ep\u00e4onnistui'));
