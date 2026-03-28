@@ -247,7 +247,7 @@ pointer-events: none;
 /* Layers/models use .sp-chip now (see settings popup CSS) */
 
 #tl-wrap {
-position: relative; pointer-events: all; height: 56px;
+position: relative; pointer-events: all; height: 72px;
 overflow: visible; padding-top: 28px; /* space for time bubble */
 }
 #tl-scroll {
@@ -1836,10 +1836,10 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     const ms = speeds[i]||0, c = ColorRamp.rgb(ms);
     const tick = document.createElement('div');
     const isPast = i < realNowIdx;
-    tick.className = 'htick' + (hour % 6 === 0 ? ' show-lbl' : '') + (isPast ? ' past' : '');
+    tick.className = 'htick' + (hour % 3 === 0 ? ' show-lbl' : '') + (isPast ? ' past' : '');
     tick.dataset.idx = i;
 
-    const barH = Math.max(3, (ms / maxMs) * 32);
+    const barH = Math.max(3, (ms / maxMs) * 48);
     const foilable = ms >= 8;
     tick.innerHTML = '<div class="htick-bar' + (foilable ? ' foilable' : '') + '" style="height:' + barH + 'px;background:rgb(' + c.r + ',' + c.g + ',' + c.b + ')' + (foilable ? ';border-bottom:2px solid rgb(80,237,120)' : '') + '"></div>'
       + '<span class="htick-lbl">' + ('0'+hour).slice(-2) + '</span>';
