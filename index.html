@@ -673,9 +673,9 @@ const ViewportGrid = {
 
   _ptKey(lat, lng) { return lat.toFixed(2) + ',' + lng.toFixed(2); },
 
-  /* Load coarse 5° global grid — ~500 points, 7 API calls, loaded once */
+  /* Load coarse 15° global grid — ~216 points, 3 batches, ALL parallel */
   async loadGlobalCoarse(onProgress) {
-    const step = 5;
+    const step = 15;
     const pts = [];
     for (let lat = -55; lat <= 70; lat += step) {
       for (let lng = -180; lng <= 175; lng += step) {
@@ -685,7 +685,7 @@ const ViewportGrid = {
         }
       }
     }
-    if (!pts.length) return;
+    if (!pts.length) { if (onProgress) onProgress(1, 1); return; }
     /* Restore from localStorage first */
     const cacheKey = 'fg_global_' + State.activeModel;
     try {
@@ -700,7 +700,7 @@ const ViewportGrid = {
             this._globalBase.set(pk, p);
             restored++;
           }
-          if (restored > 50) {
+          if (restored > 20) {
             console.log('[Global] Restored', restored, 'coarse points from cache');
             if (onProgress) onProgress(restored, restored);
             return;
@@ -709,29 +709,34 @@ const ViewportGrid = {
       }
     } catch(e) {}
 
-    /* Load from API */
+    /* Load ALL batches in 1 parallel wave — forecast_days=1 (smallest response) */
     const batchSize = 80;
     const batches = [];
     for (let i = 0; i < pts.length; i += batchSize) batches.push(pts.slice(i, i + batchSize));
     let done = 0;
-    for (let i = 0; i < batches.length; i += 6) {
-      const wave = batches.slice(i, i + 6);
-      await Promise.allSettled(wave.map(b =>
-        loadBatch(b).then(() => {
-          b.forEach(p => {
-            if (p.wx) this._globalBase.set(this._ptKey(p.lat, p.lng), p);
-          });
-          done += b.length;
-          if (onProgress) onProgress(done, pts.length);
-        })
-      ));
-    }
+    const total = pts.length;
+    const loadPromise = Promise.allSettled(batches.map(b =>
+      loadBatch(b, 1).then(() => {
+        b.forEach(p => { if (p.wx) this._globalBase.set(this._ptKey(p.lat, p.lng), p); });
+        done += b.length;
+        if (onProgress) onProgress(done, total);
+      })
+    ));
+    /* 10s timeout bail — never block startup */
+    const bail = new Promise(resolve => setTimeout(() => {
+      console.log('[Global] Timeout, continuing with', this._globalBase.size, 'pts');
+      resolve();
+    }, 10000));
+    await Promise.race([loadPromise, bail]);
+
     /* Save to localStorage */
-    try {
-      const toSave = {};
-      this._globalBase.forEach((p, pk) => { if (p.wx) toSave[pk] = p.wx; });
-      localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), pts: toSave }));
-    } catch(e) {}
+    if (this._globalBase.size > 0) {
+      try {
+        const toSave = {};
+        this._globalBase.forEach((p, pk) => { if (p.wx) toSave[pk] = p.wx; });
+        localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), pts: toSave }));
+      } catch(e) {}
+    }
     console.log('[Global] Loaded', this._globalBase.size, 'coarse points');
   },
 
