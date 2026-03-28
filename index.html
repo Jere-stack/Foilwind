@@ -101,15 +101,15 @@ position: absolute; top: calc(var(–sat) + 10px); left: 50%; transform: transla
 z-index: 21; pointer-events: all; width: min(280px, 55vw);
 }
 #search-input {
-width: 100%; height: 36px; border-radius: 18px;
-background: var(–panel); border: 1px solid var(–border);
--webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
-color: var(–text); font-family: ‘DM Mono’, monospace; font-size: 12px;
-padding: 0 36px 0 14px; outline: none;
-transition: border-color .2s, box-shadow .2s;
+width: 100%; height: 32px; border-radius: 16px;
+background: rgba(6,9,18,.4); border: 1px solid rgba(255,255,255,.06);
+-webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+color: var(–text); font-family: ‘DM Mono’, monospace; font-size: 11px;
+padding: 0 32px 0 12px; outline: none;
+transition: border-color .2s, background .2s, box-shadow .2s;
 }
-#search-input::placeholder { color: var(–muted); }
-#search-input:focus { border-color: var(–accent); box-shadow: 0 0 12px rgba(0,207,255,.15); }
+#search-input::placeholder { color: rgba(180,215,255,.3); }
+#search-input:focus { border-color: rgba(0,207,255,.4); background: rgba(6,9,18,.7); box-shadow: 0 0 12px rgba(0,207,255,.1); }
 #search-icon {
 position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
 color: var(–muted); pointer-events: none;
@@ -156,23 +156,46 @@ LEGEND  z:20
 /* Legend is now in topbar — no separate absolute element */
 
 /* ============================================================
-MAP CONTROLS  z:20
+MAP CONTROLS — bottom bar row
 ============================================================ */
-#map-ctrls {
-position: absolute; right: calc(var(–sar) + 12px); bottom: calc(var(–sab) + 180px);
-z-index: 20; display: flex; flex-direction: column; gap: 6px;
+#bottom-bar {
+display: flex; align-items: center; gap: 6px; margin-bottom: 6px; pointer-events: all;
 }
 .mctl {
-width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(–border);
+width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(–border);
 background: var(–panel); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 color: var(–text); display: flex; align-items: center; justify-content: center;
-cursor: pointer; font-size: 20px; line-height: 1;
+cursor: pointer; font-size: 18px; line-height: 1; flex-shrink: 0;
 -webkit-user-select: none; user-select: none; touch-action: manipulation;
 transition: background .12s, transform .1s, border-color .12s;
 -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
 }
-.mctl:active { background: rgba(0,207,255,.22); transform: scale(0.9); }
+.mctl:active { background: rgba(0,207,255,.22); transform: scale(0.92); }
 .mctl.playing { border-color: var(–accent); color: var(–accent); background: rgba(0,207,255,.12); }
+#bottom-bar-spacer { flex: 1; }
+#bottom-bar-time {
+font-family: ‘DM Mono’, monospace; font-size: 12px; font-weight: 600;
+color: var(–accent); letter-spacing: 0.2px;
+pointer-events: none;
+}
+
+/* Settings popup */
+#settings-popup {
+position: absolute; bottom: calc(var(–sab) + 110px); left: calc(var(–sal) + 12px); z-index: 25;
+background: var(–panel); border: 1px solid var(–border); border-radius: 14px;
+-webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+padding: 12px; min-width: 200px;
+box-shadow: 0 8px 32px rgba(0,0,0,.5);
+transform: translateY(10px); opacity: 0; pointer-events: none;
+transition: transform .2s ease, opacity .2s ease;
+}
+#settings-popup.open { transform: translateY(0); opacity: 1; pointer-events: all; }
+#settings-popup .sp-label {
+font-family: ‘DM Mono’, monospace; font-size: 8px; color: var(–muted);
+letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 6px;
+}
+#settings-popup .sp-row { display: flex; gap: 5px; margin-bottom: 10px; }
+#settings-popup .sp-row:last-child { margin-bottom: 0; }
 
 /* ============================================================
 SCALE BAR  z:20
@@ -206,7 +229,7 @@ padding: 0 calc(var(–sal) + 12px) calc(var(–sab) + 12px) calc(var(–sar) + 
 background: linear-gradient(to top, rgba(6,9,18,.98) 0%, rgba(6,9,18,.80) 55%, transparent 100%);
 pointer-events: none;
 }
-#layers { display: flex; gap: 6px; margin-bottom: 10px; pointer-events: all; }
+#layers { display: flex; gap: 5px; pointer-events: all; }
 .lbtn {
 flex: 1; min-height: 44px; border-radius: 10px; border: 1px solid var(–border);
 background: rgba(6,9,18,.8); color: var(–muted);
@@ -220,10 +243,6 @@ cursor: pointer;
 }
 .lbtn.active { border-color: var(–accent); color: var(–accent); background: rgba(0,207,255,.1); }
 .lbtn .l-icon { font-size: 13px; }
-
-#tl-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; padding: 0 2px; pointer-events: none; }
-#tl-lbl { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); letter-spacing: 2px; text-transform: uppercase; }
-#tl-now { font-family: ‘DM Mono’, monospace; font-size: 13px; color: var(–accent); letter-spacing: 0.3px; font-weight: 700; }
 
 #tl-wrap {
 position: relative; pointer-events: all; height: 56px;
@@ -254,13 +273,13 @@ pointer-events: none; opacity: 0;
 }
 .htick.show-lbl .htick-lbl { opacity: 0.7; }
 
-/* Center indicator */
+/* Center indicator — strong line with floating time */
 #tl-indicator {
-position: absolute; top: 0; left: 50%; width: 2px; height: 100%;
+position: absolute; top: 0; left: 50%; width: 3px; height: 100%;
 transform: translateX(-50%); pointer-events: none; z-index: 2;
 background: var(–accent);
-box-shadow: 0 0 8px rgba(0,207,255,0.5);
-border-radius: 1px;
+box-shadow: 0 0 10px rgba(0,207,255,0.6), 0 0 4px rgba(0,207,255,0.3);
+border-radius: 1.5px;
 }
 
 /* Day separator — inline, same height, clear visual break */
@@ -502,42 +521,45 @@ animation: pulse-dot 1s ease infinite;
     <div id="scale-line" style="width:60px"></div>
   </div>
 
-  <div id="map-ctrls">
-    <div class="mctl" id="btn-loc">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-        <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-      </svg>
+  <!-- Settings popup (models + layers) -->
+
+  <div id="settings-popup">
+    <div class="sp-label">Säädata</div>
+    <div class="sp-row" id="models">
+      <div class="lbtn active" data-model="best_match" style="font-size:9px"><span class="l-icon">🌐</span>Auto</div>
+      <div class="lbtn" data-model="icon_eu" style="font-size:9px"><span class="l-icon">🇪🇺</span>ICON</div>
+      <div class="lbtn" data-model="ecmwf_ifs025" style="font-size:9px"><span class="l-icon">🌍</span>ECMWF</div>
+      <div class="lbtn" data-model="gfs_seamless" style="font-size:9px"><span class="l-icon">🇺🇸</span>GFS</div>
     </div>
-    <div class="mctl" id="btn-play">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" id="play-icon">
-        <path d="M8 5v14l11-7z"/>
-      </svg>
+    <div class="sp-label">Kerros</div>
+    <div class="sp-row" id="layers">
+      <div class="lbtn active" data-layer="wind"><span class="l-icon">💨</span>Tuuli</div>
+      <div class="lbtn" data-layer="gust"><span class="l-icon">🌊</span>Puuska</div>
     </div>
   </div>
 
   <div id="bottom">
-    <div id="models" style="display:flex;gap:5px;margin-bottom:6px;pointer-events:all">
-      <div class="lbtn active" data-model="best_match" style="font-size:9px"><span class="l-icon">🌐</span>Auto</div>
-      <div class="lbtn" data-model="icon_eu" style="font-size:9px"><span class="l-icon">🇪🇺</span>ICON-EU</div>
-      <div class="lbtn" data-model="ecmwf_ifs025" style="font-size:9px"><span class="l-icon">🌍</span>ECMWF</div>
-      <div class="lbtn" data-model="gfs_seamless" style="font-size:9px"><span class="l-icon">🇺🇸</span>GFS</div>
+    <div id="bottom-bar">
+      <div class="mctl" id="btn-settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </div>
+      <div class="mctl" id="btn-loc">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+        </svg>
+      </div>
+      <div class="mctl" id="btn-play">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" id="play-icon">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </div>
+      <div id="bottom-bar-spacer"></div>
+      <div id="bottom-bar-time"></div>
     </div>
-    <div id="layers">
-      <div class="lbtn active" data-layer="wind"><span class="l-icon">💨</span>Tuuli</div>
-      <div class="lbtn" data-layer="gust"><span class="l-icon">🌊</span>Puuska</div>
-
-```
-</div>
-<div id="tl-row">
-  <div id="tl-lbl">Ennuste</div>
-  <div id="tl-now">Nyt</div>
-</div>
-<div id="tl-wrap">
-  <div id="tl-indicator"></div>
-  <div id="tl-scroll"></div>
-</div>
-```
-
+    <div id="tl-wrap">
+      <div id="tl-indicator"></div>
+      <div id="tl-scroll"></div>
+    </div>
   </div>
 
   <!-- Bottom Sheet for spot details -->
@@ -1783,7 +1805,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
 }
 
 function _tlUpdateNow(idx) {
-  const el = document.getElementById('tl-now');
+  const el = document.getElementById('bottom-bar-time');
   if (el && State._tlTimes && State._tlTimes[idx]) {
     el.textContent = fmtDateTime(State._tlTimes[idx]);
   }
@@ -1883,6 +1905,17 @@ const WindTip = {
 };
 
 /* ── CONTROLS ─────────────────────────────────────────────────── */
+/* Settings popup toggle */
+document.getElementById('btn-settings').addEventListener('click', (e) => {
+  e.stopPropagation();
+  document.getElementById('settings-popup').classList.toggle('open');
+}, { passive: false });
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#settings-popup') && !e.target.closest('#btn-settings')) {
+    document.getElementById('settings-popup').classList.remove('open');
+  }
+});
+
 document.getElementById('btn-loc').addEventListener('click', () => {
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(p => State.map.flyTo([p.coords.latitude,p.coords.longitude],9,{duration:1.2}), () => Toast.show('\ud83d\udccd Sijainnin haku ep\u00e4onnistui'));
@@ -1892,6 +1925,7 @@ document.getElementById('layers').addEventListener('click', e => {
   const b = e.target.closest('.lbtn'); if (!b) return;
   const layer = b.dataset.layer; if (!layer || layer === State.activeLayer) return;
   document.querySelectorAll('#layers .lbtn').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
+  document.getElementById('settings-popup').classList.remove('open');
   State.activeLayer = layer; buildLegend(); buildWindField(State.currentHourIdx).then(() => { drawColorField(); resetParticles(); }); renderSpots(State.currentHourIdx);
   const ref = SPOTS.find(s => s.wx && s.wx.hourly);
   if (ref) { const t = ref.wx.hourly.time, sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m; renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, State.currentHourIdx); }
@@ -1900,6 +1934,7 @@ document.getElementById('models').addEventListener('click', e => {
   const b = e.target.closest('.lbtn'); if (!b) return;
   const model = b.dataset.model; if (!model || model === State.activeModel) return;
   document.querySelectorAll('#models .lbtn').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
+  document.getElementById('settings-popup').classList.remove('open');
   State.activeModel = model;
   _rateLimited = false;
   try { sessionStorage.removeItem('foilspot_rl'); } catch(e) {}
