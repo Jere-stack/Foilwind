@@ -39,7 +39,7 @@
 }
 html {
   height: -webkit-fill-available; background: var(--bg);
-  overscroll-behavior: none; /* Prevent Safari rubber-band */
+  overscroll-behavior: none;
 }
 body {
   width: 100%; height: 100%; min-height: -webkit-fill-available;
@@ -48,7 +48,6 @@ body {
   overflow: hidden; position: fixed; inset: 0;
   -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
   overscroll-behavior: none;
-  /* Safari: prevent accidental navigation swipes */
   touch-action: none;
 }
 #app { position: absolute; inset: 0; }
@@ -62,7 +61,6 @@ MAP  z:1
 .leaflet-control-zoom { display: none !important; }
 .leaflet-control-attribution { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
 .leaflet-control-attribution a { color: rgba(255,255,255,.22) !important; }
-/* Hide default popups - we use bottom sheet */
 .leaflet-popup { display: none !important; }
 
 /* ============================================================
@@ -77,7 +75,6 @@ will-change: contents;
 }
 
 #c-wind  { z-index: 3; transition: opacity 0.15s; }
-/* Heatmap ImageOverlay — CSS blur for smooth interpolation look */
 .heatmap-overlay {
 opacity: 0.88;
 filter: blur(14px); -webkit-filter: blur(14px);
@@ -95,7 +92,6 @@ background: linear-gradient(to bottom, rgba(6,9,18,.96) 0%, transparent 100%);
 display: flex; align-items: flex-end; justify-content: space-between;
 pointer-events: none;
 }
-/* Search bar — independent positioned element */
 #search-wrap {
 position: absolute; top: calc(var(–sat) + 12px); left: 50%; transform: translateX(-50%);
 z-index: 22; pointer-events: all; width: min(260px, 50vw);
@@ -129,16 +125,10 @@ color: var(–text); cursor: pointer; border-bottom: 1px solid var(–border);
 .search-item:active { background: rgba(0,207,255,.1); }
 .search-sub { font-size: 9px; color: var(–muted); margin-top: 2px; }
 #timebox { pointer-events: none; display: flex; align-items: flex-end; margin-left: auto; }
-/* Wind scale embedded in topbar right side — no absolute pos needed */
 .topbar-scale { display: flex; align-items: center; gap: 3px; pointer-events: none; }
 .topbar-scale-bar { width: 6px; height: 80px; border-radius: 3px; }
 .topbar-scale-ticks { display: flex; flex-direction: column; justify-content: space-between; height: 80px; }
 .topbar-scale-ticks .ws-tick { font-family: ‘DM Mono’, monospace; font-size: 7px; line-height: 1; text-align: right; }
-
-/* ============================================================
-LEGEND  z:20
-============================================================ */
-/* Legend is now in topbar — no separate absolute element */
 
 /* ============================================================
 MAP CONTROLS — bottom bar row
@@ -190,7 +180,6 @@ font-family: ‘DM Mono’, monospace; font-size: 9px; font-weight: 500;
 color: rgba(255,255,255,.4); letter-spacing: 1.2px; text-transform: uppercase;
 margin-bottom: 8px;
 }
-/* Pill chips */
 .sp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .sp-chip {
 height: 32px; border-radius: 16px; padding: 0 12px;
@@ -244,11 +233,10 @@ background: linear-gradient(to top, rgba(6,9,18,.98) 0%, rgba(6,9,18,.80) 55%, t
 pointer-events: none;
 }
 #layers { display: flex; gap: 5px; pointer-events: all; }
-/* Layers/models use .sp-chip now (see settings popup CSS) */
 
 #tl-wrap {
 position: relative; pointer-events: all; height: 72px;
-overflow: visible; padding-top: 28px; /* space for time bubble */
+overflow: visible; padding-top: 28px;
 }
 #tl-scroll {
 display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
@@ -276,7 +264,6 @@ pointer-events: none; opacity: 0;
 }
 .htick.show-lbl .htick-lbl { opacity: 0.7; }
 
-/* Center indicator — line + floating time bubble above */
 #tl-indicator {
 position: absolute; top: 0; left: 50%; width: 3px; height: 100%;
 transform: translateX(-50%); pointer-events: none; z-index: 2;
@@ -297,7 +284,6 @@ letter-spacing: 0.3px; text-align: center; line-height: 1.3;
 content: ‘’; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
 border: 4px solid transparent; border-top-color: var(–accent);
 }
-/* “Now” marker — fixed at current real time */
 .tl-now-marker {
 flex: 0 0 2px; height: 100%; background: rgba(255,255,255,.7);
 position: relative; z-index: 1;
@@ -308,10 +294,8 @@ position: absolute; bottom: 1px; left: 50%; transform: translateX(-50%);
 font-family: ‘DM Mono’, monospace; font-size: 7px; font-weight: 600;
 color: rgba(255,255,255,.8); white-space: nowrap; letter-spacing: 0.5px;
 }
-/* Past hours dimmer */
 .htick.past .htick-bar { opacity: 0.45; }
 
-/* Day separator — inline, same height, clear visual break */
 .day-sep {
 flex: 0 0 40px; display: flex; align-items: flex-end; justify-content: center;
 height: 100%; padding-bottom: 14px;
@@ -321,17 +305,12 @@ border-left: 1px solid rgba(0,207,255,.25);
 opacity: 0.7;
 }
 
-/* Foilable hour highlight */
 .htick-bar.foilable { box-shadow: 0 0 6px rgba(80,237,120,0.5); }
-/* Gust index colors */
 .gi-steady  { color: rgb(80,237,120); }
 .gi-gusty   { color: rgb(240,220,0); }
 .gi-extreme { color: rgb(255,90,90); }
-/* Wind trend arrow on spot markers */
 .spot-trend { font-size: 8px; color: var(–muted); margin-top: 1px; text-align: center; }
-/* Water temp card */
 .sh-card-small { font-size: 16px; }
-/* Wind rose */
 .sh-windrose { display: flex; justify-content: center; margin: 16px 0 8px; }
 .sh-windrose svg { filter: drop-shadow(0 0 8px rgba(0,207,255,.1)); }
 
@@ -358,6 +337,68 @@ animation: loc-pulse 2.5s ease-out infinite;
 @keyframes loc-pulse {
 0% { transform: scale(0.6); opacity: 1; }
 100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* ============================================================
+CROSSHAIR — Windy-style center reticle + readout
+============================================================ */
+#crosshair {
+position: absolute; top: 50%; left: 50%; z-index: 15;
+transform: translate(-50%, -50%);
+pointer-events: none;
+opacity: 0.6;
+transition: opacity 0.3s;
+filter: drop-shadow(0 0 6px rgba(0,0,0,0.7));
+}
+#crosshair.panning { opacity: 0.25; }
+
+#crosshair-readout {
+position: absolute; top: calc(var(–sat) + 90px); left: calc(var(–sal) + 14px); z-index: 20;
+background: rgba(255,255,255,.06);
+border: 1px solid rgba(255,255,255,.10);
+border-radius: 14px;
+-webkit-backdrop-filter: blur(20px) saturate(1.3);
+backdrop-filter: blur(20px) saturate(1.3);
+padding: 10px 14px;
+box-shadow:
+0 0 0 0.5px rgba(255,255,255,.04) inset,
+0 8px 32px rgba(0,0,0,.35);
+pointer-events: none;
+min-width: 110px;
+transition: opacity 0.3s, transform 0.3s;
+}
+#crosshair-readout.hidden { opacity: 0; transform: translateY(-4px); }
+
+.cr-speed {
+font-family: ‘DM Mono’, monospace;
+font-size: 26px; font-weight: 500;
+line-height: 1; letter-spacing: -0.5px;
+display: flex; align-items: baseline; gap: 3px;
+}
+.cr-speed-unit {
+font-size: 11px; font-weight: 400;
+color: var(–muted); letter-spacing: 0.5px;
+}
+.cr-details {
+display: flex; gap: 8px; margin-top: 5px;
+font-family: ‘DM Mono’, monospace; font-size: 10px;
+color: var(–muted); letter-spacing: 0.3px;
+align-items: center;
+}
+.cr-dir-arrow {
+font-size: 14px; line-height: 1;
+}
+.cr-gust {
+font-size: 10px; margin-top: 4px;
+font-family: ‘DM Mono’, monospace;
+color: var(–muted); letter-spacing: 0.3px;
+}
+.cr-label {
+font-family: ‘DM Mono’, monospace;
+font-size: 7px; font-weight: 500;
+color: rgba(255,255,255,.25);
+text-transform: uppercase; letter-spacing: 1.5px;
+margin-bottom: 4px;
 }
 
 /* ============================================================
@@ -425,7 +466,6 @@ font-size: 11px; color: var(–muted); margin-left: 2px;
 padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
 text-align: center; letter-spacing: .5px; text-transform: uppercase;
 }
-/* Wind forecast mini chart */
 .sh-chart-wrap { margin-top: 16px; }
 .sh-chart-title {
 font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted);
@@ -445,7 +485,6 @@ display: flex; justify-content: space-between; margin-top: 4px;
 font-family: ‘DM Mono’, monospace; font-size: 8px; color: var(–muted);
 }
 
-/* Badge colors */
 .b-calm    { background: rgba(4,26,130,.18); color: rgb(80,160,255);  border: 1px solid rgba(80,160,255,.3); }
 .b-light   { background: rgba(0,220,180,.12); color: rgb(0,220,180);  border: 1px solid rgba(0,220,180,.3); }
 .b-good    { background: rgba(28,237,85,.12); color: rgb(80,237,120); border: 1px solid rgba(80,237,120,.3); }
@@ -549,7 +588,7 @@ animation: pulse-dot 1s ease infinite;
     </div>
   </div>
 
-  <!-- Search bar — independent z:22 element -->
+  <!-- Search bar -->
 
   <div id="search-wrap">
     <input id="search-input" type="text" placeholder="Hae paikkaa..." autocomplete="off" />
@@ -557,12 +596,39 @@ animation: pulse-dot 1s ease infinite;
     <div id="search-results"></div>
   </div>
 
+  <!-- Crosshair — Windy-style center reticle -->
+
+  <svg id="crosshair" width="48" height="48" viewBox="0 0 48 48">
+    <circle cx="24" cy="24" r="16" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1"/>
+    <circle cx="24" cy="24" r="1.5" fill="rgba(255,255,255,0.7)"/>
+    <line x1="24" y1="3" x2="24" y2="12" stroke="rgba(255,255,255,0.45)" stroke-width="1" stroke-linecap="round"/>
+    <line x1="24" y1="36" x2="24" y2="45" stroke="rgba(255,255,255,0.45)" stroke-width="1" stroke-linecap="round"/>
+    <line x1="3" y1="24" x2="12" y2="24" stroke="rgba(255,255,255,0.45)" stroke-width="1" stroke-linecap="round"/>
+    <line x1="36" y1="24" x2="45" y2="24" stroke="rgba(255,255,255,0.45)" stroke-width="1" stroke-linecap="round"/>
+  </svg>
+
+  <!-- Crosshair readout — wind data at map center -->
+
+  <div id="crosshair-readout" class="hidden">
+    <div class="cr-label">Keskipiste</div>
+    <div class="cr-speed" id="cr-speed">--<span class="cr-speed-unit">m/s</span></div>
+    <div class="cr-details">
+      <span class="cr-dir-arrow" id="cr-dir-arrow">↓</span>
+      <span id="cr-dir-deg">--°</span>
+    </div>
+    <div class="cr-gust" id="cr-gust"></div>
+  </div>
+
   <div id="scale-bar">
     <div id="scale-label">1 km</div>
     <div id="scale-line" style="width:60px"></div>
   </div>
 
-  <!-- Settings popup (models + layers) -->
+  <!-- LOD badge -->
+
+  <div id="lod-badge"></div>
+
+  <!-- Settings popup -->
 
   <div id="settings-popup">
     <div class="sp-section">
@@ -637,12 +703,12 @@ animation: pulse-dot 1s ease infinite;
 
 const Config = {
   MAX_MS: 20,
-  INERTIA: 0.78,             // Slightly snappier for screen-space trails
-  GEO_SPEED: 0.003,          // Slightly faster — trails are shorter with fade
+  INERTIA: 0.78,
+  GEO_SPEED: 0.003,
   WIND_SAMPLE_INTERVAL: 2,
-  FADE_OPACITY: 0.94,        // Screen-space trail fade: 0.94 ≈ 16 frames (0.27s trail)
-  DROP_RATE: 0.003,          // Base particle reset rate per frame
-  DROP_RATE_BUMP: 0.008,     // Extra reset rate for fast particles (density balance)
+  FADE_OPACITY: 0.94,
+  DROP_RATE: 0.003,
+  DROP_RATE_BUMP: 0.008,
   DATA_REFRESH_MS: 60 * 60 * 1000,
   PLAY_INTERVAL_MS: 800,
 };
@@ -650,8 +716,8 @@ const Config = {
 /* ── COLOUR RAMP ────────────────────────────────────────────── */
 const ColorRamp = (() => {
   const RAMP = [
-    { t: 0.00, r: 20,  g: 40,  b: 80  },  /* Near-zero: dark grey-blue, not bright — blends with dark map */
-    { t: 0.05, r: 30,  g: 70,  b: 140 },  /* Very light: muted steel blue */
+    { t: 0.00, r: 20,  g: 40,  b: 80  },
+    { t: 0.05, r: 30,  g: 70,  b: 140 },
     { t: 0.12, r: 0,   g: 120, b: 255 },
     { t: 0.22, r: 0,   g: 200, b: 255 },
     { t: 0.34, r: 0,   g: 245, b: 175 },
@@ -664,9 +730,6 @@ const ColorRamp = (() => {
     { t: 0.93, r: 180, g: 0,   b: 100 },
     { t: 1.00, r: 130, g: 0,   b: 180 }
   ];
-  /* Power curve: makes lower winds more visible for wingfoilers.
-     5 m/s now gets the colour that 8 m/s had before.
-     Sweet spot (8-15 m/s) gets more colour range = easier to read. */
   function msToT(ms) { return Math.pow(Math.min(1, Math.max(0, ms / Config.MAX_MS)), 0.661); }
   function interpolate(ramp, t) {
     for (let i = 1; i < ramp.length; i++) {
@@ -703,13 +766,10 @@ const SPOTS = [
   { name: 'Lohja',             lat: 60.243, lng: 23.998, desc: 'Sisäjärvi' }
 ];
 
-/* ── VIEWPORT GRID — Global adaptive wind data loading ────────
-   Loads wind data for visible map area at adaptive resolution.
-   Caches per 10°×10° tile in localStorage. Works globally.
-   ============================================================ */
+/* ── VIEWPORT GRID ────────────────────────────────────────────── */
 const ViewportGrid = {
   _points: new Map(),
-  _globalBase: new Map(), /* Coarse 5° grid — loaded once, persists forever */
+  _globalBase: new Map(),
   TILE_DEG: 10,
   CACHE_TTL: 90 * 60 * 1000,
 
@@ -728,7 +788,6 @@ const ViewportGrid = {
 
   _ptKey(lat, lng) { return lat.toFixed(2) + ',' + lng.toFixed(2); },
 
-  /* Load coarse 15° global grid — ~216 points, 3 batches, ALL parallel */
   async loadGlobalCoarse(onProgress) {
     const step = 15;
     const pts = [];
@@ -741,7 +800,6 @@ const ViewportGrid = {
       }
     }
     if (!pts.length) { if (onProgress) onProgress(1, 1); return; }
-    /* Restore from localStorage first */
     const cacheKey = 'fg_global_' + State.activeModel;
     try {
       const raw = localStorage.getItem(cacheKey);
@@ -764,7 +822,6 @@ const ViewportGrid = {
       }
     } catch(e) {}
 
-    /* Load ALL batches in 1 parallel wave — forecast_days=1 (smallest response) */
     const batchSize = 80;
     const batches = [];
     for (let i = 0; i < pts.length; i += batchSize) batches.push(pts.slice(i, i + batchSize));
@@ -777,14 +834,12 @@ const ViewportGrid = {
         if (onProgress) onProgress(done, total);
       })
     ));
-    /* 10s timeout bail — never block startup */
     const bail = new Promise(resolve => setTimeout(() => {
       console.log('[Global] Timeout, continuing with', this._globalBase.size, 'pts');
       resolve();
     }, 10000));
     await Promise.race([loadPromise, bail]);
 
-    /* Save to localStorage */
     if (this._globalBase.size > 0) {
       try {
         const toSave = {};
@@ -808,7 +863,6 @@ const ViewportGrid = {
         pts.push({ lat: Math.round(lat * 100) / 100, lng: Math.round(lng * 100) / 100 });
       }
     }
-    /* Cap at 600 points to stay within API budget */
     if (pts.length > 600) {
       const every = Math.ceil(pts.length / 600);
       return pts.filter((_, i) => i % every === 0);
@@ -877,14 +931,12 @@ const ViewportGrid = {
 
     this._restoreCache(gridPoints);
 
-    /* Find unloaded points */
     const toLoad = gridPoints.filter(p => !this._points.has(this._ptKey(p.lat, p.lng)));
     if (toLoad.length === 0) {
       if (onProgress) onProgress(gridPoints.length, gridPoints.length);
       return;
     }
 
-    /* Load in batches, 4 concurrent */
     const batchSize = 80;
     const batches = [];
     for (let i = 0; i < toLoad.length; i += batchSize) batches.push(toLoad.slice(i, i + batchSize));
@@ -905,7 +957,6 @@ const ViewportGrid = {
   },
 
   async loadSpots() {
-    /* Load spots with 7-day forecast for detailed view */
     const toLoad = SPOTS.filter(s => !s.wx);
     if (!toLoad.length) return;
     const batches = [];
@@ -914,7 +965,6 @@ const ViewportGrid = {
   },
 
   getAllPoints() {
-    /* Merge: global base + viewport detail (viewport overrides at same key) */
     const merged = new Map(this._globalBase);
     this._points.forEach((p, pk) => merged.set(pk, p));
     return Array.from(merged.values()).concat(SPOTS).filter(p => p.wx && p.wx.hourly);
@@ -922,7 +972,6 @@ const ViewportGrid = {
 
   clearAll() {
     this._points.clear();
-    /* Keep _globalBase — it's expensive to reload */
     SPOTS.forEach(s => { s.wx = null; });
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
@@ -931,9 +980,7 @@ const ViewportGrid = {
   }
 };
 
-
-
-/* ── STATE (cleaned — no unused vars) ────────────────────────── */
+/* ── STATE ────────────────────────────────────────────────────── */
 const State = {
   map: null,
   heatmapOverlay: null,
@@ -1006,19 +1053,18 @@ function initMap() {
     renderSpots(State.currentHourIdx);
     _scheduleViewportLoad();
     GeoProject.update(map);
-    /* Full clear + respawn since particles were paused during pan */
     const { windCtx, windCvs, dpr } = State;
     if (windCtx) windCtx.clearRect(0, 0, windCvs.width / dpr, windCvs.height / dpr);
     State.windCvs.style.opacity = '1';
     State._panning = false;
     PerfTracker.reset();
-    /* Always rebuild WindTexture from current data (global base covers everywhere) */
     if (State.windField.length) {
       WindTexture.build(State.windField, map.getBounds()).then(() => {
         drawColorField();
         State.particles = [];
         const target = nParticles();
         for (let i = 0; i < target; i++) State.particles.push(makeParticle(true));
+        Crosshair.refresh();
       });
     } else {
       State.particles = [];
@@ -1031,6 +1077,7 @@ function initMap() {
   });
   map.on('move', () => {
     if (State.windCvs) State.windCvs.style.opacity = '0.15';
+    Crosshair._scheduleUpdate();
   });
 
   let _vpDebounce = null;
@@ -1041,7 +1088,7 @@ function initMap() {
       ViewportGrid.loadViewport(map).then(() => {
         buildWindField(State.currentHourIdx).then(() => {
           drawColorField(); resetParticles(); renderSpots(State.currentHourIdx);
-          updateLODBadge();
+          updateLODBadge(); Crosshair.refresh();
           setTimeout(() => dot.classList.remove('pulse'), 800);
         });
       });
@@ -1055,13 +1102,10 @@ function initMap() {
     const newZoom = map.getZoom();
     const dz = _prevZoom - newZoom;
     _prevZoom = newZoom;
-    /* Zooming out: check if particles are clustered in a small viewport area.
-       If so, redistribute to fill the new wider viewport evenly. */
     if (dz > 0 && State.particles.length > 10) {
       const bounds = map.getBounds();
       const vLat = bounds.getNorth() - bounds.getSouth();
       const vLng = bounds.getEast() - bounds.getWest();
-      /* Find particle bounding box */
       let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
       for (const p of State.particles) {
         if (p.lat < minLat) minLat = p.lat;
@@ -1070,8 +1114,7 @@ function initMap() {
         if (p.lng > maxLng) maxLng = p.lng;
       }
       const pLat = maxLat - minLat, pLng = maxLng - minLng;
-      const coverage = (pLat * pLng) / (vLat * vLng); /* 0-1: how much viewport particles cover */
-      /* If particles cover less than 50% of viewport, redistribute the excess */
+      const coverage = (pLat * pLng) / (vLat * vLng);
       if (coverage < 0.5) {
         const toRedist = Math.floor(State.particles.length * (1 - coverage));
         for (let i = 0; i < toRedist; i++) {
@@ -1080,14 +1123,12 @@ function initMap() {
         }
       }
     }
-    /* Rebuild WindTexture at new zoom level for resolution scaling */
     if (State.windField.length) {
-      WindTexture.build(State.windField, map.getBounds()).then(() => drawColorField());
+      WindTexture.build(State.windField, map.getBounds()).then(() => { drawColorField(); Crosshair.refresh(); });
     }
   });
   map.on('zoom', () => {
     GeoProject.invalidate();
-    /* Fade particles instead of instant clear during zoom */
     if (State.windCtx) {
       State.windCtx.globalCompositeOperation = 'destination-in';
       State.windCtx.fillStyle = 'rgba(0,0,0,0.3)';
@@ -1122,7 +1163,6 @@ const SpatialIndex = {
   cells: {}, cellSize: 0.35,
   build(wf) {
     this.cells = {};
-    /* Adaptive cellSize: estimate from average distance between first 50 points */
     if (wf.length >= 4) {
       const sample = wf.slice(0, Math.min(50, wf.length));
       let minD = 999;
@@ -1151,42 +1191,27 @@ const SpatialIndex = {
   }
 };
 
-/* ── SURFACE TYPE — Smooth Finnish coastline gradient ─────────
-   Returns 0.0 (deep inland) → 0.5 (coast) → 1.0 (open sea).
-   Smooth transitions over ~25-30km. Covers all Finnish coast. ─ */
+/* ── SURFACE TYPE ─────────────────────────────────────────────── */
 function isMarine(lat, lng) {
-  /* Helper: smooth gradient from coast.
-     coastVal=latitude or longitude of coastline.
-     pos=query position on the same axis.
-     seaDir=-1 means sea is south/west, +1 means sea is north/east.
-     Returns 0→1 with smooth transition. */
   function coastGrad(pos, coastVal, seaDir) {
-    const d = (pos - coastVal) * seaDir; /* positive = sea side */
-    if (d > 0.20) return 1.0;            /* open sea */
-    if (d > 0.0)  return 0.5 + 0.5 * (d / 0.20); /* coast→sea */
-    if (d > -0.15) return 0.5 * (1.0 + d / 0.15); /* land→coast */
-    if (d > -0.30) return 0.15 * (1.0 + (d + 0.15) / 0.15); /* land edge */
-    return 0.0; /* deep inland */
+    const d = (pos - coastVal) * seaDir;
+    if (d > 0.20) return 1.0;
+    if (d > 0.0)  return 0.5 + 0.5 * (d / 0.20);
+    if (d > -0.15) return 0.5 * (1.0 + d / 0.15);
+    if (d > -0.30) return 0.15 * (1.0 + (d + 0.15) / 0.15);
+    return 0.0;
   }
-
-  /* === 1. Gulf of Finland (lng 23-28.5, lat < 60.8): latitude-based coast === */
   if (lng >= 23.0 && lng <= 28.5 && lat <= 60.8) {
-    /* Finnish coast: ~60.17 at Helsinki, ~60.15 east, flatter curve */
     const finCoast = lng < 24.5 ? 60.12 : lng < 26.0 ? 60.14 : lng < 27.5 ? 60.10 : 60.06;
     const fin = coastGrad(lat, finCoast, -1);
-    /* Estonian coast */
     const estCoast = lng < 25.0 ? 59.50 : lng < 26.5 ? 59.45 : 59.40;
     const est = coastGrad(lat, estCoast, 1);
     return Math.min(fin, est);
   }
-
-  /* === 2. Hanko-Turku transition (lng 22-23, lat < 61) === */
   if (lng >= 22.0 && lng < 23.0 && lat <= 61.0) {
-    const finCoast = 60.12 + (23.0 - lng) * 0.30; /* rises to ~60.42 at Turku */
+    const finCoast = 60.12 + (23.0 - lng) * 0.30;
     return coastGrad(lat, finCoast, -1);
   }
-
-  /* === 3. Archipelago Sea (lng 19.5-22, lat < 60.7) === */
   if (lng >= 19.5 && lng < 22.0 && lat < 60.7) {
     const coastLat = 60.30 + (lng - 19.5) * 0.06;
     if (lat > coastLat + 0.25) return 0.0;
@@ -1194,35 +1219,25 @@ function isMarine(lat, lng) {
     if (lat > 59.5) return 0.7 + 0.3 * Math.min(1, (coastLat - lat) / 0.5);
     return 1.0;
   }
-
-  /* === 4. Bothnian Sea: west coast Rauma-Vaasa (lat 60.7-63) === */
   if (lat >= 60.7 && lat < 63.0 && lng <= 22.5) {
     const coastLng = lat < 61.0 ? 21.5 : lat < 61.8 ? 21.4 : 21.0 + (lat - 61.8) * 0.3;
     return coastGrad(lng, coastLng, -1);
   }
-  /* === 5. Kvarken: Vaasa-Kokkola (lat 63-64) === */
   if (lat >= 63.0 && lat < 64.0 && lng <= 23.5) {
-    const coastLng = 21.3 + (lat - 63.0) * 1.7; /* coast swings east */
+    const coastLng = 21.3 + (lat - 63.0) * 1.7;
     return coastGrad(lng, coastLng, -1);
   }
-  /* === 6. Bay of Bothnia: Kokkola-Tornio (lat 64-65.8) === */
   if (lat >= 64.0 && lat <= 65.8 && lng <= 26.0) {
-    const coastLng = 23.5 + (lat - 64.0) * 0.83; /* 23.5 at 64N -> 25.0 at 65.8N */
+    const coastLng = 23.5 + (lat - 64.0) * 0.83;
     return coastGrad(lng, coastLng, -1);
   }
-
-  /* === 7. Open water defaults === */
-  /* Open Baltic south/west */
   if (lng < 19.5 && lat < 60.5) return 1.0;
-  /* Open Bothnian Sea (well west of coast) */
   if (lat >= 60.5 && lat < 63.0 && lng < 20.5) return 1.0;
-  /* Open Kvarken/Bay of Bothnia */
   if (lat >= 63.0 && lat < 66.0) {
     const coastLng = lat < 64.0 ? 21.3 + (lat-63)*1.7 : 23.5 + (lat-64)*0.83;
     if (lng < coastLng - 0.5) return 1.0;
   }
-
-  return 0.3; /* Default: neutral (neither land nor sea) for global areas */
+  return 0.3;
 }
 
 function idw(lat, lng) {
@@ -1231,18 +1246,15 @@ function idw(lat, lng) {
   if (!nb.length) return { u: 0, v: 0, ms: 0 };
   let sw = 0, su = 0, sv = 0;
   const cos2 = Math.cos(lat * Math.PI / 180) ** 2;
-  const querySurface = isMarine(lat, lng); /* 0=land, 0.5=coast, 1=sea */
+  const querySurface = isMarine(lat, lng);
   for (let i = 0; i < nb.length; i++) {
     const f = nb[i], dlat = lat - f.lat, dlng = lng - f.lng;
     const d2 = dlat * dlat + dlng * dlng * cos2;
     if (d2 < 1e-6) return { u: f.u, v: f.v, ms: f.ms };
     const d = Math.sqrt(d2), distW = 1.0 / (d * d);
-    /* Surface affinity: smooth weighting based on surface similarity.
-       same-type → ~2x boost, opposite-type → ~0.5x reduction.
-       Uses continuous function to avoid step artifacts. */
     const ptSurface = f.marine !== undefined ? f.marine : isMarine(f.lat, f.lng);
-    const similarity = 1.0 - Math.abs(querySurface - ptSurface); /* 1=same, 0=opposite */
-    const surfaceW = 0.5 + similarity * 1.5; /* range: 0.5 (opposite) → 2.0 (same) */
+    const similarity = 1.0 - Math.abs(querySurface - ptSurface);
+    const surfaceW = 0.5 + similarity * 1.5;
     const w = distW * surfaceW;
     sw += w; su += f.u * w; sv += f.v * w;
   }
@@ -1252,11 +1264,7 @@ function idw(lat, lng) {
 
 function px2ll(x, y) { const ll = State.map.containerPointToLatLng(L.point(x, y)); return { lat: ll.lat, lng: ll.lng }; }
 
-/* ── WIND TEXTURE — Pre-rendered wind field in geo coordinates ──
-   Renders entire wind field once when data changes. drawColorField()
-   just projects the cached texture to screen (one drawImage call).
-   Particles sample u,v via O(1) array lookup instead of IDW.
-   ============================================================ */
+/* ── WIND TEXTURE ─────────────────────────────────────────────── */
 const WindTexture = {
   canvas: null, ctx: null,
   uData: null, vData: null, msData: null,
@@ -1267,7 +1275,6 @@ const WindTexture = {
     return new Promise((resolve) => {
       if (!windField.length) { resolve(); return; }
       const zoom = State.map ? State.map.getZoom() : 5;
-      /* Always use viewport bounds — limits texture to visible area */
       let laMin, laMax, loMin, loMax;
       if (viewportBounds) {
         const vPad = zoom <= 5 ? 2 : 0.5;
@@ -1282,12 +1289,11 @@ const WindTexture = {
       this.lngMin = loMin; this.lngMax = loMax;
       const latSpan = this.latMax - this.latMin;
       const lngSpan = this.lngMax - this.lngMin;
-      /* Resolution scales with zoom: low zoom = coarse, high zoom = fine */
-      const isMobile = (window.devicePixelRatio || 1) > 1.5;
+      const isMobileDevice = (window.devicePixelRatio || 1) > 1.5;
       let maxDim;
-      if (zoom <= 4) maxDim = isMobile ? 120 : 180;
-      else if (zoom <= 6) maxDim = isMobile ? 200 : 300;
-      else maxDim = isMobile ? 300 : 500;
+      if (zoom <= 4) maxDim = isMobileDevice ? 120 : 180;
+      else if (zoom <= 6) maxDim = isMobileDevice ? 200 : 300;
+      else maxDim = isMobileDevice ? 300 : 500;
       const baseRES = zoom <= 5
         ? Math.min(40, Math.max(15, Math.round(Math.sqrt(windField.length) * 1.5)))
         : Math.min(200, Math.max(60, Math.round(80 + (zoom - 5) * 25)));
@@ -1304,7 +1310,6 @@ const WindTexture = {
       const latStep = latSpan / this.rows, lngStep = lngSpan / this.cols;
       const self = this;
 
-      /* Build synchronously for small textures, chunked for large */
       function buildAll() {
         for (let r = 0; r < self.rows; r++) {
           const lat = self.latMax - r * latStep;
@@ -1325,13 +1330,7 @@ const WindTexture = {
         resolve();
       }
 
-      if (n < 80000) {
-        /* Small-medium texture: build synchronously */
-        buildAll();
-      } else {
-        /* Large texture: defer to avoid blocking UI */
-        setTimeout(buildAll, 0);
-      }
+      if (n < 80000) { buildAll(); } else { setTimeout(buildAll, 0); }
     });
   },
   
@@ -1341,18 +1340,16 @@ const WindTexture = {
     const fr = (this.latMax - lat) / (this.latMax - this.latMin) * this.rows;
     const c0 = Math.floor(fc), r0 = Math.floor(fr);
     if (r0 < 0 || r0 >= this.rows - 1 || c0 < 0 || c0 >= this.cols - 1) {
-      /* Edge case: clamp to nearest */
       const cc = Math.max(0, Math.min(this.cols - 1, Math.round(fc)));
       const rr = Math.max(0, Math.min(this.rows - 1, Math.round(fr)));
       const idx = rr * this.cols + cc;
       return { u: this.uData[idx], v: this.vData[idx], ms: this.msData[idx] };
     }
-    /* Bilinear interpolation: 4 neighbors */
-    const a = fc - c0, b = fr - r0; /* fractional position 0..1 */
+    const a = fc - c0, b = fr - r0;
     const i00 = r0 * this.cols + c0;
-    const i10 = i00 + this.cols;       /* row below */
-    const i01 = i00 + 1;               /* col right */
-    const i11 = i10 + 1;               /* diagonal */
+    const i10 = i00 + this.cols;
+    const i01 = i00 + 1;
+    const i11 = i10 + 1;
     const w00 = (1 - a) * (1 - b), w01 = a * (1 - b), w10 = (1 - a) * b, w11 = a * b;
     const u = w00 * this.uData[i00] + w01 * this.uData[i01] + w10 * this.uData[i10] + w11 * this.uData[i11];
     const v = w00 * this.vData[i00] + w01 * this.vData[i01] + w10 * this.vData[i10] + w11 * this.vData[i11];
@@ -1360,12 +1357,7 @@ const WindTexture = {
   }
 };
 
-/* ── HEATMAP — L.ImageOverlay from WindTexture ────────────────
-   WindTexture already contains RGBA color+alpha data.
-   We just project it as an ImageOverlay at the correct geo bounds.
-   Leaflet handles pan/zoom with GPU-accelerated CSS transforms.
-   toDataURL() called only when wind data changes, NOT during pan.
-   ============================================================ */
+/* ── HEATMAP ──────────────────────────────────────────────────── */
 function drawColorField() {
   if (!WindTexture.canvas || !State.map || !WindTexture.msData) return;
   const bounds = L.latLngBounds(
@@ -1387,7 +1379,6 @@ function drawColorField() {
 function updateHeatmapBlur() {
   if (!State.map) return;
   const z = State.map.getZoom();
-  /* Zoom-adaptive blur: more blur at low zoom (coarse data), less when zoomed in */
   const blur = Math.max(2, Math.round(20 - (z - 2) * 2));
   document.querySelectorAll('.heatmap-overlay').forEach(el => {
     el.style.filter = 'blur(' + blur + 'px)';
@@ -1395,8 +1386,7 @@ function updateHeatmapBlur() {
   });
 }
 
-/* ── PARTICLE SYSTEM — Screen-space trail fade ───────────────── */
-/* ── ADAPTIVE PERFORMANCE ─────────────────────────────────── */
+/* ── PARTICLE SYSTEM ──────────────────────────────────────────── */
 const PerfTracker = {
   _frames: [], _targetParticles: 400, _lastAdj: 0,
   frame(ts) {
@@ -1436,19 +1426,14 @@ function nParticlesBase() {
   if (z <= 10) return 180;
   return 120;
 }
-function nParticles() {
-  return PerfTracker.getTarget();
-}
-function particleLineWidth(ms) {
-  return 2.0 + (ms / Config.MAX_MS) * 2.2;
-}
+function nParticles() { return PerfTracker.getTarget(); }
+function particleLineWidth(ms) { return 2.0 + (ms / Config.MAX_MS) * 2.2; }
 function rndGeo() {
   const m = State.map;
   if (m) { const b = m.getBounds(), pad = 0.15, ls = b.getNorth() - b.getSouth(), gs = b.getEast() - b.getWest();
     return { lat: b.getSouth() - ls * pad + Math.random() * ls * (1 + pad * 2), lng: b.getWest() - gs * pad + Math.random() * gs * (1 + pad * 2) }; }
   return { lat: 58 + Math.random() * 12, lng: 18 + Math.random() * 13 };
 }
-/* Cached affine projection */
 const GeoProject = {
   _ox: 0, _oy: 0, _sx: 1, _sy: 1, _valid: false,
   update(map) {
@@ -1496,7 +1481,7 @@ function respawn(p) {
   p.vlat = 0; p.vlng = 0; p.age = 0; p.sampleTimer = 0;
 }
 
-/* ── RENDER LOOP — Screen-space trail fade + line segments ────── */
+/* ── RENDER LOOP ──────────────────────────────────────────────── */
 let _renderLoopRunning = false;
 function startRenderLoop() {
   if (_renderLoopRunning) return;
@@ -1511,7 +1496,6 @@ function renderLoop(ts) {
   if (!windCtx || !windCvs.width || !windField.length || !map) return;
   const W = window.innerWidth, H = window.innerHeight;
 
-  /* During pan: just fade out and skip physics (saves 100% CPU on mobile) */
   if (State._panning) {
     windCtx.globalCompositeOperation = 'destination-in';
     windCtx.fillStyle = 'rgba(0,0,0,0.85)';
@@ -1522,12 +1506,10 @@ function renderLoop(ts) {
 
   if (!GeoProject._valid) GeoProject.update(map);
 
-  /* Adaptive particle count — smooth adjust without full reset */
   const target = nParticles();
   while (particles.length > target) particles.pop();
   while (particles.length < target) particles.push(makeParticle(true));
 
-  /* Trail fade */
   windCtx.globalCompositeOperation = 'destination-in';
   windCtx.fillStyle = 'rgba(0,0,0,' + Config.FADE_OPACITY + ')';
   windCtx.fillRect(0, 0, W, H);
@@ -1540,12 +1522,10 @@ function renderLoop(ts) {
   const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.2;
   const lngPad = (bounds.getEast() - bounds.getWest()) * 0.2;
 
-  /* Update physics + draw line from prev→curr, trail from fade persistence */
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
     sampleWind(p);
 
-    /* Speed-based drop rate: fast particles reset more often → even density */
     const speedT = Math.min(1, p.ms / Config.MAX_MS);
     const dropChance = Config.DROP_RATE + speedT * Config.DROP_RATE_BUMP;
     if (p.ms < 0.3 || Math.random() < dropChance) {
@@ -1554,7 +1534,6 @@ function renderLoop(ts) {
       continue;
     }
 
-    /* Save previous position */
     p.plat = p.lat; p.plng = p.lng;
 
     const cosLat = Math.cos(p.lat * Math.PI / 180);
@@ -1562,16 +1541,13 @@ function renderLoop(ts) {
     p.vlng = p.vlng * Config.INERTIA + (p.u * geoSpd / (cosLat > 0.1 ? cosLat : 0.1)) * (1 - Config.INERTIA);
     p.lat += p.vlat; p.lng += p.vlng; p.age++;
 
-    /* Bounds check */
     if (p.lat < bounds.getSouth() - latPad || p.lat > bounds.getNorth() + latPad ||
         p.lng < bounds.getWest() - lngPad || p.lng > bounds.getEast() + lngPad) { respawn(p); continue; }
 
-    /* Project both positions to screen */
     const prev = geo2px(p.plat, p.plng);
     const curr = geo2px(p.lat, p.lng);
     if (curr.x < -10 || curr.x > W + 10 || curr.y < -10 || curr.y > H + 10) continue;
 
-    /* Draw short line segment — fade persistence creates crisp streak */
     const lw = particleLineWidth(p.ms);
     const alpha = Math.min(0.9, 0.3 + speedT * 0.6);
     windCtx.beginPath();
@@ -1590,11 +1566,9 @@ function buildBatchUrl(points, model, forecastDays) {
     + '&longitude=' + points.map(p => p.lng.toFixed(4)).join(',')
     + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
     + '&wind_speed_unit=ms&timezone=auto&forecast_days=' + days;
-  /* Only add models param for specific models — best_match works without it */
   if (model && model !== 'best_match') url += '&models=' + model;
   return url;
 }
-/* Map new API names to our internal names for backward compat */
 function normalizeHourly(h) {
   if (!h) return h;
   const map = {
@@ -1614,11 +1588,10 @@ function processBatchResponse(j) {
 let _rateLimited = false;
 const _batchCache = {};
 
-/* Check if we were rate limited recently (persists across reloads) */
 try {
   const rlTime = sessionStorage.getItem('foilspot_rl');
   if (rlTime && Date.now() - parseInt(rlTime) < 3600000) {
-    _rateLimited = true; /* Still within 1 hour of last rate limit */
+    _rateLimited = true;
   }
 } catch(e) {}
 
@@ -1629,9 +1602,8 @@ function setRateLimited() {
 }
 
 function loadBatch(points, forecastDays) {
-  if (_rateLimited) return Promise.resolve(); /* Stop all fetches if rate limited */
+  if (_rateLimited) return Promise.resolve();
   
-  /* Cache key from first+last point (unique for grid batches, much shorter) */
   const p0 = points[0], pN = points[points.length - 1];
   const cacheKey = p0.lat.toFixed(3) + ',' + p0.lng.toFixed(3) + '|' + pN.lat.toFixed(3) + ',' + pN.lng.toFixed(3) + '|' + points.length;
   if (_batchCache[cacheKey]) {
@@ -1703,7 +1675,7 @@ function buildWindField(hourIdx) {
   SpatialIndex.build(State.windField);
   console.log('[buildWindField] hour=' + hourIdx + ', points=' + State.windField.length);
   const vb = State.map ? State.map.getBounds() : null;
-  return WindTexture.build(State.windField, vb).catch(e => console.error('[WindTexture]', e));
+  return WindTexture.build(State.windField, vb).then(() => { Crosshair.refresh(); }).catch(e => console.error('[WindTexture]', e));
 }
 
 /* ── SPOT MARKERS ─────────────────────────────────────────────── */
@@ -1717,7 +1689,6 @@ function windLabel(ms) {
   return ['Liian kova','b-danger'];
 }
 function windTrend(h, idx) {
-  /* Compare current hour to 3 hours ahead */
   const future = Math.min(idx + 3, h.windspeed_10m.length - 1);
   const now = h.windspeed_10m[idx] || 0, later = h.windspeed_10m[future] || 0;
   const diff = later - now;
@@ -1806,12 +1777,10 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
   let maxMs = 1;
   for (let i = 0; i < speeds.length; i++) { if ((speeds[i]||0) > maxMs) maxMs = speeds[i]; }
 
-  /* Left spacer — half viewport so first tick can center */
   const spacerL = document.createElement('div');
   spacerL.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - TICK_W / 2) + 'px';
   tl.appendChild(spacerL);
 
-  /* Find real "now" index for the marker */
   const realNowIdx = nowIdx(times);
   let nowMarkerInserted = false;
 
@@ -1824,7 +1793,6 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
       tl.appendChild(sep);
     }
 
-    /* Insert "now" marker right before the current real time tick */
     if (!nowMarkerInserted && i >= realNowIdx) {
       const nowLine = document.createElement('div');
       nowLine.className = 'tl-now-marker';
@@ -1847,19 +1815,16 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     State._tlTicks.push(tick);
   }
 
-  /* Right spacer */
   const spacerR = document.createElement('div');
   spacerR.style.cssText = 'flex:0 0 ' + (window.innerWidth / 2 - TICK_W / 2) + 'px';
   tl.appendChild(spacerR);
 
-  /* Scroll to active index (no animation on init) */
   requestAnimationFrame(() => {
     const target = State._tlTicks[activeIdx];
     if (target) tl.scrollLeft = target.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2;
     _tlUpdateNow(activeIdx);
   });
 
-  /* Scroll handler — free scroll, debounced selection */
   let _scrollTimer = null;
   tl.addEventListener('scroll', () => {
     clearTimeout(_scrollTimer);
@@ -1877,13 +1842,12 @@ function _tlUpdateNow(idx) {
   if (bubble) bubble.innerHTML = '<div style="font-size:7px;opacity:.8;font-weight:500">' + dateStr + '</div>' + hh + ':' + mm;
 }
 
-/* Select whichever tick is closest to center */
 function _tlSnapSelect(tl) {
   const center = tl.scrollLeft + tl.offsetWidth / 2;
   let bestIdx = 0, bestDist = Infinity;
   for (let i = 0; i < State._tlTicks.length; i++) {
     const tick = State._tlTicks[i];
-    const tickCenter = tick.offsetLeft + 10; /* half of 20px */
+    const tickCenter = tick.offsetLeft + 10;
     const dist = Math.abs(center - tickCenter);
     if (dist < bestDist) { bestDist = dist; bestIdx = i; }
   }
@@ -1896,14 +1860,12 @@ function _tlSnapSelect(tl) {
   }
 }
 
-/* Programmatic scroll to index (for play button) */
 function scrollTimelineTo(idx) {
   const tl = document.getElementById('tl-scroll');
   if (!tl || !State._tlTicks || !State._tlTicks[idx]) return;
   const target = State._tlTicks[idx];
   tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 10, behavior: 'smooth' });
 }
-
 
 /* ── PLAY ─────────────────────────────────────────────────────── */
 function togglePlay() {
@@ -1932,7 +1894,7 @@ function updateScaleBar() {
   document.getElementById('scale-line').style.width = Math.round(bpx) + 'px';
 }
 
-/* ── WIND TOOLTIP — Show wind data at cursor/finger position ─── */
+/* ── WIND TOOLTIP ─────────────────────────────────────────────── */
 const WindTip = {
   el: null, _hideTimer: null,
   init() {
@@ -1940,7 +1902,6 @@ const WindTip = {
     if (!State.map) return;
     State.map.on('mousemove', (e) => this._show(e.latlng, e.containerPoint));
     State.map.on('mouseout', () => this._hide());
-    /* Touch: show on long-press or tap-hold */
     let _touchTimer = null;
     State.map.getContainer().addEventListener('touchstart', (e) => {
       if (e.touches.length !== 1) return;
@@ -1970,151 +1931,86 @@ const WindTip = {
   _hide() { if (this.el) this.el.classList.remove('show'); }
 };
 
-/* ── CONTROLS ─────────────────────────────────────────────────── */
-/* Settings popup toggle — position above gear button */
-document.getElementById('btn-settings').addEventListener('click', (e) => {
-  e.stopPropagation();
-  const popup = document.getElementById('settings-popup');
-  const btn = document.getElementById('btn-settings');
-  const rect = btn.getBoundingClientRect();
-  /* Position above the button, left-aligned */
-  popup.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
-  popup.style.left = rect.left + 'px';
-  popup.classList.toggle('open');
-}, { passive: false });
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('#settings-popup') && !e.target.closest('#btn-settings')) {
-    document.getElementById('settings-popup').classList.remove('open');
-  }
-});
-
-document.getElementById('btn-loc').addEventListener('click', () => {
-  if (!navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition(p => {
-    const lat = p.coords.latitude, lng = p.coords.longitude;
-    State.map.flyTo([lat, lng], 9, { duration: 1.2 });
-    /* Remove old location marker */
-    if (State._locMarker) { State._locMarker.remove(); }
-    /* Apple Maps style blue dot */
-    const icon = L.divIcon({
-      className: '',
-      html: '<div class="loc-dot-outer"><div class="loc-dot-pulse"></div><div class="loc-dot-inner"></div></div>',
-      iconSize: [22, 22], iconAnchor: [11, 11]
+/* ── CROSSHAIR READOUT — Sample wind at map center ────────── */
+const Crosshair = {
+  _el: null, _speedEl: null, _arrowEl: null, _degEl: null, _gustEl: null, _svg: null,
+  _updateTimer: null,
+  
+  init() {
+    this._el = document.getElementById('crosshair-readout');
+    this._speedEl = document.getElementById('cr-speed');
+    this._arrowEl = document.getElementById('cr-dir-arrow');
+    this._degEl = document.getElementById('cr-dir-deg');
+    this._gustEl = document.getElementById('cr-gust');
+    this._svg = document.getElementById('crosshair');
+    if (!State.map) return;
+    
+    State.map.on('movestart', () => { if (this._svg) this._svg.classList.add('panning'); });
+    State.map.on('moveend', () => {
+      if (this._svg) this._svg.classList.remove('panning');
+      this._update();
     });
-    State._locMarker = L.marker([lat, lng], { icon, interactive: false, zIndexOffset: 1000 }).addTo(State.map);
-  }, () => Toast.show('\ud83d\udccd Sijainnin haku epäonnistui'));
-}, { passive: true });
-document.getElementById('btn-play').addEventListener('click', togglePlay, { passive: true });
-document.getElementById('layers').addEventListener('click', e => {
-  const b = e.target.closest('.sp-chip'); if (!b) return;
-  const layer = b.dataset.layer; if (!layer || layer === State.activeLayer) return;
-  document.querySelectorAll('#layers .sp-chip').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
-  document.getElementById('settings-popup').classList.remove('open');
-  State.activeLayer = layer; buildLegend(); buildWindField(State.currentHourIdx).then(() => { drawColorField(); resetParticles(); }); renderSpots(State.currentHourIdx);
-  const ref = SPOTS.find(s => s.wx && s.wx.hourly);
-  if (ref) { const t = ref.wx.hourly.time, sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m; renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, State.currentHourIdx); }
-}, { passive: true });
-document.getElementById('models').addEventListener('click', e => {
-  const b = e.target.closest('.sp-chip'); if (!b) return;
-  const model = b.dataset.model; if (!model || model === State.activeModel) return;
-  document.querySelectorAll('#models .sp-chip').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
-  document.getElementById('settings-popup').classList.remove('open');
-  State.activeModel = model;
-  _rateLimited = false;
-  try { sessionStorage.removeItem('foilspot_rl'); } catch(e) {}
-  updateLODBadge();
-  /* Atomic swap: keep old windField alive, load new model in parallel */
-  Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
-  ViewportGrid._globalBase.clear();
-  SPOTS.forEach(s => { s.wx = null; }); /* Reset spots for new model */
-  Toast.show('Vaihdetaan malliin: ' + model.replace('_', ' ').toUpperCase() + '...', 3000);
-  const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
-  ViewportGrid.loadGlobalCoarse().then(() => {
-    /* Load viewport + spots in parallel */
-    const vp = ViewportGrid.loadViewport(State.map).catch(e => console.warn(e));
-    const sp = ViewportGrid.loadSpots().catch(e => console.warn(e));
-    return Promise.allSettled([vp, sp]);
-  }).then(() => {
-    const ref = SPOTS.find(s => s.wx && s.wx.hourly) || ViewportGrid.getAllPoints().find(p => p.wx && p.wx.hourly);
-    if (ref) {
-      const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
-      buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
-      const layer = State.activeLayer;
-      const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
-      renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
-      renderSpots(ni);
+    
+    this._update();
+  },
+  
+  _scheduleUpdate() {
+    if (this._updateTimer) return;
+    this._updateTimer = setTimeout(() => {
+      this._updateTimer = null;
+      this._update();
+    }, 60);
+  },
+  
+  _update() {
+    if (!this._el || !WindTexture.msData || !State.map) {
+      if (this._el) this._el.classList.add('hidden');
+      return;
     }
-    ViewportGrid._points.clear();
-    ViewportGrid.loadViewport(State.map);
-    setTimeout(() => dot.classList.remove('pulse'), 1500);
-  });
-}, { passive: true });
-const tlScroll = document.getElementById('tl-scroll');
-tlScroll.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
-tlScroll.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
-
-/* ── LOADING & REFRESH ────────────────────────────────────────── */
-function updateLoadText(msg) { const el = document.getElementById('load-txt'); if (el) el.textContent = msg; }
-function hideLoading() { const el = document.getElementById('loading'); el.classList.add('out'); setTimeout(() => { el.style.display = 'none'; }, 600); }
-function scheduleRefresh() {
-  clearInterval(State.refreshTimer);
-  State.refreshTimer = setInterval(() => {
-    const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
-    /* Atomic refresh: load new data while old stays visible */
-    Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
-    ViewportGrid._points.clear(); /* Force re-fetch, global base stays */
-    ViewportGrid.loadViewport(State.map).then(() => ViewportGrid.loadSpots()).then(() => {
-      buildWindField(State.currentHourIdx).then(() => {
-        drawColorField(); resetParticles(); renderSpots(State.currentHourIdx);
-      });
-      State.lastDataLoad = Date.now();
-      setTimeout(() => dot.classList.remove('pulse'), 1500);
-    });
-  }, Config.DATA_REFRESH_MS);
-}
-
-
-/* ── WIND ROSE — 24h polar direction chart ────────────────── */
-function buildWindRoseSVG(h, idx) {
-  const DIRS = 16; /* 16 direction bins = 22.5° each */
-  const bins = new Array(DIRS).fill(0);
-  const start = Math.max(0, idx - 12);
-  const end = Math.min(h.windspeed_10m.length, idx + 12);
-  let maxBin = 1, count = 0;
-  for (let i = start; i < end; i++) {
-    const ms = h.windspeed_10m[i] || 0;
-    if (ms < 0.5) continue;
-    const d = h.winddirection_10m[i] || 0;
-    const bin = Math.round(d / (360 / DIRS)) % DIRS;
-    bins[bin] += ms;
-    count++;
-  }
-  if (!count) return '';
-  for (let i = 0; i < DIRS; i++) if (bins[i] > maxBin) maxBin = bins[i];
-
-  const cx = 70, cy = 70, R = 55;
-  const labels = ['N','','NE','','E','','SE','','S','','SW','','W','','NW',''];
-  let paths = '', dots = '', lbls = '';
-  for (let i = 0; i < DIRS; i++) {
-    const ang = (i * (360 / DIRS) - 90) * Math.PI / 180;
-    const r = (bins[i] / maxBin) * R;
-    const c = ColorRamp.rgb(bins[i] / (count > 0 ? count / DIRS : 1));
-    const x = cx + Math.cos(ang) * r, y = cy + Math.sin(ang) * r;
-    const ox = cx + Math.cos(ang) * R, oy = cy + Math.sin(ang) * R;
-    if (r > 2) {
-      paths += '<line x1="' + cx + '" y1="' + cy + '" x2="' + x + '" y2="' + y + '" stroke="rgb(' + c.r + ',' + c.g + ',' + c.b + ')" stroke-width="4" stroke-linecap="round" opacity="0.7"/>';
-      dots += '<circle cx="' + x + '" cy="' + y + '" r="3" fill="rgb(' + c.r + ',' + c.g + ',' + c.b + ')"/>';
+    const center = State.map.getCenter();
+    const w = WindTexture.sampleWind(center.lat, center.lng);
+    
+    if (w.ms < 0.05) {
+      this._el.classList.add('hidden');
+      return;
     }
-    if (labels[i]) {
-      lbls += '<text x="' + (cx + Math.cos(ang) * (R + 12)) + '" y="' + (cy + Math.sin(ang) * (R + 12)) + '" text-anchor="middle" dominant-baseline="central" fill="rgba(180,215,255,0.4)" font-size="8" font-family="DM Mono,monospace">' + labels[i] + '</text>';
+    
+    this._el.classList.remove('hidden');
+    const c = ColorRamp.rgb(w.ms);
+    const colorStr = 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+    
+    this._speedEl.innerHTML = '<span style="color:' + colorStr + '">' + w.ms.toFixed(1) + '</span><span class="cr-speed-unit">m/s</span>';
+    
+    const dir = (Math.atan2(-w.u, -w.v) * 180 / Math.PI + 360) % 360;
+    const arrows = ['↓','↙','←','↖','↑','↗','→','↘'];
+    this._arrowEl.textContent = arrows[Math.round(dir / 45) % 8];
+    this._arrowEl.style.color = colorStr;
+    this._degEl.textContent = Math.round(dir) + '°';
+    
+    /* Find gust data from nearest data point */
+    const allPts = ViewportGrid.getAllPoints();
+    let gustMs = null, minD = Infinity;
+    const cos2 = Math.cos(center.lat * Math.PI / 180) ** 2;
+    for (const pt of allPts) {
+      if (!pt.wx || !pt.wx.hourly || !pt.wx.hourly.windgusts_10m) continue;
+      const d = (center.lat - pt.lat) ** 2 + (center.lng - pt.lng) ** 2 * cos2;
+      if (d < minD) {
+        minD = d;
+        const idx = Math.min(State.currentHourIdx, pt.wx.hourly.windgusts_10m.length - 1);
+        gustMs = pt.wx.hourly.windgusts_10m[idx];
+      }
     }
-  }
-  /* Concentric rings */
-  const rings = '<circle cx="' + cx + '" cy="' + cy + '" r="' + (R * 0.33) + '" fill="none" stroke="rgba(255,255,255,0.06)"/>'
-    + '<circle cx="' + cx + '" cy="' + cy + '" r="' + (R * 0.66) + '" fill="none" stroke="rgba(255,255,255,0.06)"/>'
-    + '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="none" stroke="rgba(255,255,255,0.08)"/>';
-  return '<div class="sh-windrose"><svg width="160" height="160" viewBox="0 0 140 140">' + rings + paths + dots + lbls + '</svg></div>';
-}
+    if (gustMs != null && gustMs > w.ms * 1.05) {
+      const gc = ColorRamp.rgb(gustMs);
+      this._gustEl.innerHTML = 'Puuska <span style="color:rgb(' + gc.r + ',' + gc.g + ',' + gc.b + ')">' + gustMs.toFixed(1) + '</span> m/s';
+      this._gustEl.style.display = '';
+    } else {
+      this._gustEl.style.display = 'none';
+    }
+  },
+  
+  refresh() { this._update(); }
+};
 
 /* ── SEARCH — Nominatim geocoding ────────────────────────── */
 const Search = {
@@ -2166,7 +2062,47 @@ const Search = {
   }
 };
 
-/* ── MARINE API — Water temperature for spots ─────────────── */
+/* ── WIND ROSE ────────────────────────────────────────────────── */
+function buildWindRoseSVG(h, idx) {
+  const DIRS = 16;
+  const bins = new Array(DIRS).fill(0);
+  const start = Math.max(0, idx - 12);
+  const end = Math.min(h.windspeed_10m.length, idx + 12);
+  let maxBin = 1, count = 0;
+  for (let i = start; i < end; i++) {
+    const ms = h.windspeed_10m[i] || 0;
+    if (ms < 0.5) continue;
+    const d = h.winddirection_10m[i] || 0;
+    const bin = Math.round(d / (360 / DIRS)) % DIRS;
+    bins[bin] += ms;
+    count++;
+  }
+  if (!count) return '';
+  for (let i = 0; i < DIRS; i++) if (bins[i] > maxBin) maxBin = bins[i];
+
+  const cx = 70, cy = 70, R = 55;
+  const labels = ['N','','NE','','E','','SE','','S','','SW','','W','','NW',''];
+  let paths = '', dots = '', lbls = '';
+  for (let i = 0; i < DIRS; i++) {
+    const ang = (i * (360 / DIRS) - 90) * Math.PI / 180;
+    const r = (bins[i] / maxBin) * R;
+    const c = ColorRamp.rgb(bins[i] / (count > 0 ? count / DIRS : 1));
+    const x = cx + Math.cos(ang) * r, y = cy + Math.sin(ang) * r;
+    if (r > 2) {
+      paths += '<line x1="' + cx + '" y1="' + cy + '" x2="' + x + '" y2="' + y + '" stroke="rgb(' + c.r + ',' + c.g + ',' + c.b + ')" stroke-width="4" stroke-linecap="round" opacity="0.7"/>';
+      dots += '<circle cx="' + x + '" cy="' + y + '" r="3" fill="rgb(' + c.r + ',' + c.g + ',' + c.b + ')"/>';
+    }
+    if (labels[i]) {
+      lbls += '<text x="' + (cx + Math.cos(ang) * (R + 12)) + '" y="' + (cy + Math.sin(ang) * (R + 12)) + '" text-anchor="middle" dominant-baseline="central" fill="rgba(180,215,255,0.4)" font-size="8" font-family="DM Mono,monospace">' + labels[i] + '</text>';
+    }
+  }
+  const rings = '<circle cx="' + cx + '" cy="' + cy + '" r="' + (R * 0.33) + '" fill="none" stroke="rgba(255,255,255,0.06)"/>'
+    + '<circle cx="' + cx + '" cy="' + cy + '" r="' + (R * 0.66) + '" fill="none" stroke="rgba(255,255,255,0.06)"/>'
+    + '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="none" stroke="rgba(255,255,255,0.08)"/>';
+  return '<div class="sh-windrose"><svg width="160" height="160" viewBox="0 0 140 140">' + rings + paths + dots + lbls + '</svg></div>';
+}
+
+/* ── MARINE API ───────────────────────────────────────────────── */
 async function loadMarineTemp() {
   try {
     const lats = SPOTS.map(s => s.lat.toFixed(2)).join(',');
@@ -2187,13 +2123,108 @@ async function loadMarineTemp() {
   }
 }
 
+/* ── CONTROLS ─────────────────────────────────────────────────── */
+document.getElementById('btn-settings').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const popup = document.getElementById('settings-popup');
+  const btn = document.getElementById('btn-settings');
+  const rect = btn.getBoundingClientRect();
+  popup.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+  popup.style.left = rect.left + 'px';
+  popup.classList.toggle('open');
+}, { passive: false });
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#settings-popup') && !e.target.closest('#btn-settings')) {
+    document.getElementById('settings-popup').classList.remove('open');
+  }
+});
+
+document.getElementById('btn-loc').addEventListener('click', () => {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(p => {
+    const lat = p.coords.latitude, lng = p.coords.longitude;
+    State.map.flyTo([lat, lng], 9, { duration: 1.2 });
+    if (State._locMarker) { State._locMarker.remove(); }
+    const icon = L.divIcon({
+      className: '',
+      html: '<div class="loc-dot-outer"><div class="loc-dot-pulse"></div><div class="loc-dot-inner"></div></div>',
+      iconSize: [22, 22], iconAnchor: [11, 11]
+    });
+    State._locMarker = L.marker([lat, lng], { icon, interactive: false, zIndexOffset: 1000 }).addTo(State.map);
+  }, () => Toast.show('\ud83d\udccd Sijainnin haku epäonnistui'));
+}, { passive: true });
+document.getElementById('btn-play').addEventListener('click', togglePlay, { passive: true });
+document.getElementById('layers').addEventListener('click', e => {
+  const b = e.target.closest('.sp-chip'); if (!b) return;
+  const layer = b.dataset.layer; if (!layer || layer === State.activeLayer) return;
+  document.querySelectorAll('#layers .sp-chip').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
+  document.getElementById('settings-popup').classList.remove('open');
+  State.activeLayer = layer; buildLegend(); buildWindField(State.currentHourIdx).then(() => { drawColorField(); resetParticles(); }); renderSpots(State.currentHourIdx);
+  const ref = SPOTS.find(s => s.wx && s.wx.hourly);
+  if (ref) { const t = ref.wx.hourly.time, sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m; renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, State.currentHourIdx); }
+}, { passive: true });
+document.getElementById('models').addEventListener('click', e => {
+  const b = e.target.closest('.sp-chip'); if (!b) return;
+  const model = b.dataset.model; if (!model || model === State.activeModel) return;
+  document.querySelectorAll('#models .sp-chip').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
+  document.getElementById('settings-popup').classList.remove('open');
+  State.activeModel = model;
+  _rateLimited = false;
+  try { sessionStorage.removeItem('foilspot_rl'); } catch(e) {}
+  updateLODBadge();
+  Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
+  ViewportGrid._globalBase.clear();
+  SPOTS.forEach(s => { s.wx = null; });
+  Toast.show('Vaihdetaan malliin: ' + model.replace('_', ' ').toUpperCase() + '...', 3000);
+  const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
+  ViewportGrid.loadGlobalCoarse().then(() => {
+    const vp = ViewportGrid.loadViewport(State.map).catch(e => console.warn(e));
+    const sp = ViewportGrid.loadSpots().catch(e => console.warn(e));
+    return Promise.allSettled([vp, sp]);
+  }).then(() => {
+    const ref = SPOTS.find(s => s.wx && s.wx.hourly) || ViewportGrid.getAllPoints().find(p => p.wx && p.wx.hourly);
+    if (ref) {
+      const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
+      buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
+      const layer = State.activeLayer;
+      const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
+      renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
+      renderSpots(ni);
+    }
+    ViewportGrid._points.clear();
+    ViewportGrid.loadViewport(State.map);
+    setTimeout(() => dot.classList.remove('pulse'), 1500);
+  });
+}, { passive: true });
+const tlScroll = document.getElementById('tl-scroll');
+tlScroll.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+tlScroll.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
+
+/* ── LOADING & REFRESH ────────────────────────────────────────── */
+function updateLoadText(msg) { const el = document.getElementById('load-txt'); if (el) el.textContent = msg; }
+function hideLoading() { const el = document.getElementById('loading'); el.classList.add('out'); setTimeout(() => { el.style.display = 'none'; }, 600); }
+function scheduleRefresh() {
+  clearInterval(State.refreshTimer);
+  State.refreshTimer = setInterval(() => {
+    const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
+    Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
+    ViewportGrid._points.clear();
+    ViewportGrid.loadViewport(State.map).then(() => ViewportGrid.loadSpots()).then(() => {
+      buildWindField(State.currentHourIdx).then(() => {
+        drawColorField(); resetParticles(); renderSpots(State.currentHourIdx);
+      });
+      State.lastDataLoad = Date.now();
+      setTimeout(() => dot.classList.remove('pulse'), 1500);
+    });
+  }, Config.DATA_REFRESH_MS);
+}
+
 /* ── MAIN ─────────────────────────────────────────────────────── */
 function main() {
   const bail = setTimeout(() => { hideLoading(); startRenderLoop(); }, 20000);
   buildLegend(); initMap(); initCanvases(); updateLODBadge();
-  WindTip.init(); Search.init();
+  WindTip.init(); Search.init(); Crosshair.init();
 
-  /* Phase 1: Load coarse global grid (fast — ~500pts, cached) → start particles */
   updateLoadText('Ladataan globaali tuulidata...');
   ViewportGrid.loadGlobalCoarse((done, total) => {
     updateLoadText('Globaali ' + Math.round(done / total * 100) + '%');
@@ -2216,7 +2247,6 @@ function main() {
       startRenderLoop();
     }
 
-    /* Phase 2: Load viewport + spots INDEPENDENTLY — if one fails, other still works */
     updateLoadText('Tarkennetaan...');
     const viewportPromise = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[Phase 2 viewport]', e));
     const spotsPromise = ViewportGrid.loadSpots().catch(e => console.warn('[Phase 2 spots]', e));
