@@ -1562,7 +1562,7 @@ function renderLoop(ts) {
 
 /* ── WEATHER BATCH API ────────────────────────────────────────── */
 function buildBatchUrl(points, model, forecastDays) {
-  const days = forecastDays || 3;
+  const days = forecastDays || 5;
   let url = 'https://api.open-meteo.com/v1/forecast?latitude=' + points.map(p => p.lat.toFixed(4)).join(',')
     + '&longitude=' + points.map(p => p.lng.toFixed(4)).join(',')
     + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
@@ -1761,6 +1761,27 @@ document.getElementById('sheet-overlay').addEventListener('click', closeSheet, {
 document.getElementById('sheet-handle').addEventListener('click', closeSheet, { passive: true });
 
 /* ── TIMELINE ─────────────────────────────────────────────────── */
+/* Always pick the data point with the longest hourly array for timeline */
+function bestTimelineRef() {
+  let best = null, bestLen = 0;
+  /* Prefer spots (7-day forecast) */
+  for (const s of SPOTS) {
+    if (s.wx && s.wx.hourly && s.wx.hourly.windspeed_10m) {
+      const len = s.wx.hourly.windspeed_10m.length;
+      if (len > bestLen) { bestLen = len; best = s; }
+    }
+  }
+  if (best) return best;
+  /* Fallback to any loaded point */
+  for (const p of ViewportGrid.getAllPoints()) {
+    if (p.wx && p.wx.hourly && p.wx.hourly.windspeed_10m) {
+      const len = p.wx.hourly.windspeed_10m.length;
+      if (len > bestLen) { bestLen = len; best = p; }
+    }
+  }
+  return best;
+}
+
 function nowIdx(times) {
   if (!times || !times.length) return 0;
   const now = Date.now(); let best = 0, bd = Infinity;
@@ -2169,7 +2190,7 @@ document.getElementById('layers').addEventListener('click', e => {
   document.querySelectorAll('#layers .sp-chip').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
   document.getElementById('settings-popup').classList.remove('open');
   State.activeLayer = layer; buildLegend(); buildWindField(State.currentHourIdx).then(() => { drawColorField(); resetParticles(); }); renderSpots(State.currentHourIdx);
-  const ref = SPOTS.find(s => s.wx && s.wx.hourly);
+  const ref = bestTimelineRef();
   if (ref) { const t = ref.wx.hourly.time, sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m; renderTimeline(t, sp, ref.wx.hourly.winddirection_10m, State.currentHourIdx); }
 }, { passive: true });
 document.getElementById('models').addEventListener('click', e => {
@@ -2191,7 +2212,7 @@ document.getElementById('models').addEventListener('click', e => {
     const sp = ViewportGrid.loadSpots().catch(e => console.warn(e));
     return Promise.allSettled([vp, sp]);
   }).then(() => {
-    const ref = SPOTS.find(s => s.wx && s.wx.hourly) || ViewportGrid.getAllPoints().find(p => p.wx && p.wx.hourly);
+    const ref = bestTimelineRef();
     if (ref) {
       const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
       buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
@@ -2260,11 +2281,13 @@ function main() {
     const viewportPromise = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[Phase 2 viewport]', e));
     const spotsPromise = ViewportGrid.loadSpots().catch(e => console.warn('[Phase 2 spots]', e));
     Promise.allSettled([viewportPromise, spotsPromise]).then(() => {
-      const ref = SPOTS.find(s => s.wx && s.wx.hourly) || ViewportGrid.getAllPoints().find(p => p.wx && p.wx.hourly);
+      const ref = bestTimelineRef();
       if (ref) {
         const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
         buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
-        renderTimeline(ref.wx.hourly.time, ref.wx.hourly.windspeed_10m, ref.wx.hourly.winddirection_10m, ni);
+        const layer = State.activeLayer;
+        const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
+        renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
         renderSpots(ni);
       }
       loadMarineTemp();
