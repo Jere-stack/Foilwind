@@ -343,17 +343,17 @@ animation: loc-pulse 2.5s ease-out infinite;
 CROSSHAIR — Windy-style center reticle + readout
 ============================================================ */
 #crosshair {
-position: absolute; top: 50%; left: 50%; z-index: 15;
+position: fixed; top: 50%; left: 50%; z-index: 20;
 transform: translate(-50%, -50%);
 pointer-events: none;
-opacity: 0.6;
+opacity: 0.7;
 transition: opacity 0.3s;
-filter: drop-shadow(0 0 6px rgba(0,0,0,0.7));
+filter: drop-shadow(0 0 8px rgba(0,0,0,0.8));
 }
 #crosshair.panning { opacity: 0.25; }
 
 #crosshair-readout {
-position: absolute; top: calc(var(–sat) + 90px); left: calc(var(–sal) + 14px); z-index: 20;
+position: fixed; top: calc(var(–sat) + 90px); left: calc(var(–sal) + 14px); z-index: 20;
 background: rgba(255,255,255,.06);
 border: 1px solid rgba(255,255,255,.10);
 border-radius: 14px;
@@ -365,9 +365,10 @@ box-shadow:
 0 8px 32px rgba(0,0,0,.35);
 pointer-events: none;
 min-width: 110px;
+opacity: 1;
 transition: opacity 0.3s, transform 0.3s;
 }
-#crosshair-readout.hidden { opacity: 0; transform: translateY(-4px); }
+#crosshair-readout.hidden { opacity: 0; transform: translateY(-4px); pointer-events: none; }
 
 .cr-speed {
 font-family: ‘DM Mono’, monospace;
@@ -598,13 +599,13 @@ animation: pulse-dot 1s ease infinite;
 
   <!-- Crosshair — Windy-style center reticle -->
 
-  <svg id="crosshair" width="48" height="48" viewBox="0 0 48 48">
-    <circle cx="24" cy="24" r="16" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1"/>
-    <circle cx="24" cy="24" r="1.5" fill="rgba(255,255,255,0.7)"/>
-    <line x1="24" y1="3" x2="24" y2="12" stroke="rgba(255,255,255,0.45)" stroke-width="1" stroke-linecap="round"/>
-    <line x1="24" y1="36" x2="24" y2="45" stroke="rgba(255,255,255,0.45)" stroke-width="1" stroke-linecap="round"/>
-    <line x1="3" y1="24" x2="12" y2="24" stroke="rgba(255,255,255,0.45)" stroke-width="1" stroke-linecap="round"/>
-    <line x1="36" y1="24" x2="45" y2="24" stroke="rgba(255,255,255,0.45)" stroke-width="1" stroke-linecap="round"/>
+  <svg id="crosshair" width="52" height="52" viewBox="0 0 52 52">
+    <circle cx="26" cy="26" r="18" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.2" stroke-dasharray="4 3"/>
+    <circle cx="26" cy="26" r="2" fill="rgba(255,255,255,0.85)"/>
+    <line x1="26" y1="2" x2="26" y2="12" stroke="rgba(255,255,255,0.5)" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="26" y1="40" x2="26" y2="50" stroke="rgba(255,255,255,0.5)" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="2" y1="26" x2="12" y2="26" stroke="rgba(255,255,255,0.5)" stroke-width="1.2" stroke-linecap="round"/>
+    <line x1="40" y1="26" x2="50" y2="26" stroke="rgba(255,255,255,0.5)" stroke-width="1.2" stroke-linecap="round"/>
   </svg>
 
   <!-- Crosshair readout — wind data at map center -->
@@ -1963,12 +1964,20 @@ const Crosshair = {
   },
   
   _update() {
-    if (!this._el || !WindTexture.msData || !State.map) {
-      if (this._el) this._el.classList.add('hidden');
+    if (!this._el || !State.map) return;
+    
+    const center = State.map.getCenter();
+    let w;
+    
+    /* Try WindTexture first, fall back to IDW */
+    if (WindTexture.msData) {
+      w = WindTexture.sampleWind(center.lat, center.lng);
+    } else if (State.windField.length) {
+      w = idw(center.lat, center.lng);
+    } else {
+      this._el.classList.add('hidden');
       return;
     }
-    const center = State.map.getCenter();
-    const w = WindTexture.sampleWind(center.lat, center.lng);
     
     if (w.ms < 0.05) {
       this._el.classList.add('hidden');
