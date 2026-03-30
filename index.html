@@ -209,26 +209,28 @@ color: var(–accent);
 /* ============================================================
 SCALE BAR  z:20
 ============================================================ */
-#scale-bar {
+/* ============================================================
+WEATHER WIDGET — replaces scale bar, shows conditions at crosshair
+============================================================ */
+#wx-widget {
 position: absolute; bottom: calc(var(–sab) + 194px); left: calc(var(–sal) + 14px); z-index: 20;
-pointer-events: none; display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+pointer-events: none; display: flex; align-items: center; gap: 8px;
+background: rgba(6,9,18,.65);
+border: 1px solid var(–border);
+-webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+border-radius: 12px; padding: 6px 10px;
+transition: opacity 0.3s;
 }
-#scale-label {
-font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 500;
-color: rgba(255,255,255,0.85); text-shadow: 0 1px 3px rgba(0,0,0,0.7); letter-spacing: 0.3px;
+#wx-widget.hidden { opacity: 0; }
+#wx-icon { font-size: 22px; line-height: 1; }
+#wx-temp {
+font-family: ‘DM Mono’, monospace; font-size: 16px; font-weight: 500;
+color: var(–text); line-height: 1;
 }
-#scale-line {
-height: 2px; background: rgba(255,255,255,0.85); border-radius: 1px;
-box-shadow: 0 1px 3px rgba(0,0,0,0.5); position: relative;
+#wx-desc {
+font-family: ‘DM Mono’, monospace; font-size: 9px;
+color: var(–muted); line-height: 1.2; max-width: 80px;
 }
-#scale-line::before, #scale-line::after {
-content: ‘’; position: absolute; width: 1.5px; height: 8px;
-top: 50%; transform: translateY(-50%);
-background: rgba(255,255,255,0.85); border-radius: 0.75px;
-box-shadow: 0 1px 3px rgba(0,0,0,0.5);
-}
-#scale-line::before { left: 0; }
-#scale-line::after  { right: 0; }
 
 /* ============================================================
 BOTTOM PANEL  z:20
@@ -654,9 +656,14 @@ animation: pulse-dot 1s ease infinite;
     </div>
   </div>
 
-  <div id="scale-bar">
-    <div id="scale-label">1 km</div>
-    <div id="scale-line" style="width:60px"></div>
+  <!-- Weather widget — conditions at crosshair location -->
+
+  <div id="wx-widget" class="hidden">
+    <span id="wx-icon">☀️</span>
+    <div>
+      <div id="wx-temp">--°</div>
+      <div id="wx-desc">Ladataan...</div>
+    </div>
   </div>
 
   <!-- Settings popup -->
@@ -828,7 +835,7 @@ const ColorRamp = (() => {
     { t: 0.93, r: 180, g: 0,   b: 100 },
     { t: 1.00, r: 130, g: 0,   b: 180 }
   ];
-  function msToT(ms) { return Math.pow(Math.min(1, Math.max(0, ms / Config.MAX_MS)), 0.661); }
+  function msToT(ms) { return Math.pow(Math.min(1, Math.max(0, ms / Config.MAX_MS)), 0.55); }
   function interpolate(ramp, t) {
     for (let i = 1; i < ramp.length; i++) {
       if (t <= ramp[i].t) {
@@ -877,8 +884,8 @@ const SPOTS = [
   { name: 'Hanko',             lat: 59.824, lng: 22.972, desc: 'Paras etelä-lounas' },
   { name: 'Haukilahti',        lat: 60.1552, lng: 24.7800, desc: 'Klassikko – etelätuulet' },
   { name: 'Lauttasaari',       lat: 60.1540, lng: 24.8676, desc: 'Etelä–länsi, helppo pääsy' },
-  { name: 'Laajalahti',        lat: 60.1861, lng: 24.8382, desc: 'Suojaisa – kevyet tuulet' },
-  { name: 'Otaniemi',          lat: 60.1993, lng: 24.8600, desc: 'Otaniemen edusta – lounas' },
+  { name: 'Otaniemi',          lat: 60.1861, lng: 24.8382, desc: 'Otaniemen edusta – lounas' },
+  { name: 'Laajalahti',        lat: 60.1993, lng: 24.8600, desc: 'Suojaisa – kevyet tuulet' },
   { name: 'Hietaniemi',        lat: 60.1734, lng: 24.8991, desc: 'Hietsu – etelä ja lounas' },
   { name: 'Kruunuvuorenranta',  lat: 60.1650, lng: 25.0105, desc: 'Itäväylän kupeessa – lounais' },
   { name: 'Puuskaniemi',       lat: 60.1727, lng: 25.0853, desc: 'Jollaksen edusta – avoin' },
@@ -1185,6 +1192,7 @@ function initMap() {
         const target = nParticles();
         for (let i = 0; i < target; i++) State.particles.push(makeParticle(true));
         Crosshair.refresh();
+        WeatherWidget.scheduleUpdate();
       });
     } else {
       State.particles = [];
@@ -1217,7 +1225,7 @@ function initMap() {
 
   let _prevZoom = map.getZoom();
   map.on('zoomend', () => {
-    updateScaleBar(); _scheduleViewportLoad();  updateHeatmapBlur();
+    WeatherWidget.scheduleUpdate(); _scheduleViewportLoad();  updateHeatmapBlur();
     GeoProject.update(map);
     const newZoom = map.getZoom();
     const dz = _prevZoom - newZoom;
@@ -1256,7 +1264,7 @@ function initMap() {
       State.windCtx.globalCompositeOperation = 'source-over';
     }
   });
-  updateScaleBar();
+  WeatherWidget.scheduleUpdate();
   GeoProject.update(map);
 }
 
@@ -1855,7 +1863,7 @@ function buildWindField(hourIdx) {
   SpatialIndex.build(State.windField);
   console.log('[buildWindField] hour=' + hourIdx + ', points=' + State.windField.length + (targetTime ? ', time=' + new Date(targetTime).toISOString() : ''));
   const vb = State.map ? State.map.getBounds() : null;
-  return WindTexture.build(State.windField, vb).then(() => { Crosshair.refresh(); }).catch(e => console.error('[WindTexture]', e));
+  return WindTexture.build(State.windField, vb).then(() => { Crosshair.refresh(); WeatherWidget.refresh(); }).catch(e => console.error('[WindTexture]', e));
 }
 
 /* ── SPOT MARKERS ─────────────────────────────────────────────── */
@@ -2106,16 +2114,105 @@ function stopPlay() {
   document.getElementById('play-icon').innerHTML = '<path d="M8 5v14l11-7z"/>';
 }
 
-/* ── SCALE BAR ────────────────────────────────────────────────── */
-function updateScaleBar() {
-  if (!State.map) return;
-  const mpp = 156543.03392 * Math.cos(State.map.getCenter().lat * Math.PI / 180) / Math.pow(2, State.map.getZoom());
-  const nice = [{m:50,l:'50 m'},{m:100,l:'100 m'},{m:200,l:'200 m'},{m:500,l:'500 m'},{m:1000,l:'1 km'},{m:2000,l:'2 km'},{m:5000,l:'5 km'},{m:10000,l:'10 km'},{m:20000,l:'20 km'},{m:50000,l:'50 km'},{m:100000,l:'100 km'},{m:200000,l:'200 km'}];
-  let best = nice[0], bpx = nice[0].m / mpp;
-  for (const n of nice) { const px = n.m / mpp; if (px >= 50 && px <= 120) { best = n; bpx = px; break; } if (px < 50) { best = n; bpx = px; } }
-  document.getElementById('scale-label').textContent = best.l;
-  document.getElementById('scale-line').style.width = Math.round(bpx) + 'px';
-}
+/* ── WEATHER WIDGET — Shows conditions at map center ──────────── */
+const WeatherWidget = {
+  _el: null, _iconEl: null, _tempEl: null, _descEl: null,
+  _cache: {}, _fetchTimer: null, _lastKey: '',
+
+  /* WMO weathercode → emoji + description */
+  _codes: {
+    0: ['☀️','Selkeää'], 1: ['🌤','Melko selkeää'], 2: ['⛅','Puolipilvistä'], 3: ['☁️','Pilvistä'],
+    45: ['🌫','Sumua'], 48: ['🌫','Huurretta'],
+    51: ['🌦','Kevyttä tihkua'], 53: ['🌦','Tihkua'], 55: ['🌧','Tiheää tihkua'],
+    61: ['🌧','Kevyttä sadetta'], 63: ['🌧','Sadetta'], 65: ['🌧','Rankkasadetta'],
+    66: ['🌧','Jäätävää sadetta'], 67: ['🌧','Jäätävää sadetta'],
+    71: ['🌨','Kevyttä lunta'], 73: ['🌨','Lumisadetta'], 75: ['🌨','Tiheää lunta'],
+    77: ['🌨','Lumijyväsiä'],
+    80: ['🌦','Sadekuuroja'], 81: ['🌧','Kuuroja'], 82: ['⛈','Rankkakuuroja'],
+    85: ['🌨','Lumikuuroja'], 86: ['🌨','Lumikuuroja'],
+    95: ['⛈','Ukkosmyrsky'], 96: ['⛈','Ukkosta, rakeita'], 99: ['⛈','Ukkosta, rakeita']
+  },
+
+  init() {
+    this._el = document.getElementById('wx-widget');
+    this._iconEl = document.getElementById('wx-icon');
+    this._tempEl = document.getElementById('wx-temp');
+    this._descEl = document.getElementById('wx-desc');
+  },
+
+  /** Schedule a fetch — debounced to avoid API spam during pan */
+  scheduleUpdate() {
+    clearTimeout(this._fetchTimer);
+    this._fetchTimer = setTimeout(() => this._update(), 500);
+  },
+
+  async _update() {
+    if (!State.map || !this._el) return;
+    const c = State.map.getCenter();
+    /* Round to 0.5° grid for cache efficiency */
+    const lat = (Math.round(c.lat * 2) / 2).toFixed(1);
+    const lng = (Math.round(c.lng * 2) / 2).toFixed(1);
+    const hourIdx = State.currentHourIdx;
+    const key = lat + ',' + lng;
+
+    /* Use cache if fresh */
+    if (this._cache[key] && Date.now() - this._cache[key].ts < 30 * 60 * 1000) {
+      this._render(this._cache[key].data, hourIdx);
+      return;
+    }
+
+    try {
+      const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat
+        + '&longitude=' + lng
+        + '&hourly=temperature_2m,weather_code&forecast_days=5&timezone=auto';
+      const r = await fetch(url);
+      if (!r.ok) return;
+      const data = await r.json();
+      if (data && data.hourly) {
+        this._cache[key] = { ts: Date.now(), data };
+        this._render(data, hourIdx);
+      }
+    } catch(e) { console.log('[WxWidget]', e.message); }
+  },
+
+  _render(data, hourIdx) {
+    if (!data || !data.hourly) { this._el.classList.add('hidden'); return; }
+    const h = data.hourly;
+    /* Match hour by time if timeline times available */
+    let idx = Math.min(hourIdx, (h.temperature_2m || []).length - 1);
+    if (State._tlTimes && State._tlTimes[hourIdx] && h.time) {
+      const target = new Date(State._tlTimes[hourIdx]).getTime();
+      let bestDiff = Infinity;
+      for (let j = 0; j < h.time.length; j++) {
+        const diff = Math.abs(new Date(h.time[j]).getTime() - target);
+        if (diff < bestDiff) { bestDiff = diff; idx = j; }
+      }
+    }
+    const temp = h.temperature_2m ? h.temperature_2m[idx] : null;
+    const code = h.weather_code ? h.weather_code[idx] : 0;
+    const info = this._codes[code] || ['🌡',''];
+
+    this._el.classList.remove('hidden');
+    this._iconEl.textContent = info[0];
+    this._tempEl.textContent = temp != null ? Math.round(temp) + '°' : '--°';
+    this._descEl.textContent = info[1];
+  },
+
+  /** Called when timeline hour changes */
+  refresh() {
+    if (!this._el) return;
+    const c = State.map ? State.map.getCenter() : null;
+    if (!c) return;
+    const lat = (Math.round(c.lat * 2) / 2).toFixed(1);
+    const lng = (Math.round(c.lng * 2) / 2).toFixed(1);
+    const key = lat + ',' + lng;
+    if (this._cache[key]) {
+      this._render(this._cache[key].data, State.currentHourIdx);
+    } else {
+      this.scheduleUpdate();
+    }
+  }
+};
 
 /* ── CROSSHAIR READOUT — Sample wind at map center ────────── */
 const Crosshair = {
@@ -2472,7 +2569,7 @@ function scheduleRefresh() {
 function main() {
   const bail = setTimeout(() => { hideLoading(); startRenderLoop(); }, 20000);
   buildLegend(); initMap(); initCanvases(); 
-  Crosshair.init();
+  Crosshair.init(); WeatherWidget.init(); Units.init();
 
   updateLoadText('Ladataan globaali tuulidata...');
   ViewportGrid.loadGlobalCoarse((done, total) => {
