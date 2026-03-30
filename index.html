@@ -1299,8 +1299,6 @@ const State = {
   refreshTimer: null,
   sheetSpot: null,
   _panning: false,
-  _panDx: 0, _panDy: 0,       /* accumulated canvas shift during pan */
-  _lastMapCenter: null,        /* L.LatLng — previous frame center for delta */
   _tlTimes: null, _tlSpeeds: null, _tlDirs: null, _tlTicks: [],
   _lastTlHour: -1,
 };
@@ -1343,41 +1341,21 @@ function initMap() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
   State.map = map;
-  map.on('movestart', () => {
-    State._panning = true;
-    State._panDx = 0; State._panDy = 0;
-    State._lastMapCenter = map.getCenter();
-  });
 
-  map.on('move', () => {
-    if (State._lastMapCenter) {
-      const prev = map.latLngToContainerPoint(State._lastMapCenter);
-      const curr = map.latLngToContainerPoint(map.getCenter());
-      State._panDx += prev.x - curr.x;
-      State._panDy += prev.y - curr.y;
-    }
-    State._lastMapCenter = map.getCenter();
-    GeoProject.invalidate();
-    Crosshair._scheduleUpdate();
-  });
-
-  map.on('moveend', () => {
-    State._panning = false;
-    State._panDx = 0; State._panDy = 0;
-    State._lastMapCenter = null;
+  /* ── Helpers ── */
+  function _clearCanvas() {
+    const { windCtx, windCvs, dpr } = State;
+    if (windCtx) windCtx.clearRect(0, 0, windCvs.width / dpr, windCvs.height / dpr);
+  }
+  function _hardReset() {
+    /* Wipe canvas + respawn all particles from zero — called on moveend / zoomend */
+    _clearCanvas();
     GeoProject.update(map);
     PerfTracker.reset();
-    renderSpots(State.currentHourIdx);
-    _scheduleViewportLoad();
-    Crosshair.refresh();
-    WeatherWidget.scheduleUpdate();
-    if (State.windField.length) {
-      WindTexture.build(State.windField, map.getBounds()).then(() => {
-        drawColorField();
-        Crosshair.refresh();
-      });
-    }
-  });
+    State.particles = [];
+    const n = nParticles();
+    for (let i = 0; i < n; i++) State.particles.push(makeParticle(false)); /* age=0, fresh */
+  }
 
   let _vpDebounce = null;
   function _scheduleViewportLoad() {
@@ -1386,7 +1364,9 @@ function initMap() {
       const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
       ViewportGrid.loadViewport(map).then(() => {
         buildWindField(State.currentHourIdx).then(() => {
-          drawColorField(); resetParticles(); renderSpots(State.currentHourIdx);
+          drawColorField();
+          _hardReset();
+          renderSpots(State.currentHourIdx);
           Crosshair.refresh();
           setTimeout(() => dot.classList.remove('pulse'), 800);
         });
@@ -1394,18 +1374,41 @@ function initMap() {
     }, 300);
   }
 
-  let _prevZoom = map.getZoom();
-  map.on('zoomend', () => {
-    WeatherWidget.scheduleUpdate(); _scheduleViewportLoad(); updateHeatmapBlur();
-    GeoProject.update(map);
-    const newZoom = map.getZoom();
-    _prevZoom = newZoom;
+  /* Pan: particles keep running, GeoProject tracks current map transform */
+  map.on('movestart', () => {
+    State._panning = true;
+    GeoProject.invalidate();
+  });
+  map.on('move', () => {
+    GeoProject.invalidate(); /* recalculated lazily each render frame */
+    Crosshair._scheduleUpdate();
+  });
+  map.on('moveend', () => {
+    State._panning = false;
+    _hardReset();                      /* clear trails, fresh particles */
+    renderSpots(State.currentHourIdx);
+    _scheduleViewportLoad();
+    WeatherWidget.scheduleUpdate();
+    Crosshair.refresh();
     if (State.windField.length) {
-      WindTexture.build(State.windField, map.getBounds()).then(() => { drawColorField(); Crosshair.refresh(); });
+      WindTexture.build(State.windField, map.getBounds()).then(() => {
+        drawColorField(); Crosshair.refresh();
+      });
     }
   });
-  map.on('zoom', () => {
-    GeoProject.invalidate();
+
+  /* Zoom: invalidate projection each frame during animation; hard reset on end */
+  map.on('zoom',    () => { GeoProject.invalidate(); });
+  map.on('zoomend', () => {
+    updateHeatmapBlur();
+    _hardReset();
+    _scheduleViewportLoad();
+    WeatherWidget.scheduleUpdate();
+    if (State.windField.length) {
+      WindTexture.build(State.windField, map.getBounds()).then(() => {
+        drawColorField(); Crosshair.refresh();
+      });
+    }
   });
 
   WeatherWidget.scheduleUpdate();
@@ -1766,22 +1769,6 @@ function renderLoop(ts) {
   const W = window.innerWidth, H = window.innerHeight;
 
   if (!GeoProject._valid) GeoProject.update(map);
-
-  /* ── Pan compensation: shift the trail buffer by accumulated pixel delta ── */
-  if (State._panDx !== 0 || State._panDy !== 0) {
-    const dx = State._panDx, dy = State._panDy;
-    State._panDx = 0; State._panDy = 0;
-    /* Copy current canvas contents shifted by (dx, dy) */
-    windCtx.save();
-    windCtx.globalCompositeOperation = 'copy';
-    windCtx.drawImage(windCvs, dx, dy);
-    windCtx.restore();
-    /* Fade-clear the newly revealed edges so there's no hard border */
-    windCtx.globalCompositeOperation = 'destination-in';
-    windCtx.fillStyle = 'rgba(0,0,0,0.88)';
-    windCtx.fillRect(0, 0, W, H);
-    windCtx.globalCompositeOperation = 'source-over';
-  }
 
   const target = nParticles();
   while (particles.length > target) particles.pop();
