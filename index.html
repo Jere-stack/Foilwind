@@ -1285,7 +1285,8 @@ const ViewportGrid = {
 const State = {
   map: null,
   heatmapOverlay: null,
-  gl: null, glCanvas: null,
+  windCvs: null, windCtx: null,
+  particles: [],
   markers: [],
   currentHourIdx: 0,
   windField: [],
@@ -1341,6 +1342,21 @@ function initMap() {
   }).addTo(map);
   State.map = map;
 
+  /* ── Helpers ── */
+  function _clearCanvas() {
+    const { windCtx, windCvs, dpr } = State;
+    if (windCtx) windCtx.clearRect(0, 0, windCvs.width / dpr, windCvs.height / dpr);
+  }
+  function _hardReset() {
+    /* Wipe canvas + respawn all particles from zero — called on moveend / zoomend */
+    _clearCanvas();
+    GeoProject.update(map);
+    PerfTracker.reset();
+    State.particles = [];
+    const n = nParticles();
+    for (let i = 0; i < n; i++) State.particles.push(makeParticle(false)); /* age=0, fresh */
+  }
+
   let _vpDebounce = null;
   function _scheduleViewportLoad() {
     clearTimeout(_vpDebounce);
@@ -1348,7 +1364,9 @@ function initMap() {
       const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
       ViewportGrid.loadViewport(map).then(() => {
         buildWindField(State.currentHourIdx).then(() => {
-          drawColorField(); resetParticles(); renderSpots(State.currentHourIdx);
+          drawColorField();
+          _hardReset();
+          renderSpots(State.currentHourIdx);
           Crosshair.refresh();
           setTimeout(() => dot.classList.remove('pulse'), 800);
         });
@@ -1356,12 +1374,18 @@ function initMap() {
     }, 300);
   }
 
-  /* Panning: partikkelit pyörivät — GL-shader lukee boundsit joka frame */
-  map.on('movestart', () => { State._panning = true; });
-  map.on('move',      () => { Crosshair._scheduleUpdate(); });
-  map.on('moveend',   () => {
+  /* Pan: particles keep running, GeoProject tracks current map transform */
+  map.on('movestart', () => {
+    State._panning = true;
+    GeoProject.invalidate();
+  });
+  map.on('move', () => {
+    GeoProject.invalidate(); /* recalculated lazily each render frame */
+    Crosshair._scheduleUpdate();
+  });
+  map.on('moveend', () => {
     State._panning = false;
-    resetParticles();
+    _hardReset();                      /* clear trails, fresh particles */
     renderSpots(State.currentHourIdx);
     _scheduleViewportLoad();
     WeatherWidget.scheduleUpdate();
@@ -1373,10 +1397,11 @@ function initMap() {
     }
   });
 
-  map.on('zoom',    () => { /* bounds picked up in WGL._syncBounds each frame */ });
+  /* Zoom: invalidate projection each frame during animation; hard reset on end */
+  map.on('zoom',    () => { GeoProject.invalidate(); });
   map.on('zoomend', () => {
     updateHeatmapBlur();
-    resetParticles();
+    _hardReset();
     _scheduleViewportLoad();
     WeatherWidget.scheduleUpdate();
     if (State.windField.length) {
@@ -1387,359 +1412,28 @@ function initMap() {
   });
 
   WeatherWidget.scheduleUpdate();
+  GeoProject.update(map);
 }
 
-/* ── CANVAS / WEBGL INIT ──────────────────────────────────────── */
+/* ── CANVAS ───────────────────────────────────────────────────── */
 function initCanvases() {
-  const cvs = document.getElementById('c-wind');
-  State.dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-  const opts = { alpha: true, premultipliedAlpha: false, antialias: false, preserveDrawingBuffer: false };
-  const gl = cvs.getContext('webgl2', opts) || cvs.getContext('webgl', opts);
-  if (!gl) { console.warn('[WebGL] unavailable'); return; }
-  State.gl = gl; State.glCanvas = cvs;
-
-  _resizeGL();
-  window.addEventListener('resize',            () => { _resizeGL(); WGL.reset(); }, { passive: true });
-  window.addEventListener('orientationchange', () => { setTimeout(() => { _resizeGL(); WGL.reset(); }, 250); }, { passive: true });
-
-  WGL.init(gl);
+  State.windCvs = document.getElementById('c-wind');
+  State.windCtx = State.windCvs.getContext('2d');
+  State.dpr = window.devicePixelRatio || 1;
+  resizeCanvases();
+  window.addEventListener('resize', () => { resizeCanvases(); resetParticles(); }, { passive: true });
+  window.addEventListener('orientationchange', () => { setTimeout(() => { resizeCanvases(); resetParticles(); }, 250); }, { passive: true });
 }
-function _resizeGL() {
-  const cvs = State.glCanvas; if (!cvs) return;
-  const w = window.innerWidth, h = window.innerHeight;
-  cvs.width  = Math.round(w * State.dpr);
-  cvs.height = Math.round(h * State.dpr);
+
+function resizeCanvases() {
+  const w = window.innerWidth, h = window.innerHeight, dpr = State.dpr;
+  const cvs = State.windCvs;
+  cvs.width = w * dpr; cvs.height = h * dpr;
   cvs.style.width = w + 'px'; cvs.style.height = h + 'px';
-  if (State.gl) { State.gl.viewport(0, 0, cvs.width, cvs.height); WGL.resizeFBO(); }
+  cvs.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-/* ════════════════════════════════════════════════════════════════
-   WGL — Self-contained WebGL particle engine
-   Architecture:
-     • CPU: particle physics (lat/lng, velocity, age) — uses WindTexture.sampleWind
-     • GPU: rendering only — LINE segments blended into a fade FBO
-     • Projection: Mercator vertex shader, fed map bounds as uniforms
-       → pan/zoom never cause ghosting because shader re-projects each frame
-   ════════════════════════════════════════════════════════════════ */
-const WGL = (() => {
-  /* ─── Shaders ─────────────────────────────────────────────── */
-  /* Vertex shader: receives pixel coords directly from CPU (Leaflet projection).
-     Only job: convert px → NDC. No Mercator math needed here. */
-  const VS = `
-precision highp float;
-attribute vec2 a_px;     /* screen pixel coords (CSS pixels × dpr) */
-attribute float a_speed;
-attribute float a_alpha;
-uniform vec2 u_res;      /* canvas size in physical pixels */
-varying float v_speed;
-varying float v_alpha;
-void main() {
-  v_speed = a_speed;
-  v_alpha = a_alpha;
-  /* px → NDC: (0,0)=top-left, flip Y */
-  gl_Position = vec4((a_px / u_res) * 2.0 - 1.0, 0.0, 1.0);
-  gl_Position.y *= -1.0;
-}`;
-
-  const FS = `
-precision mediump float;
-varying float v_speed;
-varying float v_alpha;
-vec3 windColor(float ms) {
-  float t = pow(clamp(ms / 20.0, 0.0, 1.0), 0.55);
-  if (t < 0.12) return mix(vec3(0.08,0.27,0.55), vec3(0.0,0.47,1.0),   t/0.12);
-  if (t < 0.34) return mix(vec3(0.0,0.47,1.0),   vec3(0.0,0.96,0.69),  (t-0.12)/0.22);
-  if (t < 0.56) return mix(vec3(0.0,0.96,0.69),  vec3(0.67,0.96,0.02), (t-0.34)/0.22);
-  if (t < 0.72) return mix(vec3(0.67,0.96,0.02), vec3(1.0,0.47,0.0),   (t-0.56)/0.16);
-  return              mix(vec3(1.0,0.47,0.0),   vec3(0.51,0.0,0.71),  (t-0.72)/0.28);
-}
-void main() {
-  if (v_alpha < 0.01) discard;
-  vec3 col = windColor(v_speed);
-  gl_FragColor = vec4(col * v_alpha, v_alpha);
-}`;
-
-  const VS_QUAD = `
-precision mediump float;
-attribute vec2 a_pos;
-varying vec2 v_uv;
-void main() { v_uv = a_pos * 0.5 + 0.5; gl_Position = vec4(a_pos,0.0,1.0); }`;
-
-  const FS_FADE = `
-precision mediump float;
-uniform sampler2D u_tex;
-uniform float u_fade;
-varying vec2 v_uv;
-void main() { vec4 c = texture2D(u_tex,v_uv); gl_FragColor = vec4(c.rgb, c.a * u_fade); }`;
-
-  const FS_BLIT = `
-precision mediump float;
-uniform sampler2D u_tex;
-varying vec2 v_uv;
-void main() { gl_FragColor = texture2D(u_tex,v_uv); }`;
-
-  /* ─── Private state ────────────────────────────────────────── */
-  let _gl, _prog, _progFade, _progBlit;
-  let _fbo = null, _fboTex = null;
-  let _quadBuf, _lineBuf;
-  /* CPU particle arrays stride-5: [lat, lng, speed, age, inertiaU, inertiaV]
-     We store geo coords (lat/lng) — convert to px each draw via Leaflet        */
-  let _lat = null, _lng = null,   /* current geo position */
-      _plat= null, _plng = null,  /* previous geo position */
-      _spd = null, _age  = null,  /* speed m/s, age frames */
-      _vu  = null, _vv   = null;  /* inertia velocity */
-  let _N = 0;
-  let _ready = false, _rafId = null;
-
-  /* ─── Compile helpers ──────────────────────────────────────── */
-  function _sh(gl, type, src) {
-    const s = gl.createShader(type);
-    gl.shaderSource(s, src); gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error('[WGL shader]', gl.getShaderInfoLog(s)); return null; }
-    return s;
-  }
-  function _prog2(gl, vsrc, fsrc) {
-    const p = gl.createProgram();
-    gl.attachShader(p, _sh(gl, gl.VERTEX_SHADER, vsrc));
-    gl.attachShader(p, _sh(gl, gl.FRAGMENT_SHADER, fsrc));
-    gl.linkProgram(p);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { console.error('[WGL link]', gl.getProgramInfoLog(p)); return null; }
-    return p;
-  }
-
-  /* ─── Init ─────────────────────────────────────────────────── */
-  function init(gl) {
-    _gl = gl;
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); /* premultiplied alpha */
-
-    _prog     = _prog2(gl, VS,       FS);
-    _progFade = _prog2(gl, VS_QUAD,  FS_FADE);
-    _progBlit = _prog2(gl, VS_QUAD,  FS_BLIT);
-    if (!_prog || !_progFade || !_progBlit) return;
-
-    /* Full-screen quad */
-    _quadBuf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, _quadBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-
-    /* Dynamic line buffer — allocated on first reset */
-    _lineBuf = gl.createBuffer();
-
-    _makeFBO();
-    _ready = true;
-    reset();
-    _loop();
-  }
-
-  /* ─── FBO ──────────────────────────────────────────────────── */
-  function _makeFBO() {
-    const gl = _gl;
-    const w = State.glCanvas.width, h = State.glCanvas.height;
-    if (_fbo)    { gl.deleteFramebuffer(_fbo); gl.deleteTexture(_fboTex); }
-    _fboTex = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, _fboTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    _fbo = gl.createFramebuffer();
-    gl.bindFramebuffer(gl.FRAMEBUFFER, _fbo);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, _fboTex, 0);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    /* Clear to transparent */
-    _clearFBO();
-  }
-  function resizeFBO() { if (_gl && _fbo) _makeFBO(); }
-  function _clearFBO() {
-    const gl = _gl; if (!gl) return;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, _fbo);
-    gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  }
-
-  /* ─── Particle count by zoom ───────────────────────────────── */
-  function _targetN() {
-    const z = State.map ? State.map.getZoom() : 5;
-    if (z <= 3) return 1500; if (z <= 5) return 2500; if (z <= 7) return 2000;
-    if (z <= 9) return 1500; if (z <= 11) return 1000;
-    return 600;
-  }
-
-  /* ─── Random spawn within current map bounds ───────────────── */
-  function _spawnOne(i) {
-    if (!State.map) return;
-    const b = State.map.getBounds();
-    const pad = 0.05;
-    const latSpan = b.getNorth() - b.getSouth();
-    const lngSpan = b.getEast()  - b.getWest();
-    _lat[i]  = b.getSouth() - latSpan*pad + Math.random() * latSpan*(1+pad*2);
-    _lng[i]  = b.getWest()  - lngSpan*pad + Math.random() * lngSpan*(1+pad*2);
-    _plat[i] = _lat[i]; _plng[i] = _lng[i];
-    _spd[i]  = 0; _age[i]  = 0;
-    _vu[i]   = 0; _vv[i]   = 0;
-  }
-
-  /* ─── Reset: clear FBO + respawn all particles ──────────────── */
-  function reset() {
-    if (!_ready) return;
-    _N = _targetN();
-    _lat  = new Float32Array(_N); _lng  = new Float32Array(_N);
-    _plat = new Float32Array(_N); _plng = new Float32Array(_N);
-    _spd  = new Float32Array(_N); _age  = new Float32Array(_N);
-    _vu   = new Float32Array(_N); _vv   = new Float32Array(_N);
-    for (let i = 0; i < _N; i++) _spawnOne(i);
-    _clearFBO();
-  }
-
-  /* ─── CPU physics: geo coords, Leaflet-consistent ──────────── */
-  function _step() {
-    if (!State.windField.length || !_N || !State.map) return;
-    const zoom   = State.map.getZoom();
-    const geoSpd = Config.GEO_SPEED / Math.pow(2, zoom - 5) * (zoom >= 9 ? 0.7 : 1.0);
-    const b      = State.map.getBounds();
-    const latPad = (b.getNorth() - b.getSouth()) * 0.25;
-    const lngPad = (b.getEast()  - b.getWest())  * 0.25;
-
-    for (let i = 0; i < _N; i++) {
-      const lat = _lat[i], lng = _lng[i];
-      const w   = WindTexture.sampleWind(lat, lng);
-
-      /* Drop / respawn */
-      const t    = Math.min(1, w.ms / Config.MAX_MS);
-      const drop = Config.DROP_RATE + t * Config.DROP_RATE_BUMP;
-      if (w.ms < 0.3 || _age[i] > 300 || Math.random() < drop) {
-        _spawnOne(i); continue;
-      }
-
-      /* Inertia + advance */
-      const cosLat = Math.max(0.1, Math.cos(lat * Math.PI / 180));
-      _vv[i] = _vv[i] * Config.INERTIA + w.v * geoSpd * (1 - Config.INERTIA);
-      _vu[i] = _vu[i] * Config.INERTIA + (w.u / cosLat) * geoSpd * (1 - Config.INERTIA);
-
-      _plat[i] = lat; _plng[i] = lng; /* save prev */
-      _lat[i] += _vv[i];
-      _lng[i] += _vu[i];
-      _spd[i]  = w.ms;
-      _age[i]++;
-
-      /* OOB → respawn */
-      if (_lat[i] < b.getSouth()-latPad || _lat[i] > b.getNorth()+latPad ||
-          _lng[i] < b.getWest() -lngPad || _lng[i] > b.getEast() +lngPad) {
-        _spawnOne(i);
-      }
-    }
-  }
-
-  /* ─── GPU draw: project geo→px via Leaflet, upload, render ─── */
-  function _draw() {
-    const gl = _gl;
-    if (!gl || !_ready || !_N || !State.map) return;
-    const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
-    const dpr = State.dpr;
-
-    /* === 1. Fade FBO in-place === */
-    gl.bindFramebuffer(gl.FRAMEBUFFER, _fbo);
-    gl.viewport(0, 0, W, H);
-    gl.useProgram(_progFade);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, _fboTex);
-    gl.uniform1i(gl.getUniformLocation(_progFade, 'u_tex'), 0);
-    gl.uniform1f(gl.getUniformLocation(_progFade, 'u_fade'), 0.88); /* lower = shorter trails */
-    gl.blendFunc(gl.ONE, gl.ZERO);
-    _quad(_progFade);
-
-    /* === 2. Project particles to CSS pixels via Leaflet, build vertex buffer === */
-    /* stride: px_prev.x, px_prev.y, px_curr.x, px_curr.y, speed, alpha → 6 floats/particle */
-    const verts = new Float32Array(_N * 2 * 4); /* 2 verts × [x,y,spd,alph] */
-    let vi = 0;
-    for (let i = 0; i < _N; i++) {
-      if (_age[i] < 1) continue; /* skip newly spawned — no prev position yet */
-      const spd  = _spd[i];
-      if (spd < 0.3) continue;
-
-      /* Leaflet → CSS px */
-      const curr = State.map.latLngToContainerPoint(L.latLng(_lat[i],  _lng[i]));
-      const prev = State.map.latLngToContainerPoint(L.latLng(_plat[i], _plng[i]));
-
-      /* Skip if segment is zero-length or absurdly long (teleport after respawn) */
-      const dx = curr.x - prev.x, dy = curr.y - prev.y;
-      if (dx*dx + dy*dy > 2500) continue; /* >50px jump = skip */
-
-      const t    = Math.min(1, spd / Config.MAX_MS);
-      const alph = (0.3 + t * 0.6) * Math.min(1, _age[i] / 12.0); /* fade-in first 12 frames */
-
-      /* Physical pixels */
-      verts[vi++] = prev.x * dpr; verts[vi++] = prev.y * dpr; verts[vi++] = spd; verts[vi++] = alph;
-      verts[vi++] = curr.x * dpr; verts[vi++] = curr.y * dpr; verts[vi++] = spd; verts[vi++] = alph;
-    }
-    const vertCount = vi / 4; /* number of actual vertices uploaded */
-    if (vertCount < 2) { _blitToScreen(W, H); return; }
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, _lineBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, verts.subarray(0, vi), gl.DYNAMIC_DRAW);
-
-    gl.useProgram(_prog);
-    gl.uniform2f(gl.getUniformLocation(_prog, 'u_res'), W, H);
-
-    const stride = 4 * 4;
-    const aPx   = gl.getAttribLocation(_prog, 'a_px');
-    const aSpd  = gl.getAttribLocation(_prog, 'a_speed');
-    const aAlph = gl.getAttribLocation(_prog, 'a_alpha');
-    gl.enableVertexAttribArray(aPx);   gl.vertexAttribPointer(aPx,   2, gl.FLOAT, false, stride, 0);
-    gl.enableVertexAttribArray(aSpd);  gl.vertexAttribPointer(aSpd,  1, gl.FLOAT, false, stride, 8);
-    gl.enableVertexAttribArray(aAlph); gl.vertexAttribPointer(aAlph, 1, gl.FLOAT, false, stride, 12);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    gl.drawArrays(gl.LINES, 0, vertCount);
-    gl.disableVertexAttribArray(aPx);
-    gl.disableVertexAttribArray(aSpd);
-    gl.disableVertexAttribArray(aAlph);
-
-    _blitToScreen(W, H);
-  }
-
-  function _blitToScreen(W, H) {
-    const gl = _gl;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, W, H);
-    gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.useProgram(_progBlit);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, _fboTex);
-    gl.uniform1i(gl.getUniformLocation(_progBlit, 'u_tex'), 0);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    _quad(_progBlit);
-  }
-
-  function _quad(prog) {
-    const gl = _gl;
-    const a = gl.getAttribLocation(prog, 'a_pos');
-    gl.bindBuffer(gl.ARRAY_BUFFER, _quadBuf);
-    gl.enableVertexAttribArray(a);
-    gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    gl.disableVertexAttribArray(a);
-  }
-
-  /* ─── RAF loop ──────────────────────────────────────────────── */
-  let _lastTs = 0;
-  function _loop(ts) {
-    _rafId = requestAnimationFrame(_loop);
-    if (!_ready || !State.windField.length) return;
-    if ((ts || 0) - _lastTs < 15) return; /* cap ~60fps */
-    _lastTs = ts || 0;
-    _step();
-    _draw();
-  }
-
-  return { init, reset, resizeFBO };
-})();
-
-/* ── Stubs — keep existing call-sites working ─────────────────── */
-function startRenderLoop() { /* WGL loop starts inside WGL.init */ }
-function resetParticles()  { WGL.reset(); }
+/* ── SPATIAL INDEX ────────────────────────────────────────────── */
 const SpatialIndex = {
   cells: {}, cellSize: 0.35,
   build(wf) {
@@ -1968,6 +1662,159 @@ function updateHeatmapBlur() {
     el.style.filter = 'blur(' + blur + 'px)';
     el.style.webkitFilter = 'blur(' + blur + 'px)';
   });
+}
+
+/* ── PARTICLE SYSTEM ──────────────────────────────────────────── */
+const PerfTracker = {
+  _frames: [], _targetParticles: 400, _lastAdj: 0,
+  frame(ts) {
+    this._frames.push(ts);
+    if (this._frames.length > 61) this._frames.shift();
+    if (ts - this._lastAdj > 3000 && this._frames.length >= 30) this._adjust(ts);
+  },
+  fps() {
+    if (this._frames.length < 2) return 60;
+    const dt = this._frames[this._frames.length - 1] - this._frames[0];
+    return Math.round((this._frames.length - 1) / (dt / 1000));
+  },
+  _adjust(ts) {
+    this._lastAdj = ts;
+    const fps = this.fps(), base = nParticlesBase();
+    if (fps < 24 && this._targetParticles > 80) {
+      this._targetParticles = Math.max(80, Math.round(this._targetParticles * 0.7));
+    } else if (fps > 50 && this._targetParticles < base) {
+      this._targetParticles = Math.min(base, Math.round(this._targetParticles * 1.15));
+    }
+  },
+  getTarget() { return this._targetParticles; },
+  reset() { this._targetParticles = nParticlesBase(); this._frames = []; }
+};
+
+function nParticlesBase() {
+  const z = State.map ? State.map.getZoom() : 5;
+  if (z <= 3) return 800; if (z <= 5) return 600; if (z <= 7) return 500;
+  if (z <= 8) return 350; if (z <= 9) return 250; if (z <= 10) return 180;
+  return 120;
+}
+function nParticles() { return PerfTracker.getTarget(); }
+function particleLineWidth(ms) { return 2.0 + (ms / Config.MAX_MS) * 2.2; }
+function rndGeo() {
+  const m = State.map;
+  if (m) {
+    const b = m.getBounds(), pad = 0.15, ls = b.getNorth()-b.getSouth(), gs = b.getEast()-b.getWest();
+    return { lat: b.getSouth()-ls*pad+Math.random()*ls*(1+pad*2), lng: b.getWest()-gs*pad+Math.random()*gs*(1+pad*2) };
+  }
+  return { lat: 58 + Math.random() * 12, lng: 18 + Math.random() * 13 };
+}
+
+const GeoProject = {
+  _ox: 0, _oy: 0, _sx: 1, _sy: 1, _valid: false,
+  update(map) {
+    const b = map.getBounds();
+    const nw = map.latLngToContainerPoint(b.getNorthWest());
+    const se = map.latLngToContainerPoint(b.getSouthEast());
+    this._ox = nw.x; this._oy = nw.y;
+    this._sx = (se.x - nw.x) / (b.getEast() - b.getWest());
+    this._sy = (se.y - nw.y) / (b.getSouth() - b.getNorth());
+    this._west = b.getWest(); this._north = b.getNorth();
+    this._valid = true;
+  },
+  project(lat, lng) {
+    return { x: this._ox + (lng - this._west) * this._sx, y: this._oy + (lat - this._north) * this._sy };
+  },
+  invalidate() { this._valid = false; }
+};
+
+function geo2px(lat, lng) {
+  if (GeoProject._valid) return GeoProject.project(lat, lng);
+  const pt = State.map.latLngToContainerPoint(L.latLng(lat, lng));
+  return { x: pt.x, y: pt.y };
+}
+function makeParticle(rAge) {
+  const g = rndGeo();
+  return { lat: g.lat, lng: g.lng, plat: g.lat, plng: g.lng, vlat: 0, vlng: 0, u: 0, v: 0, ms: 0,
+    sampleTimer: Math.floor(Math.random() * Config.WIND_SAMPLE_INTERVAL),
+    age: rAge ? Math.floor(Math.random() * 320) : 0 };
+}
+function resetParticles() {
+  const { windCtx, windCvs, dpr } = State;
+  if (windCtx) windCtx.clearRect(0, 0, windCvs.width / dpr, windCvs.height / dpr);
+  PerfTracker.reset();
+  State.particles = [];
+  const n = nParticles();
+  for (let i = 0; i < n; i++) State.particles.push(makeParticle(true));
+}
+function sampleWind(p) {
+  p.sampleTimer++; if (p.sampleTimer < Config.WIND_SAMPLE_INTERVAL) return;
+  p.sampleTimer = 0;
+  const w = WindTexture.sampleWind(p.lat, p.lng); p.u = w.u; p.v = w.v; p.ms = w.ms;
+}
+function respawn(p) {
+  const g = rndGeo(); p.lat = g.lat; p.lng = g.lng; p.plat = g.lat; p.plng = g.lng;
+  p.vlat = 0; p.vlng = 0; p.age = 0; p.sampleTimer = 0;
+}
+
+/* ── RENDER LOOP ──────────────────────────────────────────────── */
+let _renderLoopRunning = false;
+function startRenderLoop() {
+  if (_renderLoopRunning) return;
+  _renderLoopRunning = true;
+  requestAnimationFrame(renderLoop);
+}
+function renderLoop(ts) {
+  requestAnimationFrame(renderLoop);
+  PerfTracker.frame(ts || performance.now());
+  const { windCtx, windCvs, windField, map, particles, dpr } = State;
+  if (!windCtx || !windCvs.width || !windField.length || !map) return;
+  const W = window.innerWidth, H = window.innerHeight;
+
+  if (!GeoProject._valid) GeoProject.update(map);
+
+  const target = nParticles();
+  while (particles.length > target) particles.pop();
+  while (particles.length < target) particles.push(makeParticle(true));
+
+  windCtx.globalCompositeOperation = 'destination-in';
+  windCtx.fillStyle = 'rgba(0,0,0,' + Config.FADE_OPACITY + ')';
+  windCtx.fillRect(0, 0, W, H);
+  windCtx.globalCompositeOperation = 'source-over';
+  windCtx.lineCap = 'round';
+
+  const zoom = map.getZoom();
+  const geoSpd = Config.GEO_SPEED / Math.pow(2, zoom - 5) * (zoom >= 9 ? 0.7 : 1.0);
+  const bounds = map.getBounds();
+  const latPad = (bounds.getNorth() - bounds.getSouth()) * 0.2;
+  const lngPad = (bounds.getEast() - bounds.getWest()) * 0.2;
+
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    sampleWind(p);
+    const speedT = Math.min(1, p.ms / Config.MAX_MS);
+    const dropChance = Config.DROP_RATE + speedT * Config.DROP_RATE_BUMP;
+    if (p.ms < 0.3 || Math.random() < dropChance) {
+      p.age++;
+      if (p.age > 300 || Math.random() < dropChance * 0.5) respawn(p);
+      continue;
+    }
+    p.plat = p.lat; p.plng = p.lng;
+    const cosLat = Math.cos(p.lat * Math.PI / 180);
+    p.vlat = p.vlat * Config.INERTIA + p.v * geoSpd * (1 - Config.INERTIA);
+    p.vlng = p.vlng * Config.INERTIA + (p.u * geoSpd / (cosLat > 0.1 ? cosLat : 0.1)) * (1 - Config.INERTIA);
+    p.lat += p.vlat; p.lng += p.vlng; p.age++;
+    if (p.lat < bounds.getSouth()-latPad || p.lat > bounds.getNorth()+latPad ||
+        p.lng < bounds.getWest()-lngPad || p.lng > bounds.getEast()+lngPad) { respawn(p); continue; }
+    const prev = geo2px(p.plat, p.plng);
+    const curr = geo2px(p.lat, p.lng);
+    if (curr.x < -10 || curr.x > W+10 || curr.y < -10 || curr.y > H+10) continue;
+    const lw = particleLineWidth(p.ms);
+    const alpha = Math.min(0.9, 0.3 + speedT * 0.6);
+    windCtx.beginPath();
+    windCtx.moveTo(prev.x, prev.y);
+    windCtx.lineTo(curr.x, curr.y);
+    windCtx.lineWidth = lw;
+    windCtx.strokeStyle = ColorRamp.css(p.ms, alpha);
+    windCtx.stroke();
+  }
 }
 
 /* ── WEATHER BATCH API ────────────────────────────────────────── */
