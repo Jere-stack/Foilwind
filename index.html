@@ -1424,35 +1424,21 @@ function _resizeGL() {
    ════════════════════════════════════════════════════════════════ */
 const WGL = (() => {
   /* ─── Shaders ─────────────────────────────────────────────── */
+  /* Vertex shader: receives pixel coords directly from CPU (Leaflet projection).
+     Only job: convert px → NDC. No Mercator math needed here. */
   const VS = `
 precision highp float;
-attribute vec2 a_pos;    /* normalised lng[0-1], lat[0-1] within map bounds */
-attribute float a_speed; /* m/s */
-attribute float a_alpha; /* 0-1 trail alpha */
-uniform vec2  u_res;
-uniform float u_latMin, u_latMax, u_lngMin, u_lngMax;
+attribute vec2 a_px;     /* screen pixel coords (CSS pixels × dpr) */
+attribute float a_speed;
+attribute float a_alpha;
+uniform vec2 u_res;      /* canvas size in physical pixels */
 varying float v_speed;
 varying float v_alpha;
-
-float mercY(float latDeg) {
-  float r = latDeg * 0.01745329251;
-  return log(tan(0.7853981634 + r * 0.5));
-}
-vec2 toScreen(float lngN, float latN) {
-  float lng = u_lngMin + lngN * (u_lngMax - u_lngMin);
-  float lat = u_latMin + latN * (u_latMax - u_latMin);
-  float x = (lng - u_lngMin) / (u_lngMax - u_lngMin);
-  float yMerc    = mercY(lat);
-  float yMercMin = mercY(u_latMin);
-  float yMercMax = mercY(u_latMax);
-  float y = 1.0 - (yMerc - yMercMin) / (yMercMax - yMercMin);
-  return vec2(x * u_res.x, y * u_res.y);
-}
 void main() {
   v_speed = a_speed;
   v_alpha = a_alpha;
-  vec2 sc  = toScreen(a_pos.x, a_pos.y);
-  gl_Position = vec4(sc / u_res * 2.0 - 1.0, 0.0, 1.0);
+  /* px → NDC: (0,0)=top-left, flip Y */
+  gl_Position = vec4((a_px / u_res) * 2.0 - 1.0, 0.0, 1.0);
   gl_Position.y *= -1.0;
 }`;
 
@@ -1497,11 +1483,14 @@ void main() { gl_FragColor = texture2D(u_tex,v_uv); }`;
   let _gl, _prog, _progFade, _progBlit;
   let _fbo = null, _fboTex = null;
   let _quadBuf, _lineBuf;
-  /* CPU particle arrays — Float32Array stride-4: [lngN, latN, speed, age] */
-  let _curr = null, _prev = null, _N = 0;
+  /* CPU particle arrays stride-5: [lat, lng, speed, age, inertiaU, inertiaV]
+     We store geo coords (lat/lng) — convert to px each draw via Leaflet        */
+  let _lat = null, _lng = null,   /* current geo position */
+      _plat= null, _plng = null,  /* previous geo position */
+      _spd = null, _age  = null,  /* speed m/s, age frames */
+      _vu  = null, _vv   = null;  /* inertia velocity */
+  let _N = 0;
   let _ready = false, _rafId = null;
-  /* Map bounds updated every frame */
-  let _latMin = 55, _latMax = 70, _lngMin = 17, _lngMax = 32;
 
   /* ─── Compile helpers ──────────────────────────────────────── */
   function _sh(gl, type, src) {
@@ -1574,151 +1563,145 @@ void main() { gl_FragColor = texture2D(u_tex,v_uv); }`;
   /* ─── Particle count by zoom ───────────────────────────────── */
   function _targetN() {
     const z = State.map ? State.map.getZoom() : 5;
-    if (z <= 3) return 5000; if (z <= 5) return 8000; if (z <= 7) return 6000;
-    if (z <= 9) return 4000; if (z <= 11) return 2500;
-    return 1500;
+    if (z <= 3) return 1500; if (z <= 5) return 2500; if (z <= 7) return 2000;
+    if (z <= 9) return 1500; if (z <= 11) return 1000;
+    return 600;
   }
 
-  /* ─── Bounds update ────────────────────────────────────────── */
-  function _syncBounds() {
+  /* ─── Random spawn within current map bounds ───────────────── */
+  function _spawnOne(i) {
     if (!State.map) return;
-    const b = State.map.getBounds(), pad = 0.3;
-    _latMin = b.getSouth() - pad; _latMax = b.getNorth() + pad;
-    _lngMin = b.getWest()  - pad; _lngMax = b.getEast()  + pad;
-  }
-
-  /* ─── Spawn a particle at random position within bounds ─────── */
-  function _spawn(arr, i, randomAge) {
-    arr[i*4+0] = Math.random(); /* lngN */
-    arr[i*4+1] = Math.random(); /* latN */
-    arr[i*4+2] = 0;             /* speed */
-    arr[i*4+3] = randomAge ? Math.random() * 280 : 0; /* age */
+    const b = State.map.getBounds();
+    const pad = 0.05;
+    const latSpan = b.getNorth() - b.getSouth();
+    const lngSpan = b.getEast()  - b.getWest();
+    _lat[i]  = b.getSouth() - latSpan*pad + Math.random() * latSpan*(1+pad*2);
+    _lng[i]  = b.getWest()  - lngSpan*pad + Math.random() * lngSpan*(1+pad*2);
+    _plat[i] = _lat[i]; _plng[i] = _lng[i];
+    _spd[i]  = 0; _age[i]  = 0;
+    _vu[i]   = 0; _vv[i]   = 0;
   }
 
   /* ─── Reset: clear FBO + respawn all particles ──────────────── */
   function reset() {
     if (!_ready) return;
-    _syncBounds();
     _N = _targetN();
-    _curr = new Float32Array(_N * 4);
-    _prev = new Float32Array(_N * 4);
-    for (let i = 0; i < _N; i++) { _spawn(_curr, i, false); _spawn(_prev, i, false); }
+    _lat  = new Float32Array(_N); _lng  = new Float32Array(_N);
+    _plat = new Float32Array(_N); _plng = new Float32Array(_N);
+    _spd  = new Float32Array(_N); _age  = new Float32Array(_N);
+    _vu   = new Float32Array(_N); _vv   = new Float32Array(_N);
+    for (let i = 0; i < _N; i++) _spawnOne(i);
     _clearFBO();
   }
 
-  /* ─── CPU physics step ──────────────────────────────────────── */
+  /* ─── CPU physics: geo coords, Leaflet-consistent ──────────── */
   function _step() {
-    if (!State.windField.length || !_N) return;
-    _syncBounds();
-    const zoom   = State.map ? State.map.getZoom() : 5;
+    if (!State.windField.length || !_N || !State.map) return;
+    const zoom   = State.map.getZoom();
     const geoSpd = Config.GEO_SPEED / Math.pow(2, zoom - 5) * (zoom >= 9 ? 0.7 : 1.0);
-    const latSpan = _latMax - _latMin, lngSpan = _lngMax - _lngMin;
-    const drop0 = Config.DROP_RATE, dropB = Config.DROP_RATE_BUMP;
+    const b      = State.map.getBounds();
+    const latPad = (b.getNorth() - b.getSouth()) * 0.25;
+    const lngPad = (b.getEast()  - b.getWest())  * 0.25;
 
     for (let i = 0; i < _N; i++) {
-      const b = i * 4;
-      const lngN = _curr[b], latN = _curr[b+1];
-      let   spd  = _curr[b+2], age = _curr[b+3];
+      const lat = _lat[i], lng = _lng[i];
+      const w   = WindTexture.sampleWind(lat, lng);
 
-      /* Convert normalised → geo */
-      const lat = _latMin + latN * latSpan;
-      const lng = _lngMin + lngN * lngSpan;
-
-      /* Sample wind (uses CPU WindTexture) */
-      const w = WindTexture.sampleWind(lat, lng);
-      spd = w.ms;
-
-      const dropChance = drop0 + Math.min(1, spd / Config.MAX_MS) * dropB;
-      if (spd < 0.3 || age > 280 || Math.random() < dropChance) {
-        _spawn(_curr, i, false);
-        /* prev = curr so no stale line drawn */
-        _prev[b] = _curr[b]; _prev[b+1] = _curr[b+1];
-        _prev[b+2] = 0;      _prev[b+3] = 0;
-        continue;
+      /* Drop / respawn */
+      const t    = Math.min(1, w.ms / Config.MAX_MS);
+      const drop = Config.DROP_RATE + t * Config.DROP_RATE_BUMP;
+      if (w.ms < 0.3 || _age[i] > 300 || Math.random() < drop) {
+        _spawnOne(i); continue;
       }
 
-      /* Save previous position */
-      _prev[b]   = lngN;  _prev[b+1] = latN;
-      _prev[b+2] = spd;   _prev[b+3] = age;
-
-      /* Advance */
+      /* Inertia + advance */
       const cosLat = Math.max(0.1, Math.cos(lat * Math.PI / 180));
-      const newLat = lat + w.v * geoSpd;
-      const newLng = lng + w.u * geoSpd / cosLat;
-      age++;
+      _vv[i] = _vv[i] * Config.INERTIA + w.v * geoSpd * (1 - Config.INERTIA);
+      _vu[i] = _vu[i] * Config.INERTIA + (w.u / cosLat) * geoSpd * (1 - Config.INERTIA);
 
-      _curr[b]   = (newLng - _lngMin) / lngSpan;
-      _curr[b+1] = (newLat - _latMin) / latSpan;
-      _curr[b+2] = spd;
-      _curr[b+3] = age;
+      _plat[i] = lat; _plng[i] = lng; /* save prev */
+      _lat[i] += _vv[i];
+      _lng[i] += _vu[i];
+      _spd[i]  = w.ms;
+      _age[i]++;
 
-      /* Out of bounds → respawn */
-      if (_curr[b] < -0.1 || _curr[b] > 1.1 || _curr[b+1] < -0.1 || _curr[b+1] > 1.1) {
-        _spawn(_curr, i, false);
-        _prev[b] = _curr[b]; _prev[b+1] = _curr[b+1];
-        _prev[b+2] = 0;      _prev[b+3] = 0;
+      /* OOB → respawn */
+      if (_lat[i] < b.getSouth()-latPad || _lat[i] > b.getNorth()+latPad ||
+          _lng[i] < b.getWest() -lngPad || _lng[i] > b.getEast() +lngPad) {
+        _spawnOne(i);
       }
     }
   }
 
-  /* ─── GPU render ────────────────────────────────────────────── */
+  /* ─── GPU draw: project geo→px via Leaflet, upload, render ─── */
   function _draw() {
     const gl = _gl;
-    if (!gl || !_ready || !_N || !_curr) return;
-    _syncBounds();
+    if (!gl || !_ready || !_N || !State.map) return;
     const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
+    const dpr = State.dpr;
 
-    /* === 1. Fade trail FBO === */
+    /* === 1. Fade FBO in-place === */
     gl.bindFramebuffer(gl.FRAMEBUFFER, _fbo);
     gl.viewport(0, 0, W, H);
     gl.useProgram(_progFade);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, _fboTex);
     gl.uniform1i(gl.getUniformLocation(_progFade, 'u_tex'), 0);
-    gl.uniform1f(gl.getUniformLocation(_progFade, 'u_fade'), Config.FADE_OPACITY);
-    gl.blendFunc(gl.ONE, gl.ZERO); /* overwrite — fade in-place */
+    gl.uniform1f(gl.getUniformLocation(_progFade, 'u_fade'), 0.88); /* lower = shorter trails */
+    gl.blendFunc(gl.ONE, gl.ZERO);
     _quad(_progFade);
 
-    /* === 2. Draw new line segments into FBO === */
-    /* Build interleaved vertex buffer: [prevLngN,prevLatN,spd,alpha, currLngN,currLatN,spd,alpha] */
-    const verts = new Float32Array(_N * 2 * 4); /* 2 verts × 4 floats */
+    /* === 2. Project particles to CSS pixels via Leaflet, build vertex buffer === */
+    /* stride: px_prev.x, px_prev.y, px_curr.x, px_curr.y, speed, alpha → 6 floats/particle */
+    const verts = new Float32Array(_N * 2 * 4); /* 2 verts × [x,y,spd,alph] */
+    let vi = 0;
     for (let i = 0; i < _N; i++) {
-      const b = i * 4;
-      const spd  = _curr[b+2];
-      const age  = _curr[b+3];
-      const alph = Math.min(0.88, (0.25 + Math.min(1, spd / 3.0) * 0.63))
-                 * Math.min(1.0, age / 20.0); /* fade-in at birth */
-      const v = i * 8;
-      /* prev vertex */
-      verts[v+0] = _prev[b];   verts[v+1] = _prev[b+1]; verts[v+2] = spd; verts[v+3] = alph;
-      /* curr vertex */
-      verts[v+4] = _curr[b];   verts[v+5] = _curr[b+1]; verts[v+6] = spd; verts[v+7] = alph;
+      if (_age[i] < 1) continue; /* skip newly spawned — no prev position yet */
+      const spd  = _spd[i];
+      if (spd < 0.3) continue;
+
+      /* Leaflet → CSS px */
+      const curr = State.map.latLngToContainerPoint(L.latLng(_lat[i],  _lng[i]));
+      const prev = State.map.latLngToContainerPoint(L.latLng(_plat[i], _plng[i]));
+
+      /* Skip if segment is zero-length or absurdly long (teleport after respawn) */
+      const dx = curr.x - prev.x, dy = curr.y - prev.y;
+      if (dx*dx + dy*dy > 2500) continue; /* >50px jump = skip */
+
+      const t    = Math.min(1, spd / Config.MAX_MS);
+      const alph = (0.3 + t * 0.6) * Math.min(1, _age[i] / 12.0); /* fade-in first 12 frames */
+
+      /* Physical pixels */
+      verts[vi++] = prev.x * dpr; verts[vi++] = prev.y * dpr; verts[vi++] = spd; verts[vi++] = alph;
+      verts[vi++] = curr.x * dpr; verts[vi++] = curr.y * dpr; verts[vi++] = spd; verts[vi++] = alph;
     }
+    const vertCount = vi / 4; /* number of actual vertices uploaded */
+    if (vertCount < 2) { _blitToScreen(W, H); return; }
+
     gl.bindBuffer(gl.ARRAY_BUFFER, _lineBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, verts.subarray(0, vi), gl.DYNAMIC_DRAW);
 
     gl.useProgram(_prog);
     gl.uniform2f(gl.getUniformLocation(_prog, 'u_res'), W, H);
-    gl.uniform1f(gl.getUniformLocation(_prog, 'u_latMin'), _latMin);
-    gl.uniform1f(gl.getUniformLocation(_prog, 'u_latMax'), _latMax);
-    gl.uniform1f(gl.getUniformLocation(_prog, 'u_lngMin'), _lngMin);
-    gl.uniform1f(gl.getUniformLocation(_prog, 'u_lngMax'), _lngMax);
 
-    const stride = 4 * 4; /* 4 floats × 4 bytes */
-    const aPos   = gl.getAttribLocation(_prog, 'a_pos');
-    const aSpd   = gl.getAttribLocation(_prog, 'a_speed');
-    const aAlph  = gl.getAttribLocation(_prog, 'a_alpha');
-    gl.enableVertexAttribArray(aPos);  gl.vertexAttribPointer(aPos,  2, gl.FLOAT, false, stride, 0);
+    const stride = 4 * 4;
+    const aPx   = gl.getAttribLocation(_prog, 'a_px');
+    const aSpd  = gl.getAttribLocation(_prog, 'a_speed');
+    const aAlph = gl.getAttribLocation(_prog, 'a_alpha');
+    gl.enableVertexAttribArray(aPx);   gl.vertexAttribPointer(aPx,   2, gl.FLOAT, false, stride, 0);
     gl.enableVertexAttribArray(aSpd);  gl.vertexAttribPointer(aSpd,  1, gl.FLOAT, false, stride, 8);
     gl.enableVertexAttribArray(aAlph); gl.vertexAttribPointer(aAlph, 1, gl.FLOAT, false, stride, 12);
-
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-    gl.drawArrays(gl.LINES, 0, _N * 2);
-    gl.disableVertexAttribArray(aPos);
+    gl.drawArrays(gl.LINES, 0, vertCount);
+    gl.disableVertexAttribArray(aPx);
     gl.disableVertexAttribArray(aSpd);
     gl.disableVertexAttribArray(aAlph);
 
-    /* === 3. Blit FBO → screen === */
+    _blitToScreen(W, H);
+  }
+
+  function _blitToScreen(W, H) {
+    const gl = _gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, W, H);
     gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
