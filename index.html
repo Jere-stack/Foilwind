@@ -350,8 +350,74 @@ animation: loc-pulse 2.5s ease-out infinite;
 }
 
 /* ============================================================
-CROSSHAIR — Windy-style center reticle + readout
+SPOT LIST — Ranked spots panel
 ============================================================ */
+#spot-list-btn {
+font-size: 15px; letter-spacing: -0.5px;
+}
+#spot-list {
+position: absolute; bottom: 0; left: 0; right: 0; z-index: 30;
+background: rgba(10,14,26,.97);
+border-top: 1px solid rgba(0,207,255,.2);
+border-radius: 20px 20px 0 0;
+-webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+box-shadow: 0 -8px 40px rgba(0,0,0,.6);
+-webkit-transform: translate3d(0,100%,0); transform: translate3d(0,100%,0);
+transition: transform .35s cubic-bezier(.32,.72,.24,1);
+max-height: 65vh;
+overflow-y: auto; -webkit-overflow-scrolling: touch;
+overscroll-behavior: contain;
+padding-bottom: calc(var(–sab) + 16px);
+}
+#spot-list.open { -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0); }
+#spot-list-handle {
+display: flex; justify-content: center; padding: 10px 0 6px;
+position: sticky; top: 0; background: rgba(10,14,26,.97); z-index: 1;
+}
+#spot-list-handle::after {
+content: ‘’; width: 36px; height: 4px; border-radius: 2px;
+background: rgba(255,255,255,.2);
+}
+.sl-header {
+padding: 4px 20px 12px; display: flex; justify-content: space-between; align-items: center;
+}
+.sl-title { font-size: 16px; font-weight: 800; letter-spacing: -.2px; }
+.sl-count { font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–muted); }
+.sl-item {
+display: flex; align-items: center; gap: 12px;
+padding: 10px 20px; border-bottom: 1px solid var(–border);
+cursor: pointer; transition: background .12s;
+}
+.sl-item:active { background: rgba(0,207,255,.08); }
+.sl-rank {
+font-family: ‘DM Mono’, monospace; font-size: 11px; font-weight: 700;
+color: var(–muted); width: 20px; text-align: center; flex-shrink: 0;
+}
+.sl-dot {
+width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+border: 1.5px solid rgba(255,255,255,.4);
+}
+.sl-info { flex: 1; min-width: 0; }
+.sl-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sl-desc { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); margin-top: 1px; }
+.sl-wind {
+text-align: right; flex-shrink: 0;
+}
+.sl-wind-val {
+font-family: ‘DM Mono’, monospace; font-size: 18px; font-weight: 500;
+line-height: 1;
+}
+.sl-wind-sub {
+font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted);
+margin-top: 2px;
+}
+.sl-badge-foilable {
+display: inline-block; font-family: ‘DM Mono’, monospace; font-size: 8px;
+background: rgba(80,237,120,.15); color: rgb(80,237,120);
+border: 1px solid rgba(80,237,120,.3); border-radius: 4px;
+padding: 1px 5px; margin-left: 6px; vertical-align: middle;
+}
+
 /* ============================================================
 CROSSHAIR — Windy-style center reticle
 ============================================================ */
@@ -612,6 +678,15 @@ animation: pulse-dot 1s ease infinite;
         <div class="sp-chip" data-layer="gust"><span class="l-icon">🌊</span>Puuska</div>
       </div>
     </div>
+    <div class="sp-section">
+      <div class="sp-label">Yksikkö</div>
+      <div class="sp-chips" id="units">
+        <div class="sp-chip active" data-unit="ms">m/s</div>
+        <div class="sp-chip" data-unit="kmh">km/h</div>
+        <div class="sp-chip" data-unit="kts">kts</div>
+        <div class="sp-chip" data-unit="bft">bft</div>
+      </div>
+    </div>
   </div>
 
   <div id="bottom">
@@ -629,6 +704,12 @@ animation: pulse-dot 1s ease infinite;
           <path d="M8 5v14l11-7z"/>
         </svg>
       </div>
+      <div class="mctl" id="btn-spots" title="Spotit">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+          <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+        </svg>
+      </div>
       <div id="bottom-bar-spacer"></div>
     </div>
     <div id="tl-wrap">
@@ -643,6 +724,17 @@ animation: pulse-dot 1s ease infinite;
   <div id="sheet">
     <div id="sheet-handle"></div>
     <div id="sheet-content"></div>
+  </div>
+
+  <!-- Spot ranking list -->
+
+  <div id="spot-list">
+    <div id="spot-list-handle"></div>
+    <div class="sl-header">
+      <span class="sl-title">Spotit</span>
+      <span class="sl-count" id="sl-count"></span>
+    </div>
+    <div id="sl-items"></div>
   </div>
 
   <!-- Toast for errors -->
@@ -672,6 +764,51 @@ const Config = {
   DROP_RATE_BUMP: 0.008,
   DATA_REFRESH_MS: 60 * 60 * 1000,
   PLAY_INTERVAL_MS: 800,
+};
+
+/* ── UNITS — Wind speed unit conversion ───────────────────────── */
+const Units = {
+  _active: 'ms',
+  _defs: {
+    ms:  { label: 'm/s',  factor: 1,      decimals: 1 },
+    kmh: { label: 'km/h', factor: 3.6,    decimals: 0 },
+    kts: { label: 'kts',  factor: 1.9438, decimals: 1 },
+    bft: { label: 'bft',  factor: 0,      decimals: 0 } /* special */
+  },
+  _bft: [0.3,1.6,3.4,5.5,8.0,10.8,13.9,17.2,20.8,24.5,28.5,32.7],
+  init() {
+    try { const s = localStorage.getItem('fs_unit'); if (s && this._defs[s]) this._active = s; } catch(e) {}
+    /* Activate chip */
+    document.querySelectorAll('#units .sp-chip').forEach(c => {
+      c.classList.toggle('active', c.dataset.unit === this._active);
+    });
+  },
+  set(unit) {
+    if (!this._defs[unit]) return;
+    this._active = unit;
+    try { localStorage.setItem('fs_unit', unit); } catch(e) {}
+    document.querySelectorAll('#units .sp-chip').forEach(c => {
+      c.classList.toggle('active', c.dataset.unit === unit);
+    });
+  },
+  get() { return this._active; },
+  label() { return this._defs[this._active].label; },
+  /** Convert m/s to active unit */
+  convert(ms) {
+    if (this._active === 'bft') {
+      for (let i = 0; i < this._bft.length; i++) { if (ms < this._bft[i]) return i; }
+      return 12;
+    }
+    return ms * this._defs[this._active].factor;
+  },
+  /** Format m/s value in active unit */
+  fmt(ms) {
+    const v = this.convert(ms);
+    const dec = this._defs[this._active].decimals;
+    return v.toFixed(dec);
+  },
+  /** Format with unit label */
+  fmtUnit(ms) { return this.fmt(ms) + ' ' + this.label(); }
 };
 
 /* ── COLOUR RAMP — LUT-cached for render loop performance ───── */
@@ -2038,7 +2175,7 @@ const Crosshair = {
     const c = ColorRamp.rgb(w.ms);
     const colorStr = 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
     
-    this._speedEl.innerHTML = '<span style="color:' + colorStr + '">' + w.ms.toFixed(1) + '</span><span class="cr-speed-unit">m/s</span>';
+    this._speedEl.innerHTML = '<span style="color:' + colorStr + '">' + Units.fmt(w.ms) + '</span><span class="cr-speed-unit">' + Units.label() + '</span>';
     
     const dir = (Math.atan2(-w.u, -w.v) * 180 / Math.PI + 360) % 360;
     const arrows = ['↓','↙','←','↖','↑','↗','→','↘'];
@@ -2064,7 +2201,7 @@ const Crosshair = {
     }
     if (gustMs != null && gustMs > w.ms * 1.05) {
       const gc = ColorRamp.rgb(gustMs);
-      this._gustEl.innerHTML = 'Puuska <span style="color:rgb(' + gc.r + ',' + gc.g + ',' + gc.b + ')">' + gustMs.toFixed(1) + '</span> m/s';
+      this._gustEl.innerHTML = 'Puuska <span style="color:rgb(' + gc.r + ',' + gc.g + ',' + gc.b + ')">' + Units.fmt(gustMs) + '</span> ' + Units.label();
       this._gustEl.style.display = '';
     } else {
       this._gustEl.style.display = 'none';
@@ -2166,6 +2303,106 @@ document.getElementById('btn-loc').addEventListener('click', () => {
   }, () => Toast.show('\ud83d\udccd Sijainnin haku epäonnistui'));
 }, { passive: true });
 document.getElementById('btn-play').addEventListener('click', togglePlay, { passive: true });
+
+/* ── SPOT LIST — Viewport-filtered ranked list ────────────────── */
+const SpotList = {
+  _open: false,
+  toggle() {
+    this._open = !this._open;
+    const el = document.getElementById('spot-list');
+    const overlay = document.getElementById('sheet-overlay');
+    if (this._open) {
+      closeSheet(); /* Close spot detail if open */
+      this.render();
+      el.classList.add('open');
+      overlay.classList.add('open');
+    } else {
+      el.classList.remove('open');
+      overlay.classList.remove('open');
+    }
+  },
+  close() {
+    this._open = false;
+    document.getElementById('spot-list').classList.remove('open');
+    document.getElementById('sheet-overlay').classList.remove('open');
+  },
+  render() {
+    if (!State.map) return;
+    const bounds = State.map.getBounds();
+    const hourIdx = State.currentHourIdx;
+    const layer = State.activeLayer;
+    /* Filter spots in viewport */
+    const visible = SPOTS.filter(s => {
+      if (!s.wx || !s.wx.hourly) return false;
+      return bounds.contains(L.latLng(s.lat, s.lng));
+    });
+    /* Get wind speed for each and sort descending */
+    const ranked = visible.map(s => {
+      const h = s.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
+      const ms = h.windspeed_10m[idx] || 0;
+      const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
+      const dir = h.winddirection_10m[idx] || 0;
+      const dms = layer === 'gust' ? gst : ms;
+      return { spot: s, ms, gst, dir, dms };
+    }).sort((a, b) => b.dms - a.dms);
+
+    document.getElementById('sl-count').textContent = ranked.length + ' / ' + SPOTS.length + ' spottia';
+    const container = document.getElementById('sl-items');
+    container.innerHTML = ranked.map((r, i) => {
+      const c = ColorRamp.rgb(r.dms);
+      const col = 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+      const foilable = r.ms >= 8;
+      const arrow = dirArrow(r.dir);
+      return '<div class="sl-item" data-spot="' + r.spot.name + '">'
+        + '<span class="sl-rank">' + (i + 1) + '</span>'
+        + '<div class="sl-dot" style="background:' + col + ';box-shadow:0 0 6px ' + ColorRamp.css(r.dms, 0.4) + '"></div>'
+        + '<div class="sl-info"><div class="sl-name">' + r.spot.name
+        + (foilable ? '<span class="sl-badge-foilable">FOIL ✓</span>' : '')
+        + '</div><div class="sl-desc">' + arrow + ' ' + Math.round(r.dir) + '° · ' + r.spot.desc + '</div></div>'
+        + '<div class="sl-wind"><div class="sl-wind-val" style="color:' + col + '">' + Units.fmt(r.dms) + '</div>'
+        + '<div class="sl-wind-sub">' + Units.label()
+        + (r.gst > r.ms * 1.1 ? ' · G ' + Units.fmt(r.gst) : '') + '</div></div>'
+        + '</div>';
+    }).join('');
+
+    if (!ranked.length) {
+      container.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-family:DM Mono,monospace;font-size:11px">Ei spotteja kartalla — zoomaa lähemmäs Suomea</div>';
+    }
+
+    /* Click to fly to spot and open detail */
+    container.querySelectorAll('.sl-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const name = el.dataset.spot;
+        const spot = SPOTS.find(s => s.name === name);
+        if (spot) {
+          this.close();
+          State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
+          setTimeout(() => openSheet(spot, State.currentHourIdx), 600);
+        }
+      });
+    });
+  }
+};
+
+document.getElementById('btn-spots').addEventListener('click', () => SpotList.toggle(), { passive: true });
+/* Close spot list when overlay is clicked (shared with sheet) */
+document.getElementById('sheet-overlay').addEventListener('click', () => { SpotList.close(); }, { passive: true });
+document.getElementById('spot-list-handle').addEventListener('click', () => SpotList.close(), { passive: true });
+
+/* ── UNIT SWITCHER ────────────────────────────────────────────── */
+document.getElementById('units').addEventListener('click', e => {
+  const b = e.target.closest('.sp-chip'); if (!b) return;
+  const unit = b.dataset.unit; if (!unit || unit === Units.get()) return;
+  Units.set(unit);
+  document.getElementById('settings-popup').classList.remove('open');
+  /* Refresh all displays that show wind values */
+  buildLegend();
+  Crosshair.refresh();
+  renderSpots(State.currentHourIdx);
+  if (State.sheetSpot) openSheet(State.sheetSpot, State.currentHourIdx);
+  if (SpotList._open) SpotList.render();
+}, { passive: true });
+
 document.getElementById('layers').addEventListener('click', e => {
   const b = e.target.closest('.sp-chip'); if (!b) return;
   const layer = b.dataset.layer; if (!layer || layer === State.activeLayer) return;
