@@ -132,10 +132,10 @@ text-align: center;
 }
 
 #timebox { pointer-events: none; display: flex; align-items: flex-end; margin-left: auto; }
-.topbar-scale { display: flex; align-items: center; gap: 3px; pointer-events: none; }
-.topbar-scale-bar { width: 6px; height: 80px; border-radius: 3px; }
-.topbar-scale-ticks { display: flex; flex-direction: column; justify-content: space-between; height: 80px; }
-.topbar-scale-ticks .ws-tick { font-family: ‘DM Mono’, monospace; font-size: 7px; line-height: 1; text-align: right; }
+.topbar-scale { display: flex; align-items: center; gap: 4px; pointer-events: none; }
+.topbar-scale-bar { width: 8px; height: 110px; border-radius: 4px; }
+.topbar-scale-ticks { display: flex; flex-direction: column; justify-content: space-between; height: 110px; }
+.topbar-scale-ticks .ws-tick { font-family: ‘DM Mono’, monospace; font-size: 8px; line-height: 1; text-align: right; }
 
 /* ============================================================
 MAP CONTROLS — bottom bar row
@@ -256,20 +256,23 @@ touch-action: pan-x; align-items: flex-end;
 #tl-scroll::-webkit-scrollbar { display: none; }
 
 .htick {
-flex: 0 0 20px; display: flex; flex-direction: column; align-items: center;
+flex: 0 0 24px; display: flex; flex-direction: column; align-items: center;
 justify-content: flex-end; height: 100%;
 -webkit-user-select: none; user-select: none; cursor: pointer;
 position: relative; padding-bottom: 14px;
 }
 .htick-bar {
-width: 12px; border-radius: 4px 4px 0 0; min-height: 3px;
+width: 14px; border-radius: 4px 4px 0 0; min-height: 3px;
+transition: opacity 0.15s;
 }
+.htick:active .htick-bar { opacity: 0.7; }
 .htick-lbl {
 position: absolute; bottom: 0; font-family: ‘DM Mono’, monospace;
-font-size: 8px; color: var(–muted); white-space: nowrap;
-pointer-events: none; opacity: 0;
+font-size: 7px; color: var(–muted); white-space: nowrap;
+pointer-events: none; opacity: 0.55;
 }
-.htick.show-lbl .htick-lbl { opacity: 0.7; }
+/* Every 3rd hour: slightly brighter */
+.htick.show-lbl .htick-lbl { opacity: 0.85; font-weight: 500; }
 
 #tl-indicator {
 position: absolute; top: 0; left: 50%; width: 3px; height: 100%;
@@ -349,6 +352,55 @@ animation: loc-pulse 2.5s ease-out infinite;
 /* ============================================================
 CROSSHAIR — Windy-style center reticle + readout
 ============================================================ */
+/* ============================================================
+CROSSHAIR — Windy-style center reticle
+============================================================ */
+#crosshair {
+position: fixed; top: 50%; left: 50%; z-index: 20;
+transform: translate(-50%, -50%);
+pointer-events: none;
+transition: opacity 0.3s;
+}
+#crosshair.panning { opacity: 0.3; }
+.ch-ring {
+width: 44px; height: 44px; border-radius: 50%;
+border: 1.5px solid rgba(255,255,255,0.45);
+position: relative;
+box-shadow: 0 0 12px rgba(0,0,0,0.5), inset 0 0 8px rgba(0,0,0,0.15);
+}
+.ch-dot {
+position: absolute; top: 50%; left: 50%;
+width: 5px; height: 5px; border-radius: 50%;
+background: #fff;
+transform: translate(-50%, -50%);
+box-shadow: 0 0 6px rgba(255,255,255,0.6);
+}
+.ch-tick {
+position: absolute; background: rgba(255,255,255,0.4);
+border-radius: 1px;
+}
+.ch-tick-n { width: 1.5px; height: 10px; top: -14px; left: 50%; transform: translateX(-50%); }
+.ch-tick-s { width: 1.5px; height: 10px; bottom: -14px; left: 50%; transform: translateX(-50%); }
+.ch-tick-e { width: 10px; height: 1.5px; right: -14px; top: 50%; transform: translateY(-50%); }
+.ch-tick-w { width: 10px; height: 1.5px; left: -14px; top: 50%; transform: translateY(-50%); }
+/* Wind direction indicator on crosshair ring */
+.ch-wind-arrow {
+position: absolute; top: 50%; left: 50%;
+width: 44px; height: 44px;
+margin-top: -22px; margin-left: -22px;
+transition: transform 0.4s cubic-bezier(.2,.8,.3,1);
+pointer-events: none;
+}
+.ch-wind-arrow::after {
+content: ‘’;
+position: absolute; top: -4px; left: 50%; transform: translateX(-50%);
+width: 0; height: 0;
+border-left: 4px solid transparent;
+border-right: 4px solid transparent;
+border-bottom: 7px solid var(–accent);
+filter: drop-shadow(0 0 4px rgba(0,207,255,0.5));
+}
+
 /* ============================================================
 BOTTOM SHEET  z:30
 ============================================================ */
@@ -475,15 +527,6 @@ transition: opacity .5s ease;
 /* ============================================================
 REFRESH INDICATOR
 ============================================================ */
-#lod-badge {
-position: absolute; top: calc(var(–sat) + 62px); left: calc(var(–sal) + 14px); z-index: 20;
-font-family: ‘DM Mono’, monospace; font-size: 9px; font-weight: 500;
-color: var(–muted); letter-spacing: .5px;
-background: var(–panel); border: 1px solid var(–border); border-radius: 6px;
-padding: 3px 7px; pointer-events: none;
--webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-transition: opacity .3s;
-}
 #refresh-dot {
 width: 6px; height: 6px; border-radius: 50%; background: var(–accent);
 position: absolute; top: calc(var(–sat) + 16px); left: 50%; z-index: 21;
@@ -532,14 +575,23 @@ animation: pulse-dot 1s ease infinite;
     <div class="cr-gust" id="cr-gust"></div>
   </div>
 
+  <!-- Crosshair — Windy-style reticle with wind direction -->
+
+  <div id="crosshair">
+    <div class="ch-ring">
+      <div class="ch-dot"></div>
+      <div class="ch-tick ch-tick-n"></div>
+      <div class="ch-tick ch-tick-s"></div>
+      <div class="ch-tick ch-tick-e"></div>
+      <div class="ch-tick ch-tick-w"></div>
+      <div class="ch-wind-arrow" id="ch-wind-arrow"></div>
+    </div>
+  </div>
+
   <div id="scale-bar">
     <div id="scale-label">1 km</div>
     <div id="scale-line" style="width:60px"></div>
   </div>
-
-  <!-- LOD badge -->
-
-  <div id="lod-badge"></div>
 
   <!-- Settings popup -->
 
@@ -968,16 +1020,6 @@ function buildLegend() {
   }).join('');
 }
 
-/* ── LOD BADGE ────────────────────────────────────────────────── */
-function updateLODBadge() {
-  const el = document.getElementById('lod-badge');
-  if (!el || !State.map) return;
-  const z = State.map.getZoom();
-  const step = ViewportGrid.gridStep(z);
-  const modelLabels = { best_match: 'Auto', icon_eu: 'ICON-EU', ecmwf_ifs025: 'ECMWF', gfs_seamless: 'GFS' };
-  el.textContent = (modelLabels[State.activeModel] || State.activeModel) + ' ~' + Math.round(step * 111) + 'km';
-}
-
 /* ── MAP ──────────────────────────────────────────────────────── */
 function initMap() {
   const map = L.map('map', {
@@ -1029,7 +1071,7 @@ function initMap() {
       ViewportGrid.loadViewport(map).then(() => {
         buildWindField(State.currentHourIdx).then(() => {
           drawColorField(); resetParticles(); renderSpots(State.currentHourIdx);
-          updateLODBadge(); Crosshair.refresh();
+           Crosshair.refresh();
           setTimeout(() => dot.classList.remove('pulse'), 800);
         });
       });
@@ -1038,7 +1080,7 @@ function initMap() {
 
   let _prevZoom = map.getZoom();
   map.on('zoomend', () => {
-    updateScaleBar(); _scheduleViewportLoad(); updateLODBadge(); updateHeatmapBlur();
+    updateScaleBar(); _scheduleViewportLoad();  updateHeatmapBlur();
     GeoProject.update(map);
     const newZoom = map.getZoom();
     const dz = _prevZoom - newZoom;
@@ -1793,7 +1835,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
   if (!times || !times.length) return;
   State._tlTimes = times; State._tlSpeeds = speeds; State._tlDirs = dirs;
   State._tlTicks = [];
-  const TICK_W = 20;
+  const TICK_W = 24;
   const DAY = ['Su','Ma','Ti','Ke','To','Pe','La']; let lastDay = -1;
 
   let maxMs = 1;
@@ -1847,11 +1889,33 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     _tlUpdateNow(activeIdx);
   });
 
+  /* Scroll handler — debounced selection */
   let _scrollTimer = null;
   tl.addEventListener('scroll', () => {
     clearTimeout(_scrollTimer);
     _scrollTimer = setTimeout(() => _tlSnapSelect(tl), 150);
   }, { passive: true });
+
+  /* Click handler — tap any tick to jump to it */
+  tl.addEventListener('click', (e) => {
+    const tick = e.target.closest('.htick');
+    if (!tick || !tick.dataset.idx) return;
+    const idx = parseInt(tick.dataset.idx);
+    if (isNaN(idx)) return;
+    /* Smooth scroll to center this tick */
+    tl.scrollTo({
+      left: tick.offsetLeft - tl.offsetWidth / 2 + TICK_W / 2,
+      behavior: 'smooth'
+    });
+    /* Immediately update data */
+    if (idx !== State.currentHourIdx) {
+      State.currentHourIdx = idx;
+      _tlUpdateNow(idx);
+      buildWindField(idx).then(() => { drawColorField(); resetParticles(); });
+      renderSpots(idx);
+      if (State.sheetSpot) openSheet(State.sheetSpot, idx);
+    }
+  });
 }
 
 function _tlUpdateNow(idx) {
@@ -1919,7 +1983,7 @@ function updateScaleBar() {
 /* ── CROSSHAIR READOUT — Sample wind at map center ────────── */
 const Crosshair = {
   _el: null, _speedEl: null, _arrowEl: null, _degEl: null, _gustEl: null,
-  _updateTimer: null,
+  _chEl: null, _windArrow: null, _updateTimer: null,
   
   init() {
     this._el = document.getElementById('crosshair-readout');
@@ -1927,9 +1991,16 @@ const Crosshair = {
     this._arrowEl = document.getElementById('cr-dir-arrow');
     this._degEl = document.getElementById('cr-dir-deg');
     this._gustEl = document.getElementById('cr-gust');
+    this._chEl = document.getElementById('crosshair');
+    this._windArrow = document.getElementById('ch-wind-arrow');
     if (!State.map) return;
     
-    State.map.on('moveend', () => { this._update(); });
+    State.map.on('movestart', () => { if (this._chEl) this._chEl.classList.add('panning'); });
+    State.map.on('moveend', () => {
+      if (this._chEl) this._chEl.classList.remove('panning');
+      this._update();
+    });
+    State.map.on('move', () => this._scheduleUpdate());
     
     this._update();
   },
@@ -1974,6 +2045,9 @@ const Crosshair = {
     this._arrowEl.textContent = arrows[Math.round(dir / 45) % 8];
     this._arrowEl.style.color = colorStr;
     this._degEl.textContent = Math.round(dir) + '°';
+    
+    /* Rotate crosshair wind direction arrow */
+    if (this._windArrow) this._windArrow.style.transform = 'rotate(' + Math.round(dir) + 'deg)';
     
     /* Find gust data from nearest data point */
     const allPts = ViewportGrid.getAllPoints();
@@ -2109,7 +2183,7 @@ document.getElementById('models').addEventListener('click', e => {
   State.activeModel = model;
   _rateLimited = false;
   try { sessionStorage.removeItem('foilspot_rl'); } catch(e) {}
-  updateLODBadge();
+  
   Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
   ViewportGrid._globalBase.clear();
   SPOTS.forEach(s => { s.wx = null; }); ViewportGrid.invalidateCache();
@@ -2160,7 +2234,7 @@ function scheduleRefresh() {
 /* ── MAIN ─────────────────────────────────────────────────────── */
 function main() {
   const bail = setTimeout(() => { hideLoading(); startRenderLoop(); }, 20000);
-  buildLegend(); initMap(); initCanvases(); updateLODBadge();
+  buildLegend(); initMap(); initCanvases(); 
   Crosshair.init();
 
   updateLoadText('Ladataan globaali tuulidata...');
@@ -2200,7 +2274,7 @@ function main() {
       }
       loadMarineTemp();
       State.lastDataLoad = Date.now(); scheduleRefresh();
-      updateLODBadge();
+      
       console.log('[Phase 2] Fine data ready:', ViewportGrid.getAllPoints().length, 'pts, spots:', SPOTS.filter(s=>s.wx).length);
     });
   })
