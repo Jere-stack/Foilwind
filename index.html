@@ -2972,7 +2972,10 @@ function scheduleRefresh() {
 
 /* ── MAIN ─────────────────────────────────────────────────────── */
 function main() {
-  const bail = setTimeout(() => { hideLoading(); startRenderLoop(); }, 20000);
+  const bail = setTimeout(() => {
+    console.warn('[FoilSpot] Bail timeout — showing map without full data');
+    hideLoading();
+  }, 10000); /* 10s max — don't make user wait longer */
   buildLegend(); initMap(); initCanvases();
   Crosshair.init(); WeatherWidget.init(); Units.init();
 
@@ -2980,22 +2983,23 @@ function main() {
   makeSwipeable(document.getElementById('sheet'), closeSheet);
   makeSwipeable(document.getElementById('spot-list'), () => SpotList.close());
 
-  updateLoadText('Ladataan globaali tuulidata...');
+  updateLoadText('Ladataan tuulidata...');
   ViewportGrid.loadGlobalCoarse((done, total) => {
-    updateLoadText('Globaali ' + Math.round(done / total * 100) + '%');
+    updateLoadText('Ladataan... ' + Math.round(done / total * 100) + '%');
   })
   .then(() => {
+    /* ── Phase 1: show map immediately with whatever data we have ── */
+    clearTimeout(bail);
     const all = ViewportGrid.getAllPoints();
-    if (all.length > 0) {
-      const ref = all.find(p => p.wx && p.wx.hourly);
-      if (ref) {
-        const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
-        buildWindField(ni).then(() => { drawColorField(); resetParticles(); startRenderLoop(); });
-        renderTimeline(ref.wx.hourly.time, ref.wx.hourly.windspeed_10m, ref.wx.hourly.winddirection_10m, ni);
-      } else { startRenderLoop(); }
-    } else { startRenderLoop(); }
+    const ref1 = all.find(p => p.wx && p.wx.hourly);
+    if (ref1) {
+      const ni = nowIdx(ref1.wx.hourly.time); State.currentHourIdx = ni;
+      buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
+      renderTimeline(ref1.wx.hourly.time, ref1.wx.hourly.windspeed_10m, ref1.wx.hourly.winddirection_10m, ni);
+    }
+    hideLoading(); /* ← hide NOW, don't wait for phase 2 */
 
-    updateLoadText('Tarkennetaan...');
+    /* ── Phase 2: load fine viewport + spots in background ── */
     const viewportPromise = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[Phase 2 viewport]', e));
     const spotsPromise = ViewportGrid.loadSpots().catch(e => console.warn('[Phase 2 spots]', e));
     Promise.allSettled([viewportPromise, spotsPromise]).then(() => {
@@ -3013,8 +3017,12 @@ function main() {
       State.lastDataLoad = Date.now(); scheduleRefresh();
     });
   })
-  .catch(err => { console.error('[FoilSpot]', err); Toast.show('⚠ Virhe säädatan latauksessa'); startRenderLoop(); })
-  .finally(() => { clearTimeout(bail); hideLoading(); });
+  .catch(err => {
+    clearTimeout(bail);
+    console.error('[FoilSpot]', err);
+    Toast.show('⚠ Virhe säädatan latauksessa');
+    hideLoading(); /* always hide even on error */
+  });
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', main);
