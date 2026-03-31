@@ -750,12 +750,37 @@ animation: pulse-dot 1s ease infinite;
         </svg>
       </div>
       <div class="mctl" id="btn-spots" title="Spotit">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-          <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+        <!-- Wingfoil rider icon: board + wing + person simplified -->
+        <svg width="22" height="22" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg">
+          <!-- board -->
+          <ellipse cx="16" cy="27" rx="11" ry="2.2"/>
+          <!-- body/torso -->
+          <rect x="14.5" y="16" width="3" height="7" rx="1.5"/>
+          <!-- head -->
+          <circle cx="16" cy="13.5" r="2.5"/>
+          <!-- wing left arm -->
+          <path d="M14.5 18 Q6 12 2 10 Q6 15 14.5 19Z"/>
+          <!-- wing right arm -->
+          <path d="M17.5 18 Q26 12 30 10 Q26 15 17.5 19Z"/>
+          <!-- front leg -->
+          <path d="M15 23 L13 27" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
+          <!-- back leg -->
+          <path d="M17 23 L19 27" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
         </svg>
       </div>
       <div id="bottom-bar-spacer"></div>
+      <!-- Right side: wingfoil icon button that opens spot list -->
+      <div class="mctl" id="btn-spots-right" title="Spotit" style="margin-left:auto">
+        <svg width="22" height="22" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg">
+          <ellipse cx="16" cy="27" rx="11" ry="2.2"/>
+          <rect x="14.5" y="16" width="3" height="7" rx="1.5"/>
+          <circle cx="16" cy="13.5" r="2.5"/>
+          <path d="M14.5 18 Q6 12 2 10 Q6 15 14.5 19Z"/>
+          <path d="M17.5 18 Q26 12 30 10 Q26 15 17.5 19Z"/>
+          <path d="M15 23 L13 27" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
+          <path d="M17 23 L19 27" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
+        </svg>
+      </div>
     </div>
     <div id="tl-wrap">
       <div id="tl-indicator"><div id="tl-time-bubble">--:--</div></div>
@@ -938,13 +963,6 @@ const SPOTS = [
   { name: 'Pori',              lat: 61.485,  lng: 21.797,  desc: 'Selkämeri',                          goodDirs: [[225,60],[270,45]] },
   { name: 'Turku',             lat: 60.452,  lng: 22.287,  desc: 'Turun saaristo',                     goodDirs: [[225,60],[270,40]] },
   { name: 'Lohja',             lat: 60.243,  lng: 23.998,  desc: 'Sisäjärvi',                          goodDirs: [[180,90],[0,90]] },
-  { name: 'Inkoo',             lat: 60.056,  lng: 23.997,  desc: 'Suomenlahti – avoin länsi',          goodDirs: [[225,55],[270,45]] },
-  { name: 'Porkkala',          lat: 59.983,  lng: 24.417,  desc: 'Niemenkärki – etelä ja länsi',       goodDirs: [[200,60]] },
-  { name: 'Suomenlinna',       lat: 60.145,  lng: 24.988,  desc: 'Etelä-Helsinki – kaikki tuulet',    goodDirs: [[180,90]] },
-  { name: 'Sipoo',             lat: 60.290,  lng: 25.280,  desc: 'Itäinen Suomenlahti – lounas–itä',  goodDirs: [[135,60],[90,40]] },
-  { name: 'Loviisa',           lat: 60.456,  lng: 26.228,  desc: 'Suomenlahti – itä–lounais',         goodDirs: [[90,55],[200,40]] },
-  { name: 'Rauma',             lat: 61.129,  lng: 21.514,  desc: 'Selkämeri – lounas–länsi',           goodDirs: [[225,60],[270,45]] },
-  { name: 'Uusikaupunki',      lat: 60.796,  lng: 21.408,  desc: 'Saaristo – länsi–lounas',            goodDirs: [[240,60]] },
 ];
 
 /* ── WINGFOIL SCORE ENGINE ───────────────────────────────────── */
@@ -2647,6 +2665,7 @@ const SpotList = {
 };
 
 document.getElementById('btn-spots').addEventListener('click', () => SpotList.toggle(), { passive: true });
+document.getElementById('btn-spots-right').addEventListener('click', () => SpotList.toggle(), { passive: true });
 /* Close spot list when overlay is clicked (shared with sheet) */
 document.getElementById('sheet-overlay').addEventListener('click', () => { SpotList.close(); }, { passive: true });
 document.getElementById('spot-list-handle').addEventListener('click', () => SpotList.close(), { passive: true });
