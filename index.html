@@ -1308,8 +1308,9 @@ const ViewportGrid = {
   async loadSpots() {
     const toLoad = SPOTS.filter(s => !s.wx);
     if (!toLoad.length) { ViewportGrid.invalidateCache(); return; }
+    /* Max 8 spots per batch — keeps URL under ~800 chars, safe for all browsers */
     const batches = [];
-    for (let i = 0; i < toLoad.length; i += 80) batches.push(toLoad.slice(i, i + 80));
+    for (let i = 0; i < toLoad.length; i += 8) batches.push(toLoad.slice(i, i + 8));
     for (const b of batches) await loadBatch(b, 7);
     ViewportGrid.invalidateCache();
   },
