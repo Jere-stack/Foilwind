@@ -2221,7 +2221,6 @@ function openSheet(spot, hourIdx) {
   document.getElementById('sheet-overlay').classList.add('open');
 }
 function closeSheet() { State.sheetSpot = null; document.getElementById('sheet').classList.remove('open'); document.getElementById('sheet-overlay').classList.remove('open'); }
-document.getElementById('sheet-overlay').addEventListener('click', closeSheet, { passive: true });
 document.getElementById('sheet-handle').addEventListener('click', closeSheet, { passive: true });
 
 /* ── TIMELINE ─────────────────────────────────────────────────── */
@@ -2982,11 +2981,14 @@ const ForecastPanel = {
 
 document.getElementById('btn-forecast').addEventListener('click', () => ForecastPanel.toggle(), { passive: true });
 document.getElementById('forecast-handle').addEventListener('click', () => ForecastPanel.close(), { passive: true });
-document.getElementById('sheet-overlay').addEventListener('click', () => { ForecastPanel.close(); }, { passive: true });
 document.getElementById('btn-spots-right').addEventListener('click', () => SpotList.toggle(), { passive: true });
-/* Close spot list when overlay is clicked (shared with sheet) */
-document.getElementById('sheet-overlay').addEventListener('click', () => { SpotList.close(); }, { passive: true });
 document.getElementById('spot-list-handle').addEventListener('click', () => SpotList.close(), { passive: true });
+/* Single overlay click handler — closes whatever is open */
+document.getElementById('sheet-overlay').addEventListener('click', () => {
+  closeSheet();
+  SpotList.close();
+  ForecastPanel.close();
+}, { passive: true });
 
 /* ── UNIT SWITCHER ────────────────────────────────────────────── */
 document.getElementById('units').addEventListener('click', e => {
