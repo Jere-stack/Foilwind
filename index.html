@@ -1312,8 +1312,6 @@ const ViewportGrid = {
     for (let i = 0; i < toLoad.length; i += 80) batches.push(toLoad.slice(i, i + 80));
     for (const b of batches) await loadBatch(b, 7);
     ViewportGrid.invalidateCache();
-    /* Render spots immediately after data arrives */
-    if (State.map) renderSpots(State.currentHourIdx);
   },
 
   getAllPoints() {
@@ -3107,11 +3105,12 @@ function main() {
       const ref = bestTimelineRef();
       if (ref) {
         const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
-        buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
+        buildWindField(ni).then(() => { drawColorField(); resetParticles(); renderSpots(ni); });
         const layer = State.activeLayer;
         const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
         renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
-        renderSpots(ni);
+      } else {
+        renderSpots(State.currentHourIdx);
       }
       loadMarineTemp();
       State.lastDataLoad = Date.now(); scheduleRefresh();
