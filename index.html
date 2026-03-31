@@ -648,6 +648,24 @@ transition: opacity .3s, transform .3s;
 }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: all; }
 
+/* Persistent rate-limit banner — stays until dismissed */
+#rl-banner {
+position: fixed; bottom: calc(var(–sab) + 148px); left: 12px; right: 12px; z-index: 50;
+background: rgba(255,160,0,.12); border: 1px solid rgba(255,160,0,.35);
+-webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+border-radius: 12px; padding: 10px 14px;
+display: none; align-items: center; gap: 10px;
+}
+#rl-banner.show { display: flex; }
+#rl-banner-text {
+flex: 1; font-family: ‘DM Mono’, monospace; font-size: 10px;
+color: rgb(255,200,80); line-height: 1.4;
+}
+#rl-banner-close {
+font-size: 16px; color: rgba(255,200,80,.6); cursor: pointer;
+padding: 2px 6px; flex-shrink: 0;
+}
+
 /* ============================================================
 LOADING  z:999
 ============================================================ */
@@ -817,6 +835,13 @@ animation: pulse-dot 1s ease infinite;
   </div>
 
   <div id="toast"></div>
+
+  <!-- Persistent rate-limit banner -->
+
+  <div id="rl-banner">
+    <div id="rl-banner-text">⚠️ Open-Meteo API-raja täynnä — tuulidata ei päivity.<br>Nollautuu automaattisesti klo 02:00 UTC.</div>
+    <div id="rl-banner-close" onclick="document.getElementById('rl-banner').classList.remove('show')">✕</div>
+  </div>
   <div id="refresh-dot"></div>
 </div>
 
@@ -2145,13 +2170,19 @@ const _batchCache = {};
 
 try {
   const rlTime = sessionStorage.getItem('foilspot_rl');
-  if (rlTime && Date.now() - parseInt(rlTime) < 3600000) _rateLimited = true;
+  if (rlTime && Date.now() - parseInt(rlTime) < 3600000) {
+    _rateLimited = true;
+    /* Show banner after DOM ready */
+    setTimeout(() => document.getElementById('rl-banner').classList.add('show'), 500);
+  }
 } catch(e) {}
 
 function setRateLimited() {
   _rateLimited = true;
   try { sessionStorage.setItem('foilspot_rl', Date.now().toString()); } catch(e) {}
-  Toast.show('⚠ Open-Meteo päiväraja täynnä. Nollautuu klo 02:00 (UTC 00:00). Kokeile myöhemmin.');
+  document.getElementById('rl-banner').classList.add('show');
+  console.warn('[API] Rate limited — daily quota reached');
+}
 }
 
 function loadBatch(points, forecastDays) {
@@ -2924,6 +2955,7 @@ document.getElementById('models').addEventListener('click', e => {
   State.activeModel = model;
   _rateLimited = false;
   try { sessionStorage.removeItem('foilspot_rl'); } catch(e) {}
+  document.getElementById('rl-banner').classList.remove('show');
   Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
   ViewportGrid._globalBase.clear();
   SPOTS.forEach(s => { s.wx = null; }); ViewportGrid.invalidateCache();
