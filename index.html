@@ -52,13 +52,13 @@ body {
   overscroll-behavior: none;
   /* Do NOT set touch-action here — it blocks Leaflet pan on iOS */
 }
-#app { position: absolute; inset: 0; overflow: hidden; touch-action: none; }
-#map { position: absolute; inset: 0; z-index: 1; background: var(--bg); touch-action: none; }
+#app { position: absolute; inset: 0; overflow: hidden; }
+#map { position: absolute; inset: 0; z-index: 1; background: var(--bg); }
 .leaflet-container {
   background: var(--bg) !important;
   isolation: isolate;
   -webkit-overflow-scrolling: auto;
-  touch-action: manipulation;
+  touch-action: none !important;
 }
 .leaflet-tile-pane { -webkit-filter: brightness(2.0) contrast(1.05) saturate(1.15); filter: brightness(2.0) contrast(1.05) saturate(1.15); }
 .leaflet-control-zoom { display: none !important; }
@@ -1436,7 +1436,6 @@ function initMap() {
     minZoom: 2, maxZoom: 13, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5,
     worldCopyJump: true,
     dragging: true,
-    tap: false,
     touchZoom: true,
     bounceAtZoomLimits: false
   });
@@ -1445,8 +1444,16 @@ function initMap() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
   State.map = map;
-  /* iOS Safari: force map to recalculate its size after render */
-  requestAnimationFrame(() => map.invalidateSize({ animate: false }));
+  /* Fix touch dragging: Leaflet needs touch-action none on its own container
+     so it can intercept all pointer events for pan/zoom */
+  requestAnimationFrame(() => {
+    const container = map.getContainer();
+    container.style.touchAction = 'none';
+    /* Also fix the map pane itself */
+    const pane = container.querySelector('.leaflet-map-pane');
+    if (pane) pane.style.touchAction = 'none';
+    map.invalidateSize({ animate: false });
+  });
   window.addEventListener('load', () => setTimeout(() => map.invalidateSize({ animate: false }), 100));
   map.on('moveend', () => {
     renderSpots(State.currentHourIdx);
