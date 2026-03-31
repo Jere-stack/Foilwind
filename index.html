@@ -749,29 +749,10 @@ animation: pulse-dot 1s ease infinite;
           <path d="M8 5v14l11-7z"/>
         </svg>
       </div>
-      <div class="mctl" id="btn-spots" title="Spotit">
-        <!-- Wingfoil rider icon: board + wing + person simplified -->
-        <svg width="22" height="22" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg">
-          <!-- board -->
-          <ellipse cx="16" cy="27" rx="11" ry="2.2"/>
-          <!-- body/torso -->
-          <rect x="14.5" y="16" width="3" height="7" rx="1.5"/>
-          <!-- head -->
-          <circle cx="16" cy="13.5" r="2.5"/>
-          <!-- wing left arm -->
-          <path d="M14.5 18 Q6 12 2 10 Q6 15 14.5 19Z"/>
-          <!-- wing right arm -->
-          <path d="M17.5 18 Q26 12 30 10 Q26 15 17.5 19Z"/>
-          <!-- front leg -->
-          <path d="M15 23 L13 27" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <!-- back leg -->
-          <path d="M17 23 L19 27" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
-        </svg>
-      </div>
       <div id="bottom-bar-spacer"></div>
-      <!-- Right side: wingfoil icon button that opens spot list -->
-      <div class="mctl" id="btn-spots-right" title="Spotit" style="margin-left:auto">
-        <svg width="22" height="22" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg">
+      <!-- Wingfoil icon — opens spot list, right side, no box -->
+      <div id="btn-spots-right" title="Spotit" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:manipulation;">
+        <svg width="34" height="34" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.5))">
           <ellipse cx="16" cy="27" rx="11" ry="2.2"/>
           <rect x="14.5" y="16" width="3" height="7" rx="1.5"/>
           <circle cx="16" cy="13.5" r="2.5"/>
@@ -1214,10 +1195,13 @@ const ViewportGrid = {
 
   async loadSpots() {
     const toLoad = SPOTS.filter(s => !s.wx);
-    if (!toLoad.length) return;
+    if (!toLoad.length) { ViewportGrid.invalidateCache(); return; }
     const batches = [];
     for (let i = 0; i < toLoad.length; i += 80) batches.push(toLoad.slice(i, i + 80));
     for (const b of batches) await loadBatch(b, 7);
+    ViewportGrid.invalidateCache();
+    /* Render spots immediately after data arrives */
+    if (State.map) renderSpots(State.currentHourIdx);
   },
 
   getAllPoints() {
@@ -2664,7 +2648,6 @@ const SpotList = {
   }
 };
 
-document.getElementById('btn-spots').addEventListener('click', () => SpotList.toggle(), { passive: true });
 document.getElementById('btn-spots-right').addEventListener('click', () => SpotList.toggle(), { passive: true });
 /* Close spot list when overlay is clicked (shared with sheet) */
 document.getElementById('sheet-overlay').addEventListener('click', () => { SpotList.close(); }, { passive: true });
@@ -2754,6 +2737,9 @@ function main() {
   const bail = setTimeout(() => { hideLoading(); startRenderLoop(); }, 20000);
   buildLegend(); initMap(); initCanvases(); 
   Crosshair.init(); WeatherWidget.init(); Units.init();
+
+  /* Always reload spot data fresh — clears any stale wx from previous sessions */
+  SPOTS.forEach(s => { s.wx = null; });
 
   updateLoadText('Ladataan globaali tuulidata...');
   ViewportGrid.loadGlobalCoarse((done, total) => {
