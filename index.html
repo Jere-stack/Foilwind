@@ -47,23 +47,18 @@ body {
   background: var(--bg); color: var(--text);
   font-family: 'Syne', sans-serif;
   overflow: hidden;
-  /* NEVER position:fixed on body — breaks Leaflet marker panes on iOS Safari */
   position: relative;
   -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
   overscroll-behavior: none;
-  touch-action: manipulation; /* 'none' breaks iOS Safari event handling */
+  /* Do NOT set touch-action here — it blocks Leaflet pan on iOS */
 }
-#app { position: absolute; inset: 0; overflow: hidden; }
-
-/* ============================================================
-MAP  z:1
-============================================================ */
-#map { position: absolute; inset: 0; z-index: 1; background: var(–bg); }
+#app { position: absolute; inset: 0; overflow: hidden; touch-action: none; }
+#map { position: absolute; inset: 0; z-index: 1; background: var(--bg); touch-action: none; }
 .leaflet-container {
-background: var(–bg) !important;
-isolation: isolate;
--webkit-overflow-scrolling: auto;
-touch-action: manipulation;
+  background: var(--bg) !important;
+  isolation: isolate;
+  -webkit-overflow-scrolling: auto;
+  touch-action: manipulation;
 }
 .leaflet-tile-pane { -webkit-filter: brightness(2.0) contrast(1.05) saturate(1.15); filter: brightness(2.0) contrast(1.05) saturate(1.15); }
 .leaflet-control-zoom { display: none !important; }
@@ -1439,7 +1434,11 @@ function initMap() {
   const map = L.map('map', {
     center: [62.5, 25.5], zoom: 5, zoomControl: false, attributionControl: true,
     minZoom: 2, maxZoom: 13, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5,
-    worldCopyJump: true
+    worldCopyJump: true,
+    dragging: true,
+    tap: false,
+    touchZoom: true,
+    bounceAtZoomLimits: false
   });
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd', maxZoom: 19,
@@ -2227,6 +2226,7 @@ function gustIndex(ms, gst) {
 function renderSpots(hourIdx) {
   for (const m of State.markers) m.remove(); State.markers = [];
   const layer = State.activeLayer, zoom = State.map ? State.map.getZoom() : 5;
+  const wfColors = { 'wf-perfect': 'rgb(255,200,30)', 'wf-good': 'rgb(80,237,120)', 'wf-ok': 'rgb(240,170,0)', 'wf-light': 'rgb(80,160,255)', 'wf-pass': 'rgba(180,215,255,.35)' };
   for (const spot of SPOTS) {
     if (!spot.wx || !spot.wx.hourly) continue;
     const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
@@ -2235,11 +2235,35 @@ function renderSpots(hourIdx) {
     const dms = layer === 'gust' ? gst : ms, c = ColorRamp.rgb(dms), col = 'rgb('+c.r+','+c.g+','+c.b+')';
     const score = WingfoilScore.compute(ms, gst, dir, spot);
     const wfLbl = WingfoilScore.label(score);
+    const wfColor = wfColors[wfLbl.cls] || 'var(--muted)';
 
-    const sz = zoom >= 8 ? 14 : zoom >= 6 ? 10 : 8;
-    const iconHtml = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';border:2px solid rgba(255,255,255,.6);box-sizing:border-box;cursor:pointer;"></div>';
-    const iconSize = [sz, sz];
-    const iconAnchor = [sz/2, sz/2];
+    let iconHtml, iconSize, iconAnchor;
+    if (zoom >= 8) {
+      iconHtml = '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer">'
+        + '<div style="width:46px;height:46px;border-radius:50%;border:2.5px solid '+wfColor+';'
+        + 'background:rgba(6,9,18,.18);display:flex;flex-direction:column;align-items:center;'
+        + 'justify-content:center;font-family:DM Mono,monospace;line-height:1;'
+        + 'box-shadow:0 0 14px rgba(6,9,18,.4);color:'+wfColor+'">'
+        + '<span style="font-size:16px;font-weight:700">'+score+'</span>'
+        + '<span style="font-size:6px;opacity:.7;margin-top:1px">/ 100</span>'
+        + '</div>'
+        + '<div style="font-family:DM Mono,monospace;font-size:8px;font-weight:600;color:'+col
+        + ';text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap">'+spot.name+'</div>'
+        + '</div>';
+      iconSize = [46, 62]; iconAnchor = [23, 23];
+    } else if (zoom >= 6) {
+      const sz = 28;
+      iconHtml = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:rgba(6,9,18,.18);'
+        + 'border:2px solid '+wfColor+';display:flex;align-items:center;justify-content:center;'
+        + 'font-family:DM Mono,monospace;font-size:9px;font-weight:700;color:'+wfColor+';'
+        + 'box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer">'+score+'</div>';
+      iconSize = [sz, sz]; iconAnchor = [sz/2, sz/2];
+    } else {
+      const sz = 9;
+      iconHtml = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:rgba(6,9,18,.18);'
+        + 'border:1.5px solid '+col+';box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer"></div>';
+      iconSize = [sz, sz]; iconAnchor = [sz/2, sz/2];
+    }
     const icon = L.divIcon({ className: '', html: iconHtml, iconSize, iconAnchor });
     State.markers.push(L.marker([spot.lat, spot.lng], { icon }).on('click', () => openSheet(spot, hourIdx)).addTo(State.map));
   }
