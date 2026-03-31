@@ -1154,7 +1154,7 @@ const ViewportGrid = {
         if (onProgress) onProgress(done, total);
       })
     ));
-    const bail = new Promise(resolve => setTimeout(() => resolve(), 10000));
+    const bail = new Promise(resolve => setTimeout(() => resolve(), 3000));
     await Promise.race([loadPromise, bail]);
 
     if (this._globalBase.size > 0) {
@@ -2972,56 +2972,52 @@ function scheduleRefresh() {
 
 /* ── MAIN ─────────────────────────────────────────────────────── */
 function main() {
-  const bail = setTimeout(() => {
-    console.warn('[FoilSpot] Bail timeout — showing map without full data');
-    hideLoading();
-  }, 10000); /* 10s max — don't make user wait longer */
   buildLegend(); initMap(); initCanvases();
   Crosshair.init(); WeatherWidget.init(); Units.init();
-
-  /* Init swipe-to-dismiss for both sheets */
   makeSwipeable(document.getElementById('sheet'), closeSheet);
   makeSwipeable(document.getElementById('spot-list'), () => SpotList.close());
 
-  updateLoadText('Ladataan tuulidata...');
-  ViewportGrid.loadGlobalCoarse((done, total) => {
-    updateLoadText('Ladataan... ' + Math.round(done / total * 100) + '%');
-  })
-  .then(() => {
-    /* ── Phase 1: show map immediately with whatever data we have ── */
-    clearTimeout(bail);
-    const all = ViewportGrid.getAllPoints();
-    const ref1 = all.find(p => p.wx && p.wx.hourly);
-    if (ref1) {
-      const ni = nowIdx(ref1.wx.hourly.time); State.currentHourIdx = ni;
-      buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
-      renderTimeline(ref1.wx.hourly.time, ref1.wx.hourly.windspeed_10m, ref1.wx.hourly.winddirection_10m, ni);
-    }
-    hideLoading(); /* ← hide NOW, don't wait for phase 2 */
+  /* ── Show map immediately — never block on API ── */
+  hideLoading();
 
-    /* ── Phase 2: load fine viewport + spots in background ── */
-    const viewportPromise = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[Phase 2 viewport]', e));
-    const spotsPromise = ViewportGrid.loadSpots().catch(e => console.warn('[Phase 2 spots]', e));
-    Promise.allSettled([viewportPromise, spotsPromise]).then(() => {
-      const ref = bestTimelineRef();
+  /* ── Load all data in background ── */
+  _loadAllData();
+}
+
+function _loadAllData() {
+  const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
+
+  /* Phase 1 — coarse global grid (spots visible fast) */
+  ViewportGrid.loadGlobalCoarse()
+    .then(() => {
+      const all = ViewportGrid.getAllPoints();
+      const ref = all.find(p => p.wx && p.wx.hourly);
       if (ref) {
         const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
-        State._lastTlHour = ni;
         buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
-        const layer = State.activeLayer;
-        const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
-        renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
-        renderSpots(ni);
+        renderTimeline(ref.wx.hourly.time, ref.wx.hourly.windspeed_10m, ref.wx.hourly.winddirection_10m, ni);
       }
-      loadMarineTemp();
-      State.lastDataLoad = Date.now(); scheduleRefresh();
-    });
-  })
-  .catch(err => {
-    clearTimeout(bail);
-    console.error('[FoilSpot]', err);
-    Toast.show('⚠ Virhe säädatan latauksessa');
-    hideLoading(); /* always hide even on error */
+    })
+    .catch(e => console.warn('[Phase 1]', e));
+
+  /* Phase 2 — fine viewport + spots (independent of phase 1) */
+  const vpPromise = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[Phase 2 vp]', e));
+  const spPromise = ViewportGrid.loadSpots().catch(e => console.warn('[Phase 2 spots]', e));
+  Promise.allSettled([vpPromise, spPromise]).then(() => {
+    const ref = bestTimelineRef();
+    if (ref) {
+      const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
+      State._lastTlHour = ni;
+      buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
+      const layer = State.activeLayer;
+      const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
+      renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
+      renderSpots(ni);
+    }
+    loadMarineTemp();
+    State.lastDataLoad = Date.now();
+    scheduleRefresh();
+    setTimeout(() => dot.classList.remove('pulse'), 800);
   });
 }
 
