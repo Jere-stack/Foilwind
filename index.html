@@ -736,23 +736,23 @@ animation: pulse-dot 1s ease infinite;
 
   <div id="bottom">
     <div id="bottom-bar">
-      <div class="mctl" id="btn-settings">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      <div id="btn-settings" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:manipulation;flex-shrink:0;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.5))"><path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
       </div>
-      <div class="mctl" id="btn-loc">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+      <div id="btn-loc" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:manipulation;flex-shrink:0;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.5))">
           <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
         </svg>
       </div>
-      <div class="mctl" id="btn-play">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" id="play-icon">
+      <div id="btn-play" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:manipulation;flex-shrink:0;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="white" id="play-icon" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.5))">
           <path d="M8 5v14l11-7z"/>
         </svg>
       </div>
       <div id="bottom-bar-spacer"></div>
       <!-- Wingfoil icon — opens spot list, right side, no box -->
       <div id="btn-spots-right" title="Spotit" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:manipulation;">
-        <svg width="34" height="34" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.5))">
+        <svg width="40" height="40" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.5))">
           <ellipse cx="16" cy="27" rx="11" ry="2.2"/>
           <rect x="14.5" y="16" width="3" height="7" rx="1.5"/>
           <circle cx="16" cy="13.5" r="2.5"/>
@@ -954,12 +954,13 @@ const SPOTS = [
 const WingfoilScore = {
   /* Score wind speed component: 0–1 */
   _speedScore(ms) {
-    if (ms < 3)  return ms / 3 * 0.05;          // 0–3 m/s: nearly zero
-    if (ms < 6)  return 0.05 + (ms - 3) / 3 * 0.35; // 3–6: ramping
-    if (ms <= 14) return 0.40 + (ms - 6) / 8 * 0.60; // 6–14: prime zone → 1.0
-    if (ms <= 18) return 1.0 - (ms - 14) / 4 * 0.25;  // 14–18: slight drop
-    if (ms <= 22) return 0.75 - (ms - 18) / 4 * 0.45; // 18–22: getting risky
-    return Math.max(0, 0.30 - (ms - 22) / 4 * 0.30);  // 22+: too much
+    if (ms < 2)  return ms / 2 * 0.03;                   // 0–2 m/s: lähes nolla
+    if (ms < 5)  return 0.03 + (ms - 2) / 3 * 0.42;      // 2–5: ramping → 0.45 (ajettava raja)
+    if (ms < 6)  return 0.45 + (ms - 5) * 0.22;          // 5–6: nopea nousu ajettavasta hyvään
+    if (ms <= 14) return 0.67 + (ms - 6) / 8 * 0.33;     // 6–14: prime zone → 1.0
+    if (ms <= 18) return 1.0 - (ms - 14) / 4 * 0.25;     // 14–18: lievä lasku
+    if (ms <= 22) return 0.75 - (ms - 18) / 4 * 0.45;    // 18–22: riskialtista
+    return Math.max(0, 0.30 - (ms - 22) / 4 * 0.30);     // 22+: liian kovaa
   },
 
   /* Score gust component: 0–1. Ratio close to 1.0 = steady = good */
@@ -2269,7 +2270,7 @@ function scrollTimelineTo(idx) {
 function togglePlay() {
   const btn = document.getElementById('btn-play'), icon = document.getElementById('play-icon');
   if (State.isPlaying) { stopPlay(); return; }
-  State.isPlaying = true; btn.classList.add('playing');
+  State.isPlaying = true; btn.style.opacity = '0.6';
   icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
   if (!State._tlTicks || !State._tlTicks.length) { stopPlay(); return; }
   let cur = State.currentHourIdx || 0;
@@ -2277,7 +2278,8 @@ function togglePlay() {
 }
 function stopPlay() {
   State.isPlaying = false; clearInterval(State.playTimer);
-  document.getElementById('btn-play').classList.remove('playing');
+  const btn = document.getElementById('btn-play');
+  btn.style.opacity = '1';
   document.getElementById('play-icon').innerHTML = '<path d="M8 5v14l11-7z"/>';
 }
 
