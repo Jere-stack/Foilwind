@@ -2112,8 +2112,10 @@ function gustIndex(ms, gst) {
 function renderSpots(hourIdx) {
   for (const m of State.markers) m.remove(); State.markers = [];
   const layer = State.activeLayer, zoom = State.map ? State.map.getZoom() : 5;
+  const spotsWithData = SPOTS.filter(s => s.wx && s.wx.hourly);
+  console.log('[renderSpots] hourIdx=' + hourIdx + ' zoom=' + zoom.toFixed(1) + ' spotsWithData=' + spotsWithData.length + '/' + SPOTS.length);
   for (const spot of SPOTS) {
-    if (!spot.wx || !spot.wx.hourly) continue;
+    if (!spot.wx || !spot.wx.hourly) { console.log('[renderSpots] SKIP ' + spot.name + ' wx=' + (spot.wx ? 'no hourly' : 'null')); continue; }
     const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
     const ms = h.windspeed_10m[idx] || 0, gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
     const dir = h.winddirection_10m[idx] || 0;
