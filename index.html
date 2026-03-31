@@ -190,16 +190,16 @@ SETTINGS — Apple Liquid Glass popover
 ============================================================ */
 #settings-popup {
 position: fixed; z-index: 30;
-background: rgba(255,255,255,.08);
-border: 1px solid rgba(255,255,255,.15);
+background: rgba(6,9,18,.12);
+border: 1px solid rgba(255,255,255,.18);
 border-radius: 16px;
--webkit-backdrop-filter: blur(24px) saturate(1.4);
-backdrop-filter: blur(24px) saturate(1.4);
+-webkit-backdrop-filter: blur(40px) saturate(1.8);
+backdrop-filter: blur(40px) saturate(1.8);
 padding: 14px 16px;
 box-shadow:
-0 0 0 0.5px rgba(255,255,255,.06) inset,
-0 12px 40px rgba(0,0,0,.45),
-0 2px 8px rgba(0,0,0,.2);
+0 0 0 0.5px rgba(255,255,255,.10) inset,
+0 12px 40px rgba(0,0,0,.35),
+0 2px 8px rgba(0,0,0,.15);
 transform: translateY(8px) scale(0.95);
 opacity: 0; pointer-events: none;
 transition: transform .25s cubic-bezier(.2,.9,.3,1.2), opacity .2s ease;
@@ -213,19 +213,21 @@ opacity: 1; pointer-events: all;
 .sp-section:last-child { margin-bottom: 0; }
 .sp-label {
 font-family: ‘DM Mono’, monospace; font-size: 9px; font-weight: 500;
-color: rgba(255,255,255,.4); letter-spacing: 1.2px; text-transform: uppercase;
+color: rgba(255,255,255,.75); letter-spacing: 1.2px; text-transform: uppercase;
 margin-bottom: 8px;
+text-shadow: 0 1px 4px rgba(0,0,0,.6);
 }
 .sp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .sp-chip {
 height: 32px; border-radius: 16px; padding: 0 12px;
-border: 1px solid rgba(255,255,255,.1);
-background: rgba(255,255,255,.04);
-color: rgba(255,255,255,.6);
+border: 1px solid rgba(255,255,255,.18);
+background: rgba(255,255,255,.10);
+color: rgba(255,255,255,.85);
 font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 500;
 display: flex; align-items: center; gap: 4px; cursor: pointer;
 transition: all .15s ease;
 -webkit-user-select: none; user-select: none;
+text-shadow: 0 1px 3px rgba(0,0,0,.5);
 }
 .sp-chip:active { transform: scale(0.95); }
 .sp-chip.active {
