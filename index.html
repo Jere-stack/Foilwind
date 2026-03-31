@@ -976,32 +976,21 @@ const Units = {
 /* ── COLOUR RAMP — LUT-cached for render loop performance ───── */
 const ColorRamp = (() => {
   const RAMP = [
-    { t: 0.00, r: 8,   g: 16,  b: 45  },  // 0 m/s  — tumma navy, lähes näkymätön
-    { t: 0.10, r: 12,  g: 28,  b: 75  },  // ~2 m/s — navy
-    { t: 0.20, r: 20,  g: 60,  b: 160 },  // ~4 m/s — sininen, herääminen
-    { t: 0.28, r: 0,   g: 160, b: 230 },  // ~5 m/s — sininen → syaani (ajettava raja)
-    { t: 0.36, r: 0,   g: 220, b: 210 },  // ~6 m/s — syaani → vaaleanvihreä
-    { t: 0.44, r: 40,  g: 245, b: 120 },  // ~7 m/s — kirkkaanvihreä (huippu alkaa)
-    { t: 0.54, r: 180, g: 255, b: 20  },  // ~8 m/s — keltavihreä 🔥 huippu
-    { t: 0.62, r: 255, g: 235, b: 0   },  // ~9 m/s — keltainen
-    { t: 0.72, r: 255, g: 140, b: 0   },  // ~11 m/s — oranssi
-    { t: 0.80, r: 255, g: 40,  b: 0   },  // ~13 m/s — punainen
-    { t: 0.88, r: 210, g: 0,   b: 30  },  // ~15 m/s — tummanpunainen
-    { t: 0.94, r: 160, g: 0,   b: 110 },  // ~17 m/s — violetinpunainen
-    { t: 1.00, r: 110, g: 0,   b: 180 }   // 20+ m/s — violetti
+    { t: 0.00, r: 20,  g: 40,  b: 80  },
+    { t: 0.05, r: 30,  g: 70,  b: 140 },
+    { t: 0.12, r: 0,   g: 120, b: 255 },
+    { t: 0.22, r: 0,   g: 200, b: 255 },
+    { t: 0.34, r: 0,   g: 245, b: 175 },
+    { t: 0.46, r: 30,  g: 245, b: 70  },
+    { t: 0.56, r: 170, g: 245, b: 5   },
+    { t: 0.64, r: 255, g: 220, b: 0   },
+    { t: 0.72, r: 255, g: 120, b: 0   },
+    { t: 0.75, r: 255, g: 40,  b: 0   },
+    { t: 0.85, r: 220, g: 0,   b: 20  },
+    { t: 0.93, r: 180, g: 0,   b: 100 },
+    { t: 1.00, r: 130, g: 0,   b: 180 }
   ];
-  /* Piecewise msToT: venyttää 4–9 m/s alueen isoksi osuudeksi (0.18–0.62),
-     jolloin väri vaihtuu nopeasti ajettavalla tuulialueella */
-  function msToT(ms) {
-    const m = Math.max(0, Math.min(ms, 20));
-    if (m <= 4)  return m / 4 * 0.20;                        // 0–4   → 0.00–0.20
-    if (m <= 5)  return 0.20 + (m - 4) / 1 * 0.08;          // 4–5   → 0.20–0.28
-    if (m <= 6)  return 0.28 + (m - 5) / 1 * 0.08;          // 5–6   → 0.28–0.36
-    if (m <= 7)  return 0.36 + (m - 6) / 1 * 0.08;          // 6–7   → 0.36–0.44
-    if (m <= 9)  return 0.44 + (m - 7) / 2 * 0.18;          // 7–9   → 0.44–0.62 (huippu)
-    if (m <= 14) return 0.62 + (m - 9) / 5 * 0.20;          // 9–14  → 0.62–0.82
-    return       0.82 + (m - 14) / 6 * 0.18;                 // 14–20 → 0.82–1.00
-  }
+  function msToT(ms) { return Math.pow(Math.min(1, Math.max(0, ms / Config.MAX_MS)), 0.55); }
   function interpolate(ramp, t) {
     for (let i = 1; i < ramp.length; i++) {
       if (t <= ramp[i].t) {
@@ -1384,7 +1373,7 @@ function buildLegend() {
   const bar = document.getElementById('wind-scale-bar');
   const ticks = document.getElementById('wind-scale-ticks');
   if (!bar || !ticks) return;
-  const stops = [{val:20,lbl:'20'},{val:14,lbl:'14'},{val:9,lbl:'9'},{val:7,lbl:'7'},{val:5,lbl:'5'},{val:0,lbl:'0'}];
+  const stops = [{val:20,lbl:'20'},{val:15,lbl:'15'},{val:12,lbl:'12'},{val:8,lbl:'8'},{val:4,lbl:'4'},{val:0,lbl:'0'}];
   bar.style.background = 'linear-gradient(to bottom,' + stops.map(s => {
     const c = ColorRamp.rgb(s.val); return 'rgb('+c.r+','+c.g+','+c.b+')';
   }).join(',') + ')';
@@ -2927,7 +2916,7 @@ const ForecastPanel = {
         const wxIcon = w.wxCode != null ? this._wxIcon(w.wxCode) : '🌬️';
         const gustTxt = w.gst > w.ms * 1.1 ? ' · G' + Units.fmt(w.gst) : '';
 
-        html += '<div class="fc-window" data-spot="' + w.spot.name + '" data-hidx="' + w.timeKey + '">'
+        html += '<div class="fc-window" data-spot="' + w.spot.name + '" data-time="' + w.t0.getTime() + '">'
           + '<div class="fc-score-ring ' + wfLbl.cls + '" style="color:' + wfColor + '">'
             + '<span class="fc-score-num">' + w.score + '</span>'
             + '<span class="fc-score-sub">/ 100</span>'
@@ -2970,23 +2959,22 @@ const ForecastPanel = {
     container.querySelectorAll('.fc-window').forEach(el => {
       el.addEventListener('click', () => {
         const name = el.dataset.spot;
-        const hidx = parseInt(el.dataset.hidx);
+        const targetTime = parseInt(el.dataset.time);
         const spot = SPOTS.find(s => s.name === name);
         if (!spot) return;
         this.close();
         State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
-        /* Find timeline index matching this hour */
-        if (State._tlTimes) {
+        /* Find timeline index matching this exact timestamp */
+        if (State._tlTimes && targetTime) {
           let best = State.currentHourIdx, bd = Infinity;
           for (let i = 0; i < State._tlTimes.length; i++) {
-            const h = new Date(State._tlTimes[i]).getHours();
-            const d = Math.abs(h - hidx);
+            const d = Math.abs(new Date(State._tlTimes[i]).getTime() - targetTime);
             if (d < bd) { bd = d; best = i; }
           }
           State.currentHourIdx = best;
+          _tlUpdateNow(best);
           scrollTimelineTo(best);
-          buildWindField(best).then(() => { drawColorField(); resetParticles(); });
-          renderSpots(best);
+          buildWindField(best).then(() => { drawColorField(); resetParticles(); renderSpots(best); });
         }
         setTimeout(() => openSheet(spot, State.currentHourIdx), 700);
       });
