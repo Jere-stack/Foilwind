@@ -3075,6 +3075,7 @@ function main() {
 
   /* Always reload spot data fresh — clears any stale wx from previous sessions */
   SPOTS.forEach(s => { s.wx = null; });
+  Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
 
   updateLoadText('Ladataan globaali tuulidata...');
   ViewportGrid.loadGlobalCoarse((done, total) => {
@@ -3100,7 +3101,9 @@ function main() {
 
     updateLoadText('Tarkennetaan...');
     const viewportPromise = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[Phase 2 viewport]', e));
-    const spotsPromise = ViewportGrid.loadSpots().catch(e => console.warn('[Phase 2 spots]', e));
+    const spotsPromise = ViewportGrid.loadSpots()
+      .then(() => { if (State.map) renderSpots(State.currentHourIdx); })
+      .catch(e => console.warn('[Phase 2 spots]', e));
     Promise.allSettled([viewportPromise, spotsPromise]).then(() => {
       const ref = bestTimelineRef();
       if (ref) {
