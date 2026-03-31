@@ -2240,27 +2240,30 @@ function renderSpots(hourIdx) {
     let iconHtml, iconSize, iconAnchor;
     if (zoom >= 8) {
       iconHtml = '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer">'
-        + '<div style="width:46px;height:46px;border-radius:50%;border:2.5px solid '+wfColor+';'
-        + 'background:rgba(6,9,18,.18);display:flex;flex-direction:column;align-items:center;'
+        + '<div style="width:40px;height:40px;border-radius:50%;border:2px solid '+wfColor+';'
+        + 'background:radial-gradient(circle at 40% 35%, rgba(40,45,60,.85) 0%, rgba(10,13,24,.92) 100%);'
+        + 'display:flex;flex-direction:column;align-items:center;'
         + 'justify-content:center;font-family:DM Mono,monospace;line-height:1;'
-        + 'box-shadow:0 0 14px rgba(6,9,18,.4);color:'+wfColor+'">'
-        + '<span style="font-size:16px;font-weight:700">'+score+'</span>'
-        + '<span style="font-size:6px;opacity:.7;margin-top:1px">/ 100</span>'
+        + 'box-shadow:0 0 12px rgba(6,9,18,.5);color:'+wfColor+'">'
+        + '<span style="font-size:14px;font-weight:700">'+score+'</span>'
+        + '<span style="font-size:6px;opacity:.65;margin-top:1px">/ 100</span>'
         + '</div>'
         + '<div style="font-family:DM Mono,monospace;font-size:8px;font-weight:600;color:'+col
         + ';text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap">'+spot.name+'</div>'
         + '</div>';
-      iconSize = [46, 62]; iconAnchor = [23, 23];
+      iconSize = [40, 56]; iconAnchor = [20, 20];
     } else if (zoom >= 6) {
-      const sz = 28;
-      iconHtml = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:rgba(6,9,18,.18);'
-        + 'border:2px solid '+wfColor+';display:flex;align-items:center;justify-content:center;'
-        + 'font-family:DM Mono,monospace;font-size:9px;font-weight:700;color:'+wfColor+';'
+      const sz = 24;
+      iconHtml = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;'
+        + 'background:radial-gradient(circle at 40% 35%, rgba(40,45,60,.85) 0%, rgba(10,13,24,.92) 100%);'
+        + 'border:1.5px solid '+wfColor+';display:flex;align-items:center;justify-content:center;'
+        + 'font-family:DM Mono,monospace;font-size:8px;font-weight:700;color:'+wfColor+';'
         + 'box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer">'+score+'</div>';
       iconSize = [sz, sz]; iconAnchor = [sz/2, sz/2];
     } else {
-      const sz = 9;
-      iconHtml = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:rgba(6,9,18,.18);'
+      const sz = 7;
+      iconHtml = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;'
+        + 'background:radial-gradient(circle at 40% 35%, rgba(40,45,60,.85) 0%, rgba(10,13,24,.92) 100%);'
         + 'border:1.5px solid '+col+';box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer"></div>';
       iconSize = [sz, sz]; iconAnchor = [sz/2, sz/2];
     }
