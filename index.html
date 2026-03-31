@@ -2112,10 +2112,8 @@ function gustIndex(ms, gst) {
 function renderSpots(hourIdx) {
   for (const m of State.markers) m.remove(); State.markers = [];
   const layer = State.activeLayer, zoom = State.map ? State.map.getZoom() : 5;
-  const spotsWithData = SPOTS.filter(s => s.wx && s.wx.hourly);
-  console.log('[renderSpots] hourIdx=' + hourIdx + ' zoom=' + zoom.toFixed(1) + ' spotsWithData=' + spotsWithData.length + '/' + SPOTS.length);
   for (const spot of SPOTS) {
-    if (!spot.wx || !spot.wx.hourly) { console.log('[renderSpots] SKIP ' + spot.name + ' wx=' + (spot.wx ? 'no hourly' : 'null')); continue; }
+    if (!spot.wx || !spot.wx.hourly) continue;
     const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
     const ms = h.windspeed_10m[idx] || 0, gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
     const dir = h.winddirection_10m[idx] || 0;
@@ -2125,34 +2123,46 @@ function renderSpots(hourIdx) {
 
     let iconHtml, iconSize, iconAnchor;
     const wfColors = { 'wf-perfect': 'rgb(255,200,30)', 'wf-good': 'rgb(80,237,120)', 'wf-ok': 'rgb(240,170,0)', 'wf-light': 'rgb(80,160,255)', 'wf-pass': 'rgba(180,215,255,.35)' };
-    const wfColor = wfColors[wfLbl.cls] || 'var(--muted)';
+    const wfColor = wfColors[wfLbl.cls] || 'rgba(180,215,255,.35)';
+
     if (zoom >= 8) {
-      /* Score ring marker */
-      iconHtml = '<div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer">'
-        + '<div style="width:46px;height:46px;border-radius:50%;border:2.5px solid '+wfColor+';'
-        + 'background:rgba(6,9,18,.18);display:flex;flex-direction:column;align-items:center;'
-        + 'justify-content:center;font-family:DM Mono,monospace;line-height:1;'
-        + 'box-shadow:0 0 14px rgba(6,9,18,.4);color:'+wfColor+'">'
-        + '<span style="font-size:16px;font-weight:700">'+score+'</span>'
-        + '<span style="font-size:6px;opacity:.7;margin-top:1px">/ 100</span>'
+      /* Large score ring — Safari-safe: fixed pixel sizes, no flex */
+      iconHtml = '<div style="position:relative;width:46px;height:62px;cursor:pointer">'
+        + '<div style="position:absolute;top:0;left:0;width:46px;height:46px;border-radius:23px;'
+        + 'border:2.5px solid '+wfColor+';background:rgba(6,9,18,.18);'
+        + 'box-sizing:border-box;">'
+        + '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-54%);'
+        + 'font-family:DM Mono,monospace;font-size:16px;font-weight:700;line-height:1;'
+        + 'color:'+wfColor+';text-align:center;white-space:nowrap">' + score + '</div>'
+        + '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,30%);'
+        + 'font-family:DM Mono,monospace;font-size:6px;color:'+wfColor+';opacity:.65;'
+        + 'text-align:center;white-space:nowrap">/ 100</div>'
         + '</div>'
-        + '<div style="font-family:DM Mono,monospace;font-size:8px;font-weight:600;color:'+col
-        + ';text-shadow:0 1px 4px rgba(0,0,0,.8);white-space:nowrap">'+spot.name+'</div>'
+        + '<div style="position:absolute;bottom:0;left:0;width:46px;'
+        + 'font-family:DM Mono,monospace;font-size:8px;font-weight:600;color:'+col+';'
+        + 'text-align:center;white-space:nowrap;overflow:hidden;'
+        + 'text-shadow:0 1px 4px rgba(0,0,0,.9)">' + spot.name + '</div>'
         + '</div>';
       iconSize = [46, 62]; iconAnchor = [23, 23];
+
     } else if (zoom >= 6) {
-      /* Medium dot with score number */
-      const sz = 26;
-      iconHtml = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:rgba(6,9,18,.18);'
-        + 'border:2px solid '+col+';display:flex;align-items:center;justify-content:center;'
-        + 'font-family:DM Mono,monospace;font-size:9px;font-weight:700;color:'+col+';'
-        + 'box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer">'+score+'</div>';
+      /* Medium circle with score number */
+      const sz = 28;
+      iconHtml = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:'+(sz/2)+'px;'
+        + 'background:rgba(6,9,18,.18);border:2px solid '+col+';'
+        + 'box-sizing:border-box;position:relative;cursor:pointer;">'
+        + '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'
+        + 'font-family:DM Mono,monospace;font-size:9px;font-weight:700;'
+        + 'color:'+col+';text-align:center;white-space:nowrap">' + score + '</div>'
+        + '</div>';
       iconSize = [sz, sz]; iconAnchor = [sz/2, sz/2];
+
     } else {
       /* Small dot */
-      const sz = 8, bw = 1.5;
-      iconHtml = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:rgba(6,9,18,.18);'
-        + 'border:'+bw+'px solid '+col+';box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer"></div>';
+      const sz = 10;
+      iconHtml = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:'+(sz/2)+'px;'
+        + 'background:rgba(6,9,18,.18);border:2px solid '+col+';'
+        + 'box-sizing:border-box;cursor:pointer;"></div>';
       iconSize = [sz, sz]; iconAnchor = [sz/2, sz/2];
     }
     const icon = L.divIcon({ className: '', html: iconHtml, iconSize, iconAnchor });
