@@ -38,30 +38,59 @@
   -webkit-touch-callout: none;
 }
 html {
-  height: -webkit-fill-available; background: var(--bg);
+  width: 100%; height: 100%;
+  background: var(--bg);
   overscroll-behavior: none;
 }
 body {
-  width: 100%; height: 100%; min-height: -webkit-fill-available;
+  width: 100%; height: 100%;
   background: var(--bg); color: var(--text);
   font-family: 'Syne', sans-serif;
-  overflow: hidden; position: fixed; inset: 0;
+  overflow: hidden;
+  /* NEVER position:fixed on body — breaks Leaflet marker panes on iOS Safari */
+  position: relative;
   -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
   overscroll-behavior: none;
-  touch-action: none;
+  touch-action: manipulation; /* 'none' breaks iOS Safari event handling */
 }
-#app { position: absolute; inset: 0; }
+#app { position: absolute; inset: 0; overflow: hidden; }
 
 /* ============================================================
 MAP  z:1
 ============================================================ */
 #map { position: absolute; inset: 0; z-index: 1; background: var(–bg); }
-.leaflet-container { background: var(–bg) !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
+.leaflet-container {
+background: var(–bg) !important;
+isolation: isolate;
+-webkit-overflow-scrolling: auto;
+touch-action: manipulation;
+}
 .leaflet-tile-pane { -webkit-filter: brightness(2.0) contrast(1.05) saturate(1.15); filter: brightness(2.0) contrast(1.05) saturate(1.15); }
 .leaflet-control-zoom { display: none !important; }
 .leaflet-control-attribution { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
 .leaflet-control-attribution a { color: rgba(255,255,255,.22) !important; }
 .leaflet-popup { display: none !important; }
+
+/* ── iOS Safari: force compositing layers + fix z-index hierarchy ── */
+.leaflet-map-pane,
+.leaflet-tile-pane,
+.leaflet-overlay-pane,
+.leaflet-shadow-pane,
+.leaflet-marker-pane,
+.leaflet-tooltip-pane,
+.leaflet-popup-pane {
+-webkit-transform: translate3d(0,0,0) !important;
+transform: translate3d(0,0,0) !important;
+}
+.leaflet-tile-pane    { z-index: 200 !important; }
+.leaflet-overlay-pane { z-index: 400 !important; }
+.leaflet-shadow-pane  { z-index: 500 !important; }
+.leaflet-marker-pane  { z-index: 600 !important; }
+.leaflet-tooltip-pane { z-index: 650 !important; }
+.leaflet-popup-pane   { z-index: 700 !important; }
+.leaflet-top, .leaflet-bottom { z-index: 1000 !important; -webkit-transform: translate3d(0,0,0); }
+.leaflet-marker-icon, .leaflet-marker-shadow { display: block !important; }
+.leaflet-div-icon { background: transparent !important; border: none !important; }
 
 /* ============================================================
 WIND CANVASES  z:2-3
@@ -911,6 +940,28 @@ animation: pulse-dot 1s ease infinite;
 <script>
 'use strict';
 
+/* ── iOS Safari fix: viewport height custom property ─────────── */
+(function() {
+  function setVH() {
+    document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) + 'px');
+  }
+  setVH();
+  window.addEventListener('resize', setVH);
+})();
+
+/* ── iOS Safari fix: patch negative marker z-index bug ───────── */
+(function() {
+  if (typeof L === 'undefined') return;
+  var orig = L.Marker.prototype._setPos;
+  L.Marker.prototype._setPos = function(pos) {
+    orig.call(this, pos);
+    if (this._icon) {
+      var z = parseInt(this._icon.style.zIndex, 10);
+      if (isNaN(z) || z < 0) this._icon.style.zIndex = '0';
+    }
+  };
+})();
+
 /* ╔══════════════════════════════════════════════════════════════╗
    ║  FoilSpot v5 — Global Wind Heatmap + Particles + Wingfoil     ║
    ║  Viewport-based adaptive grid, screen-space trail particles  ║
@@ -1394,6 +1445,9 @@ function initMap() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
   State.map = map;
+  /* iOS Safari: force map to recalculate its size after render */
+  requestAnimationFrame(() => map.invalidateSize({ animate: false }));
+  window.addEventListener('load', () => setTimeout(() => map.invalidateSize({ animate: false }), 100));
   map.on('moveend', () => {
     renderSpots(State.currentHourIdx);
     _scheduleViewportLoad();
@@ -2000,9 +2054,29 @@ function loadBatch(points, forecastDays) {
     return Promise.resolve();
   }
   
+  function fetchWithRetry(url, retries) {
+    return new Promise(function(resolve, reject) {
+      var attempt = 0;
+      function run() {
+        var controller = new AbortController();
+        var timer = setTimeout(function() { controller.abort(); }, 15000);
+        fetch(url, { signal: controller.signal })
+          .then(function(r) { clearTimeout(timer); resolve(r); })
+          .catch(function(e) {
+            clearTimeout(timer);
+            if (attempt < (retries || 2)) {
+              attempt++;
+              setTimeout(run, 600 * attempt);
+            } else { reject(e); }
+          });
+      }
+      run();
+    });
+  }
+
   function tryModel(model, retries, fd) {
     if (_rateLimited) return Promise.resolve();
-    return fetch(buildBatchUrl(points, model, fd))
+    return fetchWithRetry(buildBatchUrl(points, model, fd), 2)
       .then(r => {
         if (r.status === 429) {
           if (retries > 0) {
