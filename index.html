@@ -860,17 +860,32 @@ animation: pulse-dot 1s ease infinite;
         </svg>
       </div>
       <div id="bottom-bar-spacer"></div>
-      <!-- Wingfoil icon — opens spot list -->
-      <div id="btn-spots-right" title="Spotit" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;pointer-events:all;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:manipulation;">
-        <svg width="40" height="40" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.5))">
-          <ellipse cx="16" cy="27" rx="11" ry="2.2"/>
-          <rect x="14.5" y="16" width="3" height="7" rx="1.5"/>
-          <circle cx="16" cy="13.5" r="2.5"/>
-          <path d="M14.5 18 Q6 12 2 10 Q6 15 14.5 19Z"/>
-          <path d="M17.5 18 Q26 12 30 10 Q26 15 17.5 19Z"/>
-          <path d="M15 23 L13 27" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
-          <path d="M17 23 L19 27" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
-        </svg>
+      <!-- Right column: forecast button + wingfoil icon -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:all;">
+        <div id="btn-forecast" title="Viikon parhaat" style="width:44px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:manipulation;">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.5))">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <line x1="8" y1="14" x2="8.01" y2="14"/>
+            <line x1="12" y1="14" x2="12.01" y2="14"/>
+            <line x1="16" y1="14" x2="16.01" y2="14"/>
+            <line x1="8" y1="18" x2="8.01" y2="18"/>
+            <line x1="12" y1="18" x2="12.01" y2="18"/>
+          </svg>
+        </div>
+        <div id="btn-spots-right" title="Spotit" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:manipulation;">
+          <svg width="40" height="40" viewBox="0 0 32 32" fill="white" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 1px 4px rgba(0,0,0,0.5))">
+            <ellipse cx="16" cy="27" rx="11" ry="2.2"/>
+            <rect x="14.5" y="16" width="3" height="7" rx="1.5"/>
+            <circle cx="16" cy="13.5" r="2.5"/>
+            <path d="M14.5 18 Q6 12 2 10 Q6 15 14.5 19Z"/>
+            <path d="M17.5 18 Q26 12 30 10 Q26 15 17.5 19Z"/>
+            <path d="M15 23 L13 27" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
+            <path d="M17 23 L19 27" stroke="white" stroke-width="2" stroke-linecap="round" fill="none"/>
+          </svg>
+        </div>
       </div>
     </div>
     <div id="tl-wrap">
@@ -896,6 +911,19 @@ animation: pulse-dot 1s ease infinite;
       <span class="sl-count" id="sl-count"></span>
     </div>
     <div id="sl-items"></div>
+  </div>
+
+  <!-- Weekly forecast panel -->
+
+  <div id="forecast-panel">
+    <div id="forecast-handle"></div>
+    <div class="fc-header">
+      <div>
+        <div class="fc-title">Viikon parhaat 🪁</div>
+        <div class="fc-subtitle">Top 3h ikkunat · score &gt;65 · klo 09–21</div>
+      </div>
+    </div>
+    <div id="fc-content"></div>
   </div>
 
   <!-- Toast for errors -->
@@ -945,7 +973,7 @@ const Config = {
   FADE_OPACITY: 0.94,
   DROP_RATE: 0.003,
   DROP_RATE_BUMP: 0.008,
-  DATA_REFRESH_MS: 60 * 60 * 1000,
+  DATA_REFRESH_MS: 3 * 60 * 60 * 1000, /* 3h — säästää API-kiintiötä */
   PLAY_INTERVAL_MS: 800,
 };
 
@@ -1141,7 +1169,7 @@ const ViewportGrid = {
   _points: new Map(),
   _globalBase: new Map(),
   TILE_DEG: 10,
-  CACHE_TTL: 90 * 60 * 1000,
+  CACHE_TTL: 6 * 60 * 60 * 1000, /* 6h cache — säästää API-kiintiötä */
 
   gridStep(zoom) {
     if (zoom <= 3) return 4;
@@ -1332,7 +1360,7 @@ const ViewportGrid = {
     /* Max 8 spots per batch — keeps URL under ~800 chars, safe for all browsers */
     const batches = [];
     for (let i = 0; i < toLoad.length; i += 8) batches.push(toLoad.slice(i, i + 8));
-    for (const b of batches) await loadBatch(b, 7);
+    for (const b of batches) await loadBatch(b, 5); /* 5 päivää riittää forecastiin */
     ViewportGrid.invalidateCache();
   },
 
@@ -2775,12 +2803,194 @@ const SpotList = {
   }
 };
 
+/* ── WEEKLY FORECAST PANEL ────────────────────────────────────── */
+const ForecastPanel = {
+  _open: false,
+
+  toggle() {
+    this._open = !this._open;
+    const el = document.getElementById('forecast-panel');
+    const overlay = document.getElementById('sheet-overlay');
+    if (this._open) {
+      closeSheet(); SpotList.close();
+      this._render();
+      el.classList.add('open');
+      overlay.classList.add('open');
+    } else {
+      el.classList.remove('open');
+      overlay.classList.remove('open');
+    }
+  },
+
+  close() {
+    this._open = false;
+    const el = document.getElementById('forecast-panel');
+    if (el) el.classList.remove('open');
+    document.getElementById('sheet-overlay').classList.remove('open');
+  },
+
+  _wxIcon(code) {
+    const c = WeatherWidget._codes[code] || ['🌬️',''];
+    return c[0];
+  },
+
+  _getWxCode(spot, timeIso) {
+    const cache = WeatherWidget._cache;
+    const lat = (Math.round(spot.lat * 2) / 2).toFixed(1);
+    const lng = (Math.round(spot.lng * 2) / 2).toFixed(1);
+    const key = lat + ',' + lng;
+    if (!cache[key]) return null;
+    const h = cache[key].data.hourly;
+    if (!h || !h.time) return null;
+    const target = new Date(timeIso).getTime();
+    let best = 0, bd = Infinity;
+    for (let i = 0; i < h.time.length; i++) {
+      const d = Math.abs(new Date(h.time[i]).getTime() - target);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return h.weather_code ? h.weather_code[best] : null;
+  },
+
+  _render() {
+    const container = document.getElementById('fc-content');
+    const DAY = ['Su','Ma','Ti','Ke','To','Pe','La'];
+    const wfColors = {
+      'wf-perfect': 'rgb(255,200,30)', 'wf-good': 'rgb(80,237,120)',
+      'wf-ok': 'rgb(240,170,0)', 'wf-light': 'rgb(80,160,255)', 'wf-pass': 'rgba(180,215,255,.35)'
+    };
+    const now = Date.now();
+    const fiveDays = 5 * 24 * 60 * 60 * 1000;
+    const dayMap = {};
+
+    for (const spot of SPOTS) {
+      if (!spot.wx || !spot.wx.hourly) continue;
+      const h = spot.wx.hourly;
+      const times = h.time, speeds = h.windspeed_10m, dirs = h.winddirection_10m;
+      const gusts = h.windgusts_10m || speeds;
+      if (!times || times.length < 3) continue;
+
+      for (let i = 0; i < times.length - 2; i++) {
+        const t0 = new Date(times[i]);
+        const t2 = new Date(times[i + 2]);
+        const tMs = t0.getTime();
+        if (tMs < now - 3600000) continue;
+        if (tMs > now + fiveDays) break;
+        if (t0.getHours() < 9) continue;
+        if (t2.getHours() >= 21) continue;
+
+        let scoreSum = 0;
+        for (let j = i; j <= i + 2; j++) {
+          const ms = speeds[j] || 0, gst = (gusts[j] || ms), dir = dirs[j] || 0;
+          scoreSum += WingfoilScore.compute(ms, gst, dir, spot);
+        }
+        const avgScore = scoreSum / 3;
+        if (avgScore < 65) continue;
+
+        const dateKey = t0.getFullYear() + '-' + String(t0.getMonth()+1).padStart(2,'0') + '-' + String(t0.getDate()).padStart(2,'0');
+        const mid = i + 1;
+        const ms = speeds[mid] || 0, gst = (gusts[mid] || ms), dir = dirs[mid] || 0;
+        if (!dayMap[dateKey]) dayMap[dateKey] = [];
+        dayMap[dateKey].push({
+          spot, score: Math.round(avgScore), ms, gst, dir,
+          wxCode: this._getWxCode(spot, times[mid]),
+          t0, t2, timeKey: t0.getHours()
+        });
+      }
+    }
+
+    const sortedDays = Object.keys(dayMap).sort();
+    if (sortedDays.length === 0) {
+      container.innerHTML = '<div style="padding:24px 20px;text-align:center;font-family:DM Mono,monospace;font-size:11px;color:var(--muted)">Ei hyviä olosuhteita — score &gt;65 ei täyty tällä hetkellä millään spotilla.</div>';
+      return;
+    }
+
+    let html = '';
+    for (const dateKey of sortedDays) {
+      const candidates = dayMap[dateKey].sort((a, b) => b.score - a.score);
+      const selected = [];
+      for (const c of candidates) {
+        if (selected.some(s => Math.abs(s.timeKey - c.timeKey) < 4)) continue;
+        selected.push(c);
+        if (selected.length >= 3) break;
+      }
+      selected.sort((a, b) => a.timeKey - b.timeKey);
+
+      const d = selected[0].t0;
+      const isToday = new Date().toDateString() === d.toDateString();
+      html += '<div class="fc-day"><div class="fc-day-header">'
+        + '<span class="fc-day-name">' + (isToday ? 'TÄNÄÄN' : DAY[d.getDay()].toUpperCase()) + '</span>'
+        + '<span class="fc-day-date">' + d.getDate() + '.' + (d.getMonth()+1) + '.</span></div>';
+
+      for (const w of selected) {
+        const wfLbl = WingfoilScore.label(w.score);
+        const wfColor = wfColors[wfLbl.cls] || 'var(--muted)';
+        const h0 = String(w.t0.getHours()).padStart(2,'0') + ':00';
+        const h2 = String(w.t2.getHours()).padStart(2,'0') + ':00';
+        const gustTxt = w.gst > w.ms * 1.1 ? ' · G' + Units.fmt(w.gst) : '';
+        html += '<div class="fc-window" data-spot="' + w.spot.name + '" data-time="' + w.t0.getTime() + '">'
+          + '<div class="fc-score-ring ' + wfLbl.cls + '" style="color:' + wfColor + '">'
+            + '<span class="fc-score-num">' + w.score + '</span>'
+            + '<span class="fc-score-sub">/ 100</span>'
+          + '</div>'
+          + '<div class="fc-info">'
+            + '<div class="fc-spot-name">' + w.spot.name + '</div>'
+            + '<div class="fc-time-range">' + h0 + ' – ' + h2 + '</div>'
+            + '<div class="fc-wind-info">' + dirArrow(w.dir) + ' ' + Units.fmt(w.ms) + ' ' + Units.label() + gustTxt + ' · ' + Math.round(w.dir) + '°</div>'
+          + '</div>'
+          + '<div class="fc-right">'
+            + '<div class="fc-wx-icon">' + (w.wxCode != null ? this._wxIcon(w.wxCode) : '🌬️') + '</div>'
+            + '<div class="fc-verdict ' + wfLbl.cls + '">' + wfLbl.text + '</div>'
+          + '</div></div>';
+      }
+      html += '</div>';
+    }
+
+    /* Days with no qualifying windows */
+    for (let i = 0; i < 5; i++) {
+      const d = new Date(now + i * 24 * 3600 * 1000);
+      const k = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+      if (!dayMap[k]) {
+        const isToday = new Date().toDateString() === d.toDateString();
+        html += '<div class="fc-day"><div class="fc-day-header">'
+          + '<span class="fc-day-name" style="opacity:.4">' + (isToday ? 'TÄNÄÄN' : DAY[d.getDay()].toUpperCase()) + '</span>'
+          + '<span class="fc-day-date" style="opacity:.4">' + d.getDate() + '.' + (d.getMonth()+1) + '.</span></div>'
+          + '<div class="fc-no-windows">— ei sopivia olosuhteita</div></div>';
+      }
+    }
+
+    container.innerHTML = html;
+
+    container.querySelectorAll('.fc-window').forEach(el => {
+      el.addEventListener('click', () => {
+        const spot = SPOTS.find(s => s.name === el.dataset.spot);
+        const targetTime = parseInt(el.dataset.time);
+        if (!spot) return;
+        this.close();
+        State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
+        if (State._tlTimes && targetTime) {
+          let best = State.currentHourIdx, bd = Infinity;
+          for (let i = 0; i < State._tlTimes.length; i++) {
+            const d = Math.abs(new Date(State._tlTimes[i]).getTime() - targetTime);
+            if (d < bd) { bd = d; best = i; }
+          }
+          State.currentHourIdx = best;
+          _tlUpdateNow(best);
+          scrollTimelineTo(best);
+          buildWindField(best).then(() => { drawColorField(); resetParticles(); renderSpots(best); });
+        }
+        setTimeout(() => openSheet(spot, State.currentHourIdx), 700);
+      });
+    });
+  }
+};
+
+document.getElementById('btn-forecast').addEventListener('click', () => ForecastPanel.toggle(), { passive: true });
+document.getElementById('forecast-handle').addEventListener('click', () => ForecastPanel.close(), { passive: true });
 document.getElementById('btn-spots-right').addEventListener('click', () => SpotList.toggle(), { passive: true });
 document.getElementById('spot-list-handle').addEventListener('click', () => SpotList.close(), { passive: true });
-/* Single overlay click handler — closes whatever is open */
+/* Single overlay click handler */
 document.getElementById('sheet-overlay').addEventListener('click', () => {
-  closeSheet();
-  SpotList.close();
+  closeSheet(); SpotList.close(); ForecastPanel.close();
 }, { passive: true });
 
 /* ── UNIT SWITCHER ────────────────────────────────────────────── */
