@@ -137,7 +137,7 @@ text-align: center;
 MAP CONTROLS — bottom bar row
 ============================================================ */
 #bottom-bar {
-display: flex; align-items: center; gap: 10px; margin-bottom: 6px; pointer-events: all;
+display: flex; align-items: flex-end; gap: 0; margin-bottom: 6px; pointer-events: all;
 }
 .mctl {
 width: 46px; height: 46px; border-radius: 0; border: none;
@@ -151,6 +151,14 @@ transition: opacity .15s, transform .12s;
 .mctl:active { opacity: 0.5; transform: scale(0.88); }
 .mctl.playing { color: var(–accent); }
 #bottom-bar-spacer { flex: 1; }
+/* Left column: settings at bottom, loc+play stacked above */
+#btn-left-col {
+display: flex; flex-direction: column; align-items: center;
+}
+/* Right column: calendar above, wingfoil below */
+#btn-spots-wrap {
+display: flex; flex-direction: column; align-items: center; position: relative;
+}
 
 /* ============================================================
 SETTINGS — Apple Liquid Glass popover
@@ -695,19 +703,10 @@ animation: pulse-dot 1s ease infinite;
 /* ============================================================
 FORECAST PANEL — Best windows  z:31
 ============================================================ */
-#fc-btn {
-position: absolute; top: -8px; right: -8px;
-width: 18px; height: 18px; border-radius: 50%;
-background: var(–accent); border: 2px solid rgba(6,9,18,.9);
-display: flex; align-items: center; justify-content: center;
-cursor: pointer; z-index: 2;
-box-shadow: 0 0 8px rgba(0,207,255,.6);
-font-size: 9px; font-weight: 800; color: #000; line-height: 1;
-transition: transform .15s;
-}
-#fc-btn:active { transform: scale(0.85); }
+/* fc-btn is now a full mctl inside btn-spots-wrap column */
+#fc-btn.active svg { stroke: var(–accent); }
 #btn-spots-wrap {
-position: relative; display: flex; align-items: center;
+display: flex; flex-direction: column; align-items: center; position: relative;
 }
 #forecast-panel {
 position: absolute; bottom: 0; left: 0; right: 0; z-index: 31;
@@ -877,56 +876,61 @@ font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–muted); }
 
   <div id="bottom">
     <div id="bottom-bar">
-      <!-- Settings: clean sliders icon -->
-      <div class="mctl" id="btn-settings">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round">
-          <line x1="4" y1="6" x2="20" y2="6"/>
-          <line x1="4" y1="12" x2="20" y2="12"/>
-          <line x1="4" y1="18" x2="20" y2="18"/>
-          <circle cx="8" cy="6" r="2" fill="white" stroke="none"/>
-          <circle cx="16" cy="12" r="2" fill="white" stroke="none"/>
-          <circle cx="10" cy="18" r="2" fill="white" stroke="none"/>
-        </svg>
-      </div>
-      <!-- Location: crosshair -->
-      <div class="mctl" id="btn-loc">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round">
-          <circle cx="12" cy="12" r="4"/>
-          <line x1="12" y1="2" x2="12" y2="6"/>
-          <line x1="12" y1="18" x2="12" y2="22"/>
-          <line x1="2" y1="12" x2="6" y2="12"/>
-          <line x1="18" y1="12" x2="22" y2="12"/>
-        </svg>
-      </div>
-      <!-- Play: clean triangle -->
-      <div class="mctl" id="btn-play">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="white" id="play-icon">
-          <path d="M7 4.5v15l12-7.5z"/>
-        </svg>
+      <!-- Left column: loc + play stacked above settings -->
+      <div id="btn-left-col">
+        <div class="mctl" id="btn-loc">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round">
+            <circle cx="12" cy="12" r="4"/>
+            <line x1="12" y1="2" x2="12" y2="6"/>
+            <line x1="12" y1="18" x2="12" y2="22"/>
+            <line x1="2" y1="12" x2="6" y2="12"/>
+            <line x1="18" y1="12" x2="22" y2="12"/>
+          </svg>
+        </div>
+        <div class="mctl" id="btn-play">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="white" id="play-icon">
+            <path d="M7 4.5v15l12-7.5z"/>
+          </svg>
+        </div>
+        <div class="mctl" id="btn-settings">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round">
+            <line x1="4" y1="6" x2="20" y2="6"/>
+            <line x1="4" y1="12" x2="20" y2="12"/>
+            <line x1="4" y1="18" x2="20" y2="18"/>
+            <circle cx="8" cy="6" r="2" fill="white" stroke="none"/>
+            <circle cx="16" cy="12" r="2" fill="white" stroke="none"/>
+            <circle cx="10" cy="18" r="2" fill="white" stroke="none"/>
+          </svg>
+        </div>
       </div>
       <div id="bottom-bar-spacer"></div>
-      <!-- Spots: wingfoil + forecast calendar badge -->
+      <!-- Right column: calendar above wingfoil -->
       <div id="btn-spots-wrap">
-        <div class="mctl" id="btn-spots" title="Spotit">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-          <!-- body -->
-          <circle cx="12" cy="5" r="1.5" fill="white" stroke="none"/>
-          <!-- wing (curved arc above) -->
-          <path d="M4 8 Q8 3 12 7 Q16 3 20 8" stroke="white" stroke-width="1.8" fill="none"/>
-          <!-- board (horizontal line below feet) -->
-          <line x1="7" y1="20" x2="17" y2="20" stroke-width="2"/>
-          <!-- body leaning -->
-          <line x1="12" y1="6.5" x2="11" y2="14"/>
-          <!-- front leg -->
-          <line x1="11" y1="14" x2="9" y2="20"/>
-          <!-- back leg -->
-          <line x1="11" y1="14" x2="14" y2="20"/>
-          <!-- arm to wing -->
-          <line x1="11" y1="9" x2="8" y2="8"/>
-          <line x1="11" y1="9" x2="14" y2="8"/>
-        </svg>
+        <!-- Calendar / forecast button -->
+        <div class="mctl" id="fc-btn" title="Parhaat ajankohdat">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="3"/>
+            <line x1="3" y1="9" x2="21" y2="9"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+            <circle cx="8" cy="14" r="1" fill="white" stroke="none"/>
+            <circle cx="12" cy="14" r="1" fill="white" stroke="none"/>
+            <circle cx="16" cy="14" r="1" fill="white" stroke="none"/>
+          </svg>
         </div>
-        <div id="fc-btn" title="Parhaat ajankohdat">⚡</div>
+        <!-- Wingfoil / spot list button -->
+        <div class="mctl" id="btn-spots" title="Spotit">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="5" r="1.5" fill="white" stroke="none"/>
+            <path d="M4 8 Q8 3 12 7 Q16 3 20 8" stroke="white" stroke-width="1.8" fill="none"/>
+            <line x1="7" y1="20" x2="17" y2="20" stroke-width="2"/>
+            <line x1="12" y1="6.5" x2="11" y2="14"/>
+            <line x1="11" y1="14" x2="9" y2="20"/>
+            <line x1="11" y1="14" x2="14" y2="20"/>
+            <line x1="11" y1="9" x2="8" y2="8"/>
+            <line x1="11" y1="9" x2="14" y2="8"/>
+          </svg>
+        </div>
       </div>
     </div>
     <div id="tl-wrap">
@@ -2989,10 +2993,10 @@ const ForecastPanel = {
 
   open() {
     this._open = true;
-    /* Close other panels */
     SpotList.close();
     closeSheet();
     document.getElementById('sheet-overlay').classList.add('open');
+    document.getElementById('fc-btn').classList.add('active');
     this.render();
     document.getElementById('forecast-panel').classList.add('open');
     Haptics.medium();
@@ -3002,6 +3006,7 @@ const ForecastPanel = {
     this._open = false;
     document.getElementById('forecast-panel').classList.remove('open');
     document.getElementById('sheet-overlay').classList.remove('open');
+    document.getElementById('fc-btn').classList.remove('active');
   },
 
   /* Time filter: returns true if this ISO time should be included */
