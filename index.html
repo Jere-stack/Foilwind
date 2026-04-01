@@ -1377,14 +1377,27 @@ function initMap() {
     State.windCvs.style.opacity = '1';
     State._panning = false;
     PerfTracker.reset();
-    /* Spawn fresh particles immediately so canvas isn't empty while loading */
-    State.particles = [];
-    const target = nParticles();
-    for (let i = 0; i < target; i++) State.particles.push(makeParticle(true));
-    /* _scheduleViewportLoad handles texture rebuild + drawColorField in one pass */
-    renderSpots(State.currentHourIdx);
-    _scheduleViewportLoad();
     WeatherWidget.scheduleUpdate();
+    renderSpots(State.currentHourIdx);
+
+    if (State.windField.length) {
+      /* Rebuild texture immediately from existing data so particles move right away */
+      WindTexture.build(State.windField, map.getBounds()).then(() => {
+        drawColorField();
+        /* Spawn particles AFTER texture is ready so they sample correct wind */
+        State.particles = [];
+        const target = nParticles();
+        for (let i = 0; i < target; i++) State.particles.push(makeParticle(true));
+        Crosshair.refresh();
+      });
+    } else {
+      State.particles = [];
+      const target = nParticles();
+      for (let i = 0; i < target; i++) State.particles.push(makeParticle(true));
+    }
+
+    /* Then load fresh viewport data in background */
+    _scheduleViewportLoad();
   });
   map.on('movestart', () => { State._panning = true; });
   map.on('move', () => {
