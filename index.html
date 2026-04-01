@@ -1077,22 +1077,22 @@ const ColorRamp = (() => {
 
 /* ── SPOTS ───────────────────────────────────────────────────── */
 const SPOTS = [
-  { name: 'Hanko',             lat: 59.824,  lng: 22.972, desc: 'Paras etelä-lounas',            bestDirs: ['S','SW','W']          },
-  { name: 'Haukilahti',        lat: 60.1552, lng: 24.7800, desc: 'Klassikko – etelätuulet',       bestDirs: ['S','SE']              },
-  { name: 'Lauttasaari',       lat: 60.1540, lng: 24.8676, desc: 'Etelä–länsi, helppo pääsy',     bestDirs: ['S','SW']              },
-  { name: 'Otaniemi',          lat: 60.1861, lng: 24.8382, desc: 'Otaniemen edusta – lounas',     bestDirs: ['SW','W']              },
-  { name: 'Laajalahti',        lat: 60.1993, lng: 24.8600, desc: 'Suojaisa – kevyet tuulet',      bestDirs: ['S','SW','W','NW']     },
-  { name: 'Hietaniemi',        lat: 60.1734, lng: 24.8991, desc: 'Hietsu – etelä ja lounas',      bestDirs: ['S','SW']              },
-  { name: 'Kruunuvuorenranta', lat: 60.1650, lng: 25.0105, desc: 'Itäväylän kupeessa – lounais',  bestDirs: ['SW','W','NW']         },
-  { name: 'Puuskaniemi',       lat: 60.1727, lng: 25.0853, desc: 'Jollaksen edusta – avoin',      bestDirs: ['S','SW','W','NW','N'] },
-  { name: 'Kallahti',          lat: 60.1871, lng: 25.1408, desc: 'Vuosaaren ranta – itätuulet',   bestDirs: ['E','SE','NE']         },
-  { name: 'Parainen',          lat: 60.300,  lng: 22.303,  desc: 'Saaristomeri',                  bestDirs: ['SW','W','NW']         },
-  { name: 'Naantali',          lat: 60.468,  lng: 22.028,  desc: 'Suoja länsituulille',            bestDirs: ['W','NW','SW']         },
-  { name: 'Oulu',              lat: 64.950,  lng: 25.367,  desc: 'Perämeri – luoteis',             bestDirs: ['NW','W','SW']         },
-  { name: 'Kotka',             lat: 60.465,  lng: 26.940,  desc: 'Suomenlahti – itä',             bestDirs: ['E','SE','S']          },
-  { name: 'Pori',              lat: 61.485,  lng: 21.797,  desc: 'Selkämeri',                     bestDirs: ['SW','W','NW']         },
-  { name: 'Turku',             lat: 60.452,  lng: 22.287,  desc: 'Turun saaristo',                bestDirs: ['SW','W','S']          },
-  { name: 'Lohja',             lat: 60.243,  lng: 23.998,  desc: 'Sisäjärvi',                     bestDirs: ['S','SW','W','NW','N'] }
+  { name: 'Hanko',             lat: 59.824,  lng: 22.972,  desc: 'Paras etelä-lounas',            bestDirs: ['S','SW','W']          },
+  { name: 'Haukilahti',        lat: 60.1552, lng: 24.7800, desc: 'Klassikko – etelätuulet',        bestDirs: ['SE','S','SW']         },
+  { name: 'Lauttasaari',       lat: 60.1540, lng: 24.8676, desc: 'Etelä–länsi, helppo pääsy',      bestDirs: ['S','SW']              },
+  { name: 'Otaniemi',          lat: 60.1861, lng: 24.8382, desc: 'Otaniemen edusta – lounas',      bestDirs: ['NE']                  },
+  { name: 'Laajalahti',        lat: 60.1993, lng: 24.8600, desc: 'Suojaisa – kevyet tuulet',       bestDirs: ['SW','W']              },
+  { name: 'Hietaniemi',        lat: 60.1734, lng: 24.8991, desc: 'Hietsu – länsi',                 bestDirs: ['W']                   },
+  { name: 'Kruunuvuorenranta', lat: 60.1650, lng: 25.0105, desc: 'Itäväylän kupeessa',             bestDirs: ['N','S','SW']          },
+  { name: 'Puuskaniemi',       lat: 60.1727, lng: 25.0853, desc: 'Jollaksen edusta – avoin',       bestDirs: ['SE']                  },
+  { name: 'Kallahti',          lat: 60.1871, lng: 25.1408, desc: 'Vuosaaren ranta – itätuulet',    bestDirs: ['S','SW','W']          },
+  { name: 'Parainen',          lat: 60.300,  lng: 22.303,  desc: 'Saaristomeri',                   bestDirs: ['SW','W','NW']         },
+  { name: 'Naantali',          lat: 60.468,  lng: 22.028,  desc: 'Suoja länsituulille',             bestDirs: ['W','NW','SW']         },
+  { name: 'Oulu',              lat: 64.950,  lng: 25.367,  desc: 'Perämeri – luoteis',              bestDirs: ['NW','W','SW']         },
+  { name: 'Kotka',             lat: 60.465,  lng: 26.940,  desc: 'Suomenlahti – itä',              bestDirs: ['E','SE','S']          },
+  { name: 'Pori',              lat: 61.485,  lng: 21.797,  desc: 'Selkämeri',                      bestDirs: ['SW','W','NW']         },
+  { name: 'Turku',             lat: 60.452,  lng: 22.287,  desc: 'Turun saaristo',                 bestDirs: ['SW','W','S']          },
+  { name: 'Lohja',             lat: 60.243,  lng: 23.998,  desc: 'Sisäjärvi',                      bestDirs: ['S','SW','W','NW','N'] }
 ];
 
 /* ── VIEWPORT GRID ────────────────────────────────────────────── */
@@ -1980,29 +1980,56 @@ function dirMatchScore(windDeg, bestDirs) {
    • Gust penalty (−20 pts max) — high gust/ms ratio reduces score
    ────────────────────────────────────────────────────────────────── */
 function spotIndex(ms, windDeg, bestDirs, gustMs) {
-  /* Speed component 0–50 */
+  /* ── NOPEUS 0–50 pts ──────────────────────────────────────────
+     Huippu 11–14 m/s. Alle 2 nolla. Yli 22 nolla.            */
   let speedPts;
-  if (ms < 3)        speedPts = ms / 3 * 8;           /* 0–8 */
-  else if (ms < 6)   speedPts = 8 + (ms-3)/3 * 17;   /* 8–25 */
-  else if (ms < 10)  speedPts = 25 + (ms-6)/4 * 17;  /* 25–42 */
-  else if (ms < 14)  speedPts = 42 + (ms-10)/4 * 8;  /* 42–50 */
-  else if (ms < 18)  speedPts = 50 - (ms-14)/4 * 15; /* 50–35 too strong */
-  else               speedPts = 35 - (ms-18)/4 * 25; /* 35→10 dangerous */
+  if (ms < 2)        speedPts = 0;
+  else if (ms < 5)   speedPts = (ms-2)/3 * 12;           /* 0→12   */
+  else if (ms < 8)   speedPts = 12 + (ms-5)/3 * 28;      /* 12→40  */
+  else if (ms < 11)  speedPts = 40 + (ms-8)/3 * 10;      /* 40→50  */
+  else if (ms < 14)  speedPts = 50;                       /* plateau */
+  else if (ms < 17)  speedPts = 50 - (ms-14)/3 * 18;     /* 50→32  */
+  else if (ms < 22)  speedPts = 32 - (ms-17)/5 * 28;     /* 32→4   */
+  else               speedPts = 0;
   speedPts = Math.max(0, speedPts);
 
-  /* Direction component 0–30 */
-  const dirScore = dirMatchScore(windDeg, bestDirs);
-  const dirPts = dirScore * 30;
+  /* ── SUUNTA 0–30 pts ──────────────────────────────────────────
+     cos²-käyrä, cutoff 80°. Painotetaan nopeudella niin että
+     tyyni tuuli ei anna suuntabonusta.                        */
+  const speedWeight = ms <= 8 ? ms / 8 : ms <= 14 ? 1.0 : Math.max(0, 1 - (ms - 14) / 10);
+  let dirPts = 0;
+  if (bestDirs && bestDirs.length) {
+    let bestDiff = 180;
+    for (const d of bestDirs) {
+      const optimal = DIR_DEG[d];
+      if (optimal === undefined) continue;
+      let diff = Math.abs(windDeg - optimal) % 360;
+      if (diff > 180) diff = 360 - diff;
+      if (diff < bestDiff) bestDiff = diff;
+    }
+    if (bestDiff <= 80) {
+      dirPts = Math.pow(Math.cos(bestDiff * Math.PI / 160), 2) * 30;
+    }
+  } else {
+    dirPts = 15; /* tuntematon spot */
+  }
+  dirPts *= speedWeight;
 
-  /* Gust penalty 0–20 */
+  /* ── PUUSKAISUUS −0…−20 pts ───────────────────────────────────
+     1.0–1.2 → ei rangaistusta (normaali)
+     1.2–1.6 → −0…−12 (selvästi puuskainen)
+     1.6–2.5 → −12…−20 (hyvin puuskainen)                   */
   let gustPenalty = 0;
-  if (gustMs && ms > 0.5) {
-    const ratio = gustMs / ms;                    /* 1.0 = perfectly steady */
-    if (ratio > 1.1) gustPenalty = Math.min(20, (ratio - 1.1) / 0.9 * 20);
+  if (gustMs && ms > 1) {
+    const ratio = gustMs / ms;
+    if (ratio > 1.2 && ratio <= 1.6) {
+      gustPenalty = (ratio - 1.2) / 0.4 * 12;
+    } else if (ratio > 1.6) {
+      gustPenalty = 12 + Math.min(8, (ratio - 1.6) / 0.9 * 8);
+    }
   }
 
-  const raw = speedPts + dirPts - gustPenalty;
-  return Math.min(100, Math.max(0, Math.round(raw)));
+  return Math.min(100, Math.max(0, Math.round(speedPts + dirPts - gustPenalty)));
 }
 
 /* Color by band: 0-29 grey, 30-59 yellow, 60-79 orange, 80-100 green */
