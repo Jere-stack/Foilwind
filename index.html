@@ -1960,45 +1960,99 @@ function buildWindField(hourIdx) {
 const DIR_DEG = { N:0, NE:45, E:90, SE:135, S:180, SW:225, W:270, NW:315 };
 
 function dirMatchScore(windDeg, bestDirs) {
-  if (!bestDirs || !bestDirs.length) return 0.7; /* neutral if unknown */
+  if (!bestDirs || !bestDirs.length) return 0.7;
   let best = 0;
   for (const d of bestDirs) {
     const optimal = DIR_DEG[d];
     if (optimal === undefined) continue;
     let diff = Math.abs(windDeg - optimal) % 360;
     if (diff > 180) diff = 360 - diff;
-    /* score: 0° → 1.0, 45° → 0.7, 90° → 0.3, >90° → 0 */
     const score = diff <= 90 ? Math.cos(diff * Math.PI / 180) * 0.7 + 0.3 : 0;
     if (score > best) best = score;
   }
   return best;
 }
 
-function spotIndex(ms, windDeg, bestDirs) {
-  if (ms < 3) return Math.max(0, ms / 3 * 1.5); /* 0–1.5 below threshold */
+/* ── SPOT INDEX 0–100 ─────────────────────────────────────────────
+   Components:
+   • Speed (50 pts)  — bell curve peaking at 10–14 m/s
+   • Direction (30 pts) — how well wind matches spot's best dirs
+   • Gust penalty (−20 pts max) — high gust/ms ratio reduces score
+   ────────────────────────────────────────────────────────────────── */
+function spotIndex(ms, windDeg, bestDirs, gustMs) {
+  /* Speed component 0–50 */
+  let speedPts;
+  if (ms < 3)        speedPts = ms / 3 * 8;           /* 0–8 */
+  else if (ms < 6)   speedPts = 8 + (ms-3)/3 * 17;   /* 8–25 */
+  else if (ms < 10)  speedPts = 25 + (ms-6)/4 * 17;  /* 25–42 */
+  else if (ms < 14)  speedPts = 42 + (ms-10)/4 * 8;  /* 42–50 */
+  else if (ms < 18)  speedPts = 50 - (ms-14)/4 * 15; /* 50–35 too strong */
+  else               speedPts = 35 - (ms-18)/4 * 25; /* 35→10 dangerous */
+  speedPts = Math.max(0, speedPts);
 
-  /* Speed score: peaks at 12–15 m/s */
-  let speedScore;
-  if (ms < 5)       speedScore = 1.5 + (ms - 3) / 2 * 2.5;   /* 1.5–4 */
-  else if (ms < 8)  speedScore = 4 + (ms - 5) / 3 * 2;        /* 4–6 */
-  else if (ms < 12) speedScore = 6 + (ms - 8) / 4 * 3;        /* 6–9 */
-  else if (ms < 15) speedScore = 9 + (ms - 12) / 3 * 1;       /* 9–10 */
-  else if (ms < 20) speedScore = 10 - (ms - 15) / 5 * 3;      /* 10→7 (too strong) */
-  else              speedScore = 7 - (ms - 20) / 5 * 4;        /* 7→3 (dangerous) */
-
+  /* Direction component 0–30 */
   const dirScore = dirMatchScore(windDeg, bestDirs);
-  /* Blend: 60% speed, 40% direction match */
-  const raw = speedScore * (0.6 + dirScore * 0.4);
-  return Math.min(10, Math.max(0, Math.round(raw * 10) / 10));
+  const dirPts = dirScore * 30;
+
+  /* Gust penalty 0–20 */
+  let gustPenalty = 0;
+  if (gustMs && ms > 0.5) {
+    const ratio = gustMs / ms;                    /* 1.0 = perfectly steady */
+    if (ratio > 1.1) gustPenalty = Math.min(20, (ratio - 1.1) / 0.9 * 20);
+  }
+
+  const raw = speedPts + dirPts - gustPenalty;
+  return Math.min(100, Math.max(0, Math.round(raw)));
 }
 
-function spotIndexColor(idx) {
-  if (idx < 3)  return '#5080ff'; /* calm/off-dir — blue */
-  if (idx < 5)  return '#00dcb4'; /* light */
-  if (idx < 7)  return '#50ed78'; /* good */
-  if (idx < 8.5)return '#f0dc00'; /* great */
-  if (idx < 9.5)return '#ff8232'; /* strong */
-  return '#ff5a5a';               /* extreme */
+/* Color by band: 0-29 grey, 30-59 yellow, 60-79 orange, 80-100 green */
+function spotIndexColor(score) {
+  if (score < 30) return '#888aaa';  /* grey  */
+  if (score < 60) return '#f0dc00';  /* yellow */
+  if (score < 80) return '#ff8232';  /* orange */
+  return '#4de87a';                  /* green  */
+}
+
+/* SVG circle marker with arc progress bar + score + name */
+function spotMarkerSVG(score, name, size) {
+  const col = spotIndexColor(score);
+  const R = size / 2 - 3;          /* arc radius */
+  const cx = size / 2, cy = size / 2;
+  const circ = 2 * Math.PI * R;
+  const filled = circ * (score / 100);
+  const gap = circ - filled;
+
+  /* Arc starts at top (-90°) */
+  const trackArc = `M ${cx} ${cy - R} A ${R} ${R} 0 1 1 ${cx - 0.01} ${cy - R}`;
+  const fillArc  = `M ${cx} ${cy - R} A ${R} ${R} 0 1 1 ${cx - 0.01} ${cy - R}`;
+
+  /* Use stroke-dasharray trick on a full circle path */
+  const scoreStr = String(score);
+  const fontSize = score >= 100 ? 13 : 15;
+
+  return (
+    `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">`
+    /* Black bg circle */
+    + `<circle cx="${cx}" cy="${cy}" r="${size/2}" fill="rgba(6,9,18,0.82)"/>`
+    /* Track ring (dark) */
+    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="3"/>`
+    /* Progress arc */
+    + `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="3" stroke-linecap="round"`
+    + ` stroke-dasharray="${filled} ${gap}" stroke-dashoffset="${circ * 0.25}" transform="rotate(-90 ${cx} ${cy})"/>`
+    /* Score number */
+    + `<text x="${cx}" y="${cy + fontSize*0.35}" text-anchor="middle" font-family="DM Mono,monospace" font-size="${fontSize}" font-weight="700" fill="${col}">${scoreStr}</text>`
+    + `</svg>`
+  );
+}
+
+/* Name label below circle */
+function spotNameLabel(name, col) {
+  return (
+    `<div style="font-family:'DM Mono',monospace;font-size:8px;font-weight:600;color:${col};`
+    + `text-align:center;line-height:1.2;margin-top:2px;`
+    + `text-shadow:0 1px 3px rgba(0,0,0,0.9);white-space:nowrap;max-width:64px;`
+    + `overflow:hidden;text-overflow:ellipsis;">${name}</div>`
+  );
 }
 
 function dirArrow(deg) { return ['\u2193','\u2199','\u2190','\u2196','\u2191','\u2197','\u2192','\u2198'][Math.round((deg % 360) / 45) % 8]; }
@@ -2034,42 +2088,49 @@ function renderSpots(hourIdx) {
   for (const spot of SPOTS) {
     if (!spot.wx || !spot.wx.hourly) continue;
     const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
-    const ms = h.windspeed_10m[idx] || 0;
+    const ms  = h.windspeed_10m[idx] || 0;
     const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
     const dir = h.winddirection_10m[idx] || 0;
     const dms = layer === 'gust' ? gst : ms;
-    const c = ColorRamp.rgb(dms), col = 'rgb('+c.r+','+c.g+','+c.b+')';
-    const sz = zoom <= 6 ? 6 : zoom <= 8 ? 8 : 10, bw = zoom <= 7 ? 1 : 1.5;
 
-    /* v7: spot index */
-    const si = spotIndex(ms, dir, spot.bestDirs);
-    const siCol = spotIndexColor(si);
-    const siStr = si.toFixed(1);
+    /* v7: score 0–100 */
+    const score = spotIndex(ms, dir, spot.bestDirs, gst);
+    const col   = spotIndexColor(score);
 
     let html, iconW, iconH, anchor;
+
     if (zoom >= 7) {
-      /* dot + index badge below */
-      html = '<div style="position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:2px">'
-        + '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';border:'+bw+'px solid rgba(255,255,255,.45);box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer"></div>'
-        + '<div style="background:rgba(6,9,18,.85);border:1px solid '+siCol+';border-radius:5px;padding:1px 5px;font-family:DM Mono,monospace;font-size:10px;font-weight:700;color:'+siCol+';line-height:1.3;white-space:nowrap;box-shadow:0 0 6px '+siCol+'55;cursor:pointer">'
-        + siStr + '</div></div>';
-      iconW = 36; iconH = sz + 22; anchor = [iconW / 2, sz / 2];
+      /* Full circle (36px) + name label */
+      const sz = 36;
+      html = (
+        '<div style="display:inline-flex;flex-direction:column;align-items:center;cursor:pointer">'
+        + spotMarkerSVG(score, spot.name, sz)
+        + spotNameLabel(spot.name, col)
+        + '</div>'
+      );
+      iconW = 64; iconH = sz + 14;
+      anchor = [iconW / 2, sz / 2];
     } else if (zoom >= 5) {
-      /* badge only */
-      html = '<div style="background:rgba(6,9,18,.85);border:1px solid '+siCol+';border-radius:4px;padding:1px 5px;font-family:DM Mono,monospace;font-size:9px;font-weight:700;color:'+siCol+';line-height:1.3;white-space:nowrap;box-shadow:0 0 4px '+siCol+'55;cursor:pointer">'
-        + siStr + '</div>';
-      iconW = 28; iconH = 16; anchor = [iconW / 2, iconH / 2];
+      /* Smaller circle (28px), no name */
+      const sz = 28;
+      html = '<div style="cursor:pointer">' + spotMarkerSVG(score, spot.name, sz) + '</div>';
+      iconW = sz; iconH = sz;
+      anchor = [sz / 2, sz / 2];
     } else {
-      /* tiny dot */
-      html = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';border:'+bw+'px solid rgba(255,255,255,.45);box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer"></div>';
-      iconW = sz; iconH = sz; anchor = [sz/2, sz/2];
+      /* Tiny dot for far zoom */
+      const c = ColorRamp.rgb(dms);
+      const sz = 7;
+      html = `<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${col};border:1.5px solid rgba(255,255,255,.5);box-shadow:0 0 6px ${col}88;cursor:pointer"></div>`;
+      iconW = sz; iconH = sz;
+      anchor = [sz / 2, sz / 2];
     }
 
     const icon = L.divIcon({ className: '', html, iconSize: [iconW, iconH], iconAnchor: anchor });
-    State.markers.push(L.marker([spot.lat, spot.lng], { icon }).on('click', () => {
-      Haptics.medium();
-      openSheet(spot, hourIdx);
-    }).addTo(State.map));
+    State.markers.push(
+      L.marker([spot.lat, spot.lng], { icon })
+        .on('click', () => { Haptics.medium(); openSheet(spot, hourIdx); })
+        .addTo(State.map)
+    );
   }
 }
 
@@ -2127,7 +2188,18 @@ function openSheet(spot, hourIdx) {
         + '<div class="sh-name">' + spot.name + '</div>'
         + '<div class="sh-desc">' + spot.desc + '</div>'
         + '<div class="sh-datetime">🕐 ' + fmtDateTime(h.time ? h.time[idx] : null) + '</div>'
-        + (()=>{ const si=spotIndex(ms,dir,spot.bestDirs),sc=spotIndexColor(si); return '<div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:14px"><div style="background:rgba(6,9,18,.85);border:1.5px solid '+sc+';border-radius:8px;padding:3px 12px;font-family:DM Mono,monospace;font-size:22px;font-weight:700;color:'+sc+';line-height:1.2;box-shadow:0 0 10px '+sc+'44">'+si.toFixed(1)+'</div><div style="font-family:DM Mono,monospace;font-size:9px;color:rgba(180,215,255,.5);line-height:1.5">SPOTTIINDEKSI<br><span style="color:'+sc+';font-size:8px">'+(spot.bestDirs?spot.bestDirs.join(' · '):'')+'</span></div></div>'; })()
+        + (()=>{
+            const si = spotIndex(ms, dir, spot.bestDirs, gst);
+            const sc = spotIndexColor(si);
+            const svg = spotMarkerSVG(si, '', 56);
+            const dirs = spot.bestDirs ? spot.bestDirs.join(' · ') : '';
+            return '<div style="display:inline-flex;align-items:center;gap:12px;margin-bottom:14px">'
+              + svg
+              + '<div style="font-family:DM Mono,monospace;line-height:1.6">'
+              + '<div style="font-size:9px;color:rgba(180,215,255,.5);text-transform:uppercase;letter-spacing:1px">Spottiindeksi</div>'
+              + '<div style="font-size:11px;color:'+sc+';font-weight:600">'+dirs+'</div>'
+              + '</div></div>';
+          })()
       + '</div>'
       + '<div class="sh-hero-right">'
         + '<div class="sh-big-wind" style="color:' + colorStr + '">' + Units.fmt(ms) + '</div>'
