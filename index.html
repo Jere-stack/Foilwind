@@ -1371,28 +1371,20 @@ function initMap() {
   }).addTo(map);
   State.map = map;
   map.on('moveend', () => {
-    renderSpots(State.currentHourIdx);
-    _scheduleViewportLoad();
     GeoProject.update(map);
     const { windCtx, windCvs, dpr } = State;
     if (windCtx) windCtx.clearRect(0, 0, windCvs.width / dpr, windCvs.height / dpr);
     State.windCvs.style.opacity = '1';
     State._panning = false;
     PerfTracker.reset();
-    if (State.windField.length) {
-      WindTexture.build(State.windField, map.getBounds()).then(() => {
-        drawColorField();
-        State.particles = [];
-        const target = nParticles();
-        for (let i = 0; i < target; i++) State.particles.push(makeParticle(true));
-        Crosshair.refresh();
-        WeatherWidget.scheduleUpdate();
-      });
-    } else {
-      State.particles = [];
-      const target = nParticles();
-      for (let i = 0; i < target; i++) State.particles.push(makeParticle(true));
-    }
+    /* Spawn fresh particles immediately so canvas isn't empty while loading */
+    State.particles = [];
+    const target = nParticles();
+    for (let i = 0; i < target; i++) State.particles.push(makeParticle(true));
+    /* _scheduleViewportLoad handles texture rebuild + drawColorField in one pass */
+    renderSpots(State.currentHourIdx);
+    _scheduleViewportLoad();
+    WeatherWidget.scheduleUpdate();
   });
   map.on('movestart', () => { State._panning = true; });
   map.on('move', () => {
@@ -1412,7 +1404,10 @@ function initMap() {
       spotsPromise.then(() =>
         ViewportGrid.loadViewport(map).then(() => {
           buildWindField(State.currentHourIdx).then(() => {
-            drawColorField(); resetParticles(); renderSpots(State.currentHourIdx);
+            drawColorField();
+            /* Only reset particles if they haven't been spawned yet (e.g. first load) */
+            if (!State.particles.length) resetParticles();
+            renderSpots(State.currentHourIdx);
             Crosshair.refresh();
             setTimeout(() => dot.classList.remove('pulse'), 800);
           });
