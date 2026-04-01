@@ -1388,13 +1388,19 @@ function initMap() {
     clearTimeout(_vpDebounce);
     _vpDebounce = setTimeout(() => {
       const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
-      ViewportGrid.loadViewport(map).then(() => {
-        buildWindField(State.currentHourIdx).then(() => {
-          drawColorField(); resetParticles(); renderSpots(State.currentHourIdx);
-          Crosshair.refresh();
-          setTimeout(() => dot.classList.remove('pulse'), 800);
-        });
-      });
+      /* Load spots if not yet loaded (first pan/zoom before main() finishes) */
+      const spotsPromise = SPOTS.some(s => s.wx)
+        ? Promise.resolve()
+        : ViewportGrid.loadSpots().catch(e => console.warn(e));
+      spotsPromise.then(() =>
+        ViewportGrid.loadViewport(map).then(() => {
+          buildWindField(State.currentHourIdx).then(() => {
+            drawColorField(); resetParticles(); renderSpots(State.currentHourIdx);
+            Crosshair.refresh();
+            setTimeout(() => dot.classList.remove('pulse'), 800);
+          });
+        })
+      );
     }, 300);
   }
 
@@ -2732,8 +2738,6 @@ document.getElementById('models').addEventListener('click', e => {
       renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
       renderSpots(ni);
     }
-    ViewportGrid._points.clear();
-    ViewportGrid.loadViewport(State.map);
     setTimeout(() => dot.classList.remove('pulse'), 1500);
   });
 }, { passive: true });
@@ -2761,50 +2765,48 @@ function scheduleRefresh() {
 
 /* ── MAIN ─────────────────────────────────────────────────────── */
 function main() {
-  /* v6: instant map */
   buildLegend(); initMap(); initCanvases();
   Crosshair.init(); WeatherWidget.init(); Units.init();
-  hideLoading(); startRenderLoop(); /* v6: show map before any API calls */
+  hideLoading(); startRenderLoop();
 
-  /* Init swipe-to-dismiss for both sheets */
   makeSwipeable(document.getElementById('sheet'), closeSheet);
   makeSwipeable(document.getElementById('spot-list'), () => SpotList.close());
 
-  updateLoadText('Ladataan globaali tuulidata...');
-  ViewportGrid.loadGlobalCoarse((done, total) => {
-    updateLoadText('Globaali ' + Math.round(done / total * 100) + '%');
-  })
-  .then(() => {
-    const all = ViewportGrid.getAllPoints();
-    if (all.length > 0) {
-      const ref = all.find(p => p.wx && p.wx.hourly);
-      if (ref) {
-        const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
-        buildWindField(ni).then(() => { drawColorField(); resetParticles(); startRenderLoop(); });
-        renderTimeline(ref.wx.hourly.time, ref.wx.hourly.windspeed_10m, ref.wx.hourly.winddirection_10m, ni);
-      } else { startRenderLoop(); }
-    } else { startRenderLoop(); }
+  /* Load spots first (small batch, 7-day forecast), then viewport, skip coarse global */
+  const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
 
-    updateLoadText('Tarkennetaan...');
-    const viewportPromise = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[Phase 2 viewport]', e));
-    const spotsPromise = ViewportGrid.loadSpots().catch(e => console.warn('[Phase 2 spots]', e));
-    Promise.allSettled([viewportPromise, spotsPromise]).then(() => {
+  ViewportGrid.loadSpots()
+    .then(() => {
+      /* Spots loaded — render timeline + spots immediately */
       const ref = bestTimelineRef();
       if (ref) {
         const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
         State._lastTlHour = ni;
-        buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
         const layer = State.activeLayer;
         const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
         renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
         renderSpots(ni);
+        buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
+      }
+    })
+    .catch(e => console.warn('[loadSpots]', e))
+    .then(() => {
+      /* Then load fine viewport grid for heatmap */
+      return ViewportGrid.loadViewport(State.map).catch(e => console.warn('[loadViewport]', e));
+    })
+    .then(() => {
+      /* Re-render with fine data */
+      const ref = bestTimelineRef();
+      if (ref) {
+        const ni = State.currentHourIdx;
+        buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
+        renderSpots(ni);
       }
       loadMarineTemp();
-      State.lastDataLoad = Date.now(); scheduleRefresh();
+      State.lastDataLoad = Date.now();
+      scheduleRefresh();
+      setTimeout(() => dot.classList.remove('pulse'), 800);
     });
-  })
-  .catch(err => { console.error('[FoilSpot]', err); Toast.show('⚠ Virhe säädatan latauksessa'); startRenderLoop(); })
-  ;
 }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', main);
