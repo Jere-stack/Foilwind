@@ -691,6 +691,109 @@ animation: pulse-dot 1s ease infinite;
 0%, 100% { opacity: .4; }
 50% { opacity: 1; }
 }
+
+/* ============================================================
+FORECAST PANEL — Best windows  z:31
+============================================================ */
+#fc-btn {
+position: absolute; top: -8px; right: -8px;
+width: 18px; height: 18px; border-radius: 50%;
+background: var(–accent); border: 2px solid rgba(6,9,18,.9);
+display: flex; align-items: center; justify-content: center;
+cursor: pointer; z-index: 2;
+box-shadow: 0 0 8px rgba(0,207,255,.6);
+font-size: 9px; font-weight: 800; color: #000; line-height: 1;
+transition: transform .15s;
+}
+#fc-btn:active { transform: scale(0.85); }
+#btn-spots-wrap {
+position: relative; display: flex; align-items: center;
+}
+#forecast-panel {
+position: absolute; bottom: 0; left: 0; right: 0; z-index: 31;
+background: rgba(8,12,24,.97);
+border-top: 1px solid rgba(0,207,255,.2);
+border-radius: 22px 22px 0 0;
+-webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+box-shadow: 0 -8px 40px rgba(0,0,0,.7);
+-webkit-transform: translate3d(0,100%,0); transform: translate3d(0,100%,0);
+transition: transform .38s cubic-bezier(.32,.72,.24,1);
+max-height: 78vh; overflow-y: auto;
+-webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+padding-bottom: calc(var(–sab) + 20px);
+}
+#forecast-panel.open { -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0); }
+#fc-handle { display: flex; justify-content: center; padding: 10px 0 6px;
+position: sticky; top: 0; background: rgba(8,12,24,.97); z-index: 1; }
+#fc-handle::after { content: ‘’; width: 36px; height: 4px; border-radius: 2px;
+background: rgba(255,255,255,.2); }
+#fc-header { padding: 4px 20px 14px; }
+#fc-title { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
+#fc-subtitle { font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–muted); margin-top: 2px; }
+/* Toggle switches */
+#fc-toggles { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.fc-toggle {
+display: flex; align-items: center; gap: 8px;
+font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 500;
+color: var(–muted); cursor: pointer; user-select: none;
+}
+.fc-toggle input { display: none; }
+.fc-track {
+width: 36px; height: 20px; border-radius: 10px;
+background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.15);
+position: relative; transition: background .2s, border-color .2s;
+flex-shrink: 0;
+}
+.fc-toggle input:checked ~ .fc-track {
+background: rgba(0,207,255,.25); border-color: rgba(0,207,255,.5);
+}
+.fc-thumb {
+position: absolute; top: 2px; left: 2px;
+width: 14px; height: 14px; border-radius: 50%;
+background: rgba(255,255,255,.4);
+transition: transform .2s, background .2s;
+}
+.fc-toggle input:checked ~ .fc-track .fc-thumb {
+transform: translateX(16px); background: var(–accent);
+}
+/* Day groups */
+.fc-day { padding: 0 20px 4px; margin-bottom: 4px; }
+.fc-day-label {
+font-family: ‘DM Mono’, monospace; font-size: 9px; font-weight: 700;
+color: rgba(0,207,255,.6); letter-spacing: 1.5px; text-transform: uppercase;
+padding: 12px 0 8px; border-top: 1px solid rgba(255,255,255,.06);
+}
+.fc-day:first-child .fc-day-label { border-top: none; }
+/* Window cards */
+.fc-window {
+display: flex; align-items: center; gap: 12px;
+padding: 10px 12px; border-radius: 12px; margin-bottom: 6px;
+background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
+cursor: pointer; transition: background .12s;
+}
+.fc-window:active { background: rgba(0,207,255,.1); }
+.fc-window-score {
+width: 42px; height: 42px; flex-shrink: 0;
+}
+.fc-window-info { flex: 1; min-width: 0; }
+.fc-window-time {
+font-family: ‘DM Mono’, monospace; font-size: 14px; font-weight: 700;
+color: var(–text); line-height: 1.1;
+}
+.fc-window-spot {
+font-size: 12px; font-weight: 700; margin-top: 1px;
+white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fc-window-detail {
+font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); margin-top: 2px;
+}
+.fc-window-wind { text-align: right; flex-shrink: 0; }
+.fc-window-ms {
+font-family: ‘DM Mono’, monospace; font-size: 18px; font-weight: 600; line-height: 1;
+}
+.fc-window-unit { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); }
+.fc-empty { padding: 24px 20px; text-align: center;
+font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–muted); }
 </style>
 
 </head>
@@ -802,8 +905,9 @@ animation: pulse-dot 1s ease infinite;
         </svg>
       </div>
       <div id="bottom-bar-spacer"></div>
-      <!-- Spots: wingfoil person icon, right side -->
-      <div class="mctl" id="btn-spots" title="Spotit">
+      <!-- Spots: wingfoil + forecast calendar badge -->
+      <div id="btn-spots-wrap">
+        <div class="mctl" id="btn-spots" title="Spotit">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
           <!-- body -->
           <circle cx="12" cy="5" r="1.5" fill="white" stroke="none"/>
@@ -821,6 +925,8 @@ animation: pulse-dot 1s ease infinite;
           <line x1="11" y1="9" x2="8" y2="8"/>
           <line x1="11" y1="9" x2="14" y2="8"/>
         </svg>
+        </div>
+        <div id="fc-btn" title="Parhaat ajankohdat">⚡</div>
       </div>
     </div>
     <div id="tl-wrap">
@@ -855,6 +961,33 @@ animation: pulse-dot 1s ease infinite;
     <div id="rl-banner-close" onclick="document.getElementById('rl-banner').classList.remove('show')">&#x2715;</div>
   </div>
   <div id="refresh-dot"></div>
+  <!-- Forecast panel — best windows -->
+  <div id="forecast-panel">
+    <div id="fc-handle"></div>
+    <div id="fc-header">
+      <div id="fc-title">Parhaat ajankohdat</div>
+      <div id="fc-subtitle">5 vrk ennuste · parhaat 3h ikkunat spoteille</div>
+      <div id="fc-toggles">
+        <label class="fc-toggle">
+          <input type="checkbox" id="fc-tog-weekday" checked>
+          <span class="fc-track"><span class="fc-thumb"></span></span>
+          Ma–Pe 16–22
+        </label>
+        <label class="fc-toggle">
+          <input type="checkbox" id="fc-tog-weekend" checked>
+          <span class="fc-track"><span class="fc-thumb"></span></span>
+          La–Su 08–22
+        </label>
+        <label class="fc-toggle">
+          <input type="checkbox" id="fc-tog-allday">
+          <span class="fc-track"><span class="fc-thumb"></span></span>
+          Kaikki päiväajat
+        </label>
+      </div>
+    </div>
+    <div id="fc-content"></div>
+  </div>
+
 </div>
 
 <script>
@@ -2343,7 +2476,7 @@ function closeSheet() {
 }
 
 document.getElementById('sheet-overlay').addEventListener('click', () => {
-  closeSheet(); SpotList.close();
+  closeSheet(); SpotList.close(); ForecastPanel.close();
 }, { passive: true });
 document.getElementById('sheet-handle').addEventListener('click', closeSheet, { passive: true });
 
@@ -2841,7 +2974,224 @@ const SpotList = {
 };
 
 document.getElementById('btn-spots').addEventListener('click', () => { Haptics.light(); SpotList.toggle(); }, { passive: true });
-document.getElementById('sheet-overlay').addEventListener('click', () => { SpotList.close(); }, { passive: true });
+
+/* ── FORECAST PANEL — Best 3h windows over 5 days ─────────────────
+   Uses already-loaded spot hourly data — zero extra API calls.
+   Algorithm: sliding 3h window, median spotIndex, filtered by
+   user's time preferences.
+   ────────────────────────────────────────────────────────────────── */
+const ForecastPanel = {
+  _open: false,
+
+  toggle() {
+    this._open ? this.close() : this.open();
+  },
+
+  open() {
+    this._open = true;
+    /* Close other panels */
+    SpotList.close();
+    closeSheet();
+    document.getElementById('sheet-overlay').classList.add('open');
+    this.render();
+    document.getElementById('forecast-panel').classList.add('open');
+    Haptics.medium();
+  },
+
+  close() {
+    this._open = false;
+    document.getElementById('forecast-panel').classList.remove('open');
+    document.getElementById('sheet-overlay').classList.remove('open');
+  },
+
+  /* Time filter: returns true if this ISO time should be included */
+  _allowed(iso) {
+    const d = new Date(iso);
+    const dow = d.getDay(); /* 0=Sun,1=Mon...6=Sat */
+    const h   = d.getHours();
+    const isWeekday  = dow >= 1 && dow <= 5;
+    const isWeekend  = dow === 0 || dow === 6;
+    const togWeekday = document.getElementById('fc-tog-weekday').checked;
+    const togWeekend = document.getElementById('fc-tog-weekend').checked;
+    const togAllday  = document.getElementById('fc-tog-allday').checked;
+
+    /* Always block night hours */
+    if (h < 6 || h >= 23) return false;
+
+    if (togAllday) return true; /* all daylight hours */
+
+    if (togWeekday && isWeekday && h >= 16 && h < 22) return true;
+    if (togWeekend && isWeekend && h >= 8  && h < 22) return true;
+    return false;
+  },
+
+  /* Compute best 3h windows for viewport spots over 5 days.
+     Returns array of { day, windowStart, windowEnd, spot, score, ms, dir } */
+  _compute() {
+    if (!State.map) return [];
+    const bounds = State.map.getBounds();
+    const viewSpots = SPOTS.filter(s =>
+      s.wx && s.wx.hourly && bounds.contains(L.latLng(s.lat, s.lng))
+    );
+    if (!viewSpots.length) return [];
+
+    /* Build flat list of hourly scores for each spot */
+    const allWindows = [];
+    for (const spot of viewSpots) {
+      const h = spot.wx.hourly;
+      const n = h.windspeed_10m.length;
+      /* Sliding 3h window */
+      for (let i = 0; i < n - 2; i++) {
+        const t0 = h.time[i];
+        if (!this._allowed(t0)) continue;
+        /* All 3 hours must pass filter */
+        if (!this._allowed(h.time[i+1]) || !this._allowed(h.time[i+2])) continue;
+
+        /* Median spotIndex over 3 hours */
+        const scores = [0,1,2].map(j => {
+          const ms  = h.windspeed_10m[i+j] || 0;
+          const dir = h.winddirection_10m[i+j] || 0;
+          const gst = (h.windgusts_10m && h.windgusts_10m[i+j]) || ms;
+          return { score: spotIndex(ms, dir, spot.bestDirs, gst), ms, dir };
+        });
+        scores.sort((a,b) => a.score - b.score);
+        const median = scores[1]; /* middle value */
+
+        const d   = new Date(t0);
+        const day = d.toDateString();
+        allWindows.push({
+          day,
+          date: d,
+          windowStart: h.time[i],
+          windowEnd:   h.time[i+2],
+          spot,
+          score:  median.score,
+          ms:     median.ms,
+          dir:    median.dir
+        });
+      }
+    }
+
+    /* Group by day, keep top 3 per day (best score) */
+    const byDay = {};
+    for (const w of allWindows) {
+      if (!byDay[w.day]) byDay[w.day] = [];
+      byDay[w.day].push(w);
+    }
+    const result = [];
+    const DAY_NAMES = ['Su','Ma','Ti','Ke','To','Pe','La'];
+    const MON_NAMES = ['tam','hel','maa','huh','tou','kes','hei','elo','syy','lok','mar','jou'];
+    for (const day of Object.keys(byDay).sort()) {
+      const wins = byDay[day]
+        .sort((a,b) => b.score - a.score)
+        /* Deduplicate: skip if same spot within 2h of a better window */
+        .filter((w, idx, arr) => {
+          for (let k = 0; k < idx; k++) {
+            if (arr[k].spot === w.spot &&
+                Math.abs(new Date(arr[k].windowStart) - new Date(w.windowStart)) < 2*3600*1000) {
+              return false;
+            }
+          }
+          return true;
+        })
+        .slice(0, 3);
+      if (wins.length) {
+        const d = wins[0].date;
+        result.push({
+          dayLabel: DAY_NAMES[d.getDay()] + ' ' + d.getDate() + '. ' + MON_NAMES[d.getMonth()],
+          windows: wins
+        });
+      }
+    }
+    return result;
+  },
+
+  render() {
+    const days = this._compute();
+    const container = document.getElementById('fc-content');
+
+    if (!days.length) {
+      const togOn = document.getElementById('fc-tog-weekday').checked ||
+                    document.getElementById('fc-tog-weekend').checked ||
+                    document.getElementById('fc-tog-allday').checked;
+      container.innerHTML = '<div class="fc-empty">'
+        + (togOn ? 'Ei foilauskeli 5 vrk:n ennusteessa.' : 'Valitse aikasuodatin ylhäältä.')
+        + '</div>';
+      return;
+    }
+
+    container.innerHTML = days.map(({dayLabel, windows}) =>
+      '<div class="fc-day">'
+      + '<div class="fc-day-label">' + dayLabel + '</div>'
+      + windows.map(w => {
+          const col = spotIndexColor(w.score);
+          const svg = spotMarkerSVG(w.score, '', 42);
+          const t0  = new Date(w.windowStart);
+          const t1  = new Date(w.windowEnd);
+          const fmt = t => ('0'+t.getHours()).slice(-2) + ':00';
+          const arrow = dirArrow(w.dir);
+          const cRamp = ColorRamp.rgb(w.ms);
+          const msCol = 'rgb('+cRamp.r+','+cRamp.g+','+cRamp.b+')';
+          return '<div class="fc-window" data-spot="'+w.spot.name+'" data-time="'+w.windowStart+'">'
+            + '<div class="fc-window-score">' + svg + '</div>'
+            + '<div class="fc-window-info">'
+              + '<div class="fc-window-time">' + fmt(t0) + '–' + fmt(t1) + '</div>'
+              + '<div class="fc-window-spot" style="color:'+col+'">' + w.spot.name + '</div>'
+              + '<div class="fc-window-detail">' + arrow + ' ' + Math.round(w.dir) + '° · ' + w.spot.desc + '</div>'
+            + '</div>'
+            + '<div class="fc-window-wind">'
+              + '<div class="fc-window-ms" style="color:'+msCol+'">' + Units.fmt(w.ms) + '</div>'
+              + '<div class="fc-window-unit">' + Units.label() + '</div>'
+            + '</div>'
+            + '</div>';
+        }).join('')
+      + '</div>'
+    ).join('');
+
+    /* Tap window → fly to spot + set timeline to that hour */
+    container.querySelectorAll('.fc-window').forEach(el => {
+      el.addEventListener('click', () => {
+        const name = el.dataset.spot;
+        const time = el.dataset.time;
+        const spot = SPOTS.find(s => s.name === name);
+        if (!spot) return;
+        Haptics.medium();
+        this.close();
+        State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
+        /* Jump timeline to the window's hour */
+        if (State._tlTimes && time) {
+          const target = new Date(time).getTime();
+          let bestIdx = 0, bestDiff = Infinity;
+          for (let i = 0; i < State._tlTimes.length; i++) {
+            const diff = Math.abs(new Date(State._tlTimes[i]).getTime() - target);
+            if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+          }
+          State.currentHourIdx = bestIdx;
+          scrollTimelineTo(bestIdx);
+          _tlUpdateNow(bestIdx);
+          buildWindField(bestIdx).then(() => { drawColorField(); resetParticles(); });
+          renderSpots(bestIdx);
+        }
+        setTimeout(() => openSheet(spot, State.currentHourIdx), 700);
+      });
+    });
+  }
+};
+
+/* Wire up forecast button and toggle switches */
+document.getElementById('fc-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  ForecastPanel.toggle();
+}, { passive: false });
+
+['fc-tog-weekday','fc-tog-weekend','fc-tog-allday'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    if (ForecastPanel._open) ForecastPanel.render();
+  });
+});
+
+/* Overlay click handled by consolidated listener above */
+
 document.getElementById('spot-list-handle').addEventListener('click', () => SpotList.close(), { passive: true });
 
 /* ── UNIT SWITCHER ────────────────────────────────────────────── */
