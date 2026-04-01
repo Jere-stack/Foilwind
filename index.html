@@ -10,7 +10,7 @@
 <meta name="theme-color" content="#060912">
 <meta name="description" content="Wingfoil-sääsovellus Suomen parhaille spoteille">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23060912' width='100' height='100' rx='20'/><text y='68' x='50' text-anchor='middle' font-size='50'>🪁</text></svg>">
-<title>FoilSpot v6</title>
+<title>FoilSpot v7</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin/>
@@ -1077,22 +1077,22 @@ const ColorRamp = (() => {
 
 /* ── SPOTS ───────────────────────────────────────────────────── */
 const SPOTS = [
-  { name: 'Hanko',             lat: 59.824, lng: 22.972, desc: 'Paras etelä-lounas' },
-  { name: 'Haukilahti',        lat: 60.1552, lng: 24.7800, desc: 'Klassikko – etelätuulet' },
-  { name: 'Lauttasaari',       lat: 60.1540, lng: 24.8676, desc: 'Etelä–länsi, helppo pääsy' },
-  { name: 'Otaniemi',          lat: 60.1861, lng: 24.8382, desc: 'Otaniemen edusta – lounas' },
-  { name: 'Laajalahti',        lat: 60.1993, lng: 24.8600, desc: 'Suojaisa – kevyet tuulet' },
-  { name: 'Hietaniemi',        lat: 60.1734, lng: 24.8991, desc: 'Hietsu – etelä ja lounas' },
-  { name: 'Kruunuvuorenranta',  lat: 60.1650, lng: 25.0105, desc: 'Itäväylän kupeessa – lounais' },
-  { name: 'Puuskaniemi',       lat: 60.1727, lng: 25.0853, desc: 'Jollaksen edusta – avoin' },
-  { name: 'Kallahti',          lat: 60.1871, lng: 25.1408, desc: 'Vuosaaren ranta – itätuulet' },
-  { name: 'Parainen',          lat: 60.300, lng: 22.303, desc: 'Saaristomeri' },
-  { name: 'Naantali',          lat: 60.468, lng: 22.028, desc: 'Suoja länsituulille' },
-  { name: 'Oulu',              lat: 64.950, lng: 25.367, desc: 'Perämeri – luoteis' },
-  { name: 'Kotka',             lat: 60.465, lng: 26.940, desc: 'Suomenlahti – itä' },
-  { name: 'Pori',              lat: 61.485, lng: 21.797, desc: 'Selkämeri' },
-  { name: 'Turku',             lat: 60.452, lng: 22.287, desc: 'Turun saaristo' },
-  { name: 'Lohja',             lat: 60.243, lng: 23.998, desc: 'Sisäjärvi' }
+  { name: 'Hanko',             lat: 59.824,  lng: 22.972, desc: 'Paras etelä-lounas',            bestDirs: ['S','SW','W']          },
+  { name: 'Haukilahti',        lat: 60.1552, lng: 24.7800, desc: 'Klassikko – etelätuulet',       bestDirs: ['S','SE']              },
+  { name: 'Lauttasaari',       lat: 60.1540, lng: 24.8676, desc: 'Etelä–länsi, helppo pääsy',     bestDirs: ['S','SW']              },
+  { name: 'Otaniemi',          lat: 60.1861, lng: 24.8382, desc: 'Otaniemen edusta – lounas',     bestDirs: ['SW','W']              },
+  { name: 'Laajalahti',        lat: 60.1993, lng: 24.8600, desc: 'Suojaisa – kevyet tuulet',      bestDirs: ['S','SW','W','NW']     },
+  { name: 'Hietaniemi',        lat: 60.1734, lng: 24.8991, desc: 'Hietsu – etelä ja lounas',      bestDirs: ['S','SW']              },
+  { name: 'Kruunuvuorenranta', lat: 60.1650, lng: 25.0105, desc: 'Itäväylän kupeessa – lounais',  bestDirs: ['SW','W','NW']         },
+  { name: 'Puuskaniemi',       lat: 60.1727, lng: 25.0853, desc: 'Jollaksen edusta – avoin',      bestDirs: ['S','SW','W','NW','N'] },
+  { name: 'Kallahti',          lat: 60.1871, lng: 25.1408, desc: 'Vuosaaren ranta – itätuulet',   bestDirs: ['E','SE','NE']         },
+  { name: 'Parainen',          lat: 60.300,  lng: 22.303,  desc: 'Saaristomeri',                  bestDirs: ['SW','W','NW']         },
+  { name: 'Naantali',          lat: 60.468,  lng: 22.028,  desc: 'Suoja länsituulille',            bestDirs: ['W','NW','SW']         },
+  { name: 'Oulu',              lat: 64.950,  lng: 25.367,  desc: 'Perämeri – luoteis',             bestDirs: ['NW','W','SW']         },
+  { name: 'Kotka',             lat: 60.465,  lng: 26.940,  desc: 'Suomenlahti – itä',             bestDirs: ['E','SE','S']          },
+  { name: 'Pori',              lat: 61.485,  lng: 21.797,  desc: 'Selkämeri',                     bestDirs: ['SW','W','NW']         },
+  { name: 'Turku',             lat: 60.452,  lng: 22.287,  desc: 'Turun saaristo',                bestDirs: ['SW','W','S']          },
+  { name: 'Lohja',             lat: 60.243,  lng: 23.998,  desc: 'Sisäjärvi',                     bestDirs: ['S','SW','W','NW','N'] }
 ];
 
 /* ── VIEWPORT GRID ────────────────────────────────────────────── */
@@ -1947,6 +1947,54 @@ function buildWindField(hourIdx) {
 }
 
 /* ── SPOT MARKERS ─────────────────────────────────────────────── */
+/* ── SPOT INDEX — 1.0–10.0 score combining wind speed + direction ─
+   Wind speed: 0–5 m/s → 0–4 pts, 5–8 → 4–6, 8–12 → 6–9, 12–15 → 9–10, >15 → drops
+   Direction bonus: optimal dir → full speed score, 45° off → 70%, 90° off → 30%
+   ──────────────────────────────────────────────────────────────────── */
+const DIR_DEG = { N:0, NE:45, E:90, SE:135, S:180, SW:225, W:270, NW:315 };
+
+function dirMatchScore(windDeg, bestDirs) {
+  if (!bestDirs || !bestDirs.length) return 0.7; /* neutral if unknown */
+  let best = 0;
+  for (const d of bestDirs) {
+    const optimal = DIR_DEG[d];
+    if (optimal === undefined) continue;
+    let diff = Math.abs(windDeg - optimal) % 360;
+    if (diff > 180) diff = 360 - diff;
+    /* score: 0° → 1.0, 45° → 0.7, 90° → 0.3, >90° → 0 */
+    const score = diff <= 90 ? Math.cos(diff * Math.PI / 180) * 0.7 + 0.3 : 0;
+    if (score > best) best = score;
+  }
+  return best;
+}
+
+function spotIndex(ms, windDeg, bestDirs) {
+  if (ms < 3) return Math.max(0, ms / 3 * 1.5); /* 0–1.5 below threshold */
+
+  /* Speed score: peaks at 12–15 m/s */
+  let speedScore;
+  if (ms < 5)       speedScore = 1.5 + (ms - 3) / 2 * 2.5;   /* 1.5–4 */
+  else if (ms < 8)  speedScore = 4 + (ms - 5) / 3 * 2;        /* 4–6 */
+  else if (ms < 12) speedScore = 6 + (ms - 8) / 4 * 3;        /* 6–9 */
+  else if (ms < 15) speedScore = 9 + (ms - 12) / 3 * 1;       /* 9–10 */
+  else if (ms < 20) speedScore = 10 - (ms - 15) / 5 * 3;      /* 10→7 (too strong) */
+  else              speedScore = 7 - (ms - 20) / 5 * 4;        /* 7→3 (dangerous) */
+
+  const dirScore = dirMatchScore(windDeg, bestDirs);
+  /* Blend: 60% speed, 40% direction match */
+  const raw = speedScore * (0.6 + dirScore * 0.4);
+  return Math.min(10, Math.max(0, Math.round(raw * 10) / 10));
+}
+
+function spotIndexColor(idx) {
+  if (idx < 3)  return '#5080ff'; /* calm/off-dir — blue */
+  if (idx < 5)  return '#00dcb4'; /* light */
+  if (idx < 7)  return '#50ed78'; /* good */
+  if (idx < 8.5)return '#f0dc00'; /* great */
+  if (idx < 9.5)return '#ff8232'; /* strong */
+  return '#ff5a5a';               /* extreme */
+}
+
 function dirArrow(deg) { return ['\u2193','\u2199','\u2190','\u2196','\u2191','\u2197','\u2192','\u2198'][Math.round((deg % 360) / 45) % 8]; }
 
 function windBadge(ms) {
@@ -1980,15 +2028,38 @@ function renderSpots(hourIdx) {
   for (const spot of SPOTS) {
     if (!spot.wx || !spot.wx.hourly) continue;
     const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
-    const ms = h.windspeed_10m[idx] || 0, gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
-    const dms = layer === 'gust' ? gst : ms, c = ColorRamp.rgb(dms), col = 'rgb('+c.r+','+c.g+','+c.b+')';
-    const foilable = ms >= 8;
+    const ms = h.windspeed_10m[idx] || 0;
+    const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
+    const dir = h.winddirection_10m[idx] || 0;
+    const dms = layer === 'gust' ? gst : ms;
+    const c = ColorRamp.rgb(dms), col = 'rgb('+c.r+','+c.g+','+c.b+')';
     const sz = zoom <= 6 ? 6 : zoom <= 8 ? 8 : 10, bw = zoom <= 7 ? 1 : 1.5;
-    const trend = windTrend(h, idx);
-    const trendHtml = zoom >= 7 ? '<div class="spot-trend">' + trend.arrow + '</div>' : '';
-    const icon = L.divIcon({ className: '',
-      html: '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';border:'+bw+'px solid rgba(255,255,255,.45);box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer"></div>' + trendHtml,
-      iconSize: [sz, sz + (zoom >= 7 ? 12 : 0)], iconAnchor: [sz/2, sz/2] });
+
+    /* v7: spot index */
+    const si = spotIndex(ms, dir, spot.bestDirs);
+    const siCol = spotIndexColor(si);
+    const siStr = si.toFixed(1);
+
+    let html, iconW, iconH, anchor;
+    if (zoom >= 7) {
+      /* dot + index badge below */
+      html = '<div style="position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:2px">'
+        + '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';border:'+bw+'px solid rgba(255,255,255,.45);box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer"></div>'
+        + '<div style="background:rgba(6,9,18,.85);border:1px solid '+siCol+';border-radius:5px;padding:1px 5px;font-family:DM Mono,monospace;font-size:10px;font-weight:700;color:'+siCol+';line-height:1.3;white-space:nowrap;box-shadow:0 0 6px '+siCol+'55;cursor:pointer">'
+        + siStr + '</div></div>';
+      iconW = 36; iconH = sz + 22; anchor = [iconW / 2, sz / 2];
+    } else if (zoom >= 5) {
+      /* badge only */
+      html = '<div style="background:rgba(6,9,18,.85);border:1px solid '+siCol+';border-radius:4px;padding:1px 5px;font-family:DM Mono,monospace;font-size:9px;font-weight:700;color:'+siCol+';line-height:1.3;white-space:nowrap;box-shadow:0 0 4px '+siCol+'55;cursor:pointer">'
+        + siStr + '</div>';
+      iconW = 28; iconH = 16; anchor = [iconW / 2, iconH / 2];
+    } else {
+      /* tiny dot */
+      html = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+col+';border:'+bw+'px solid rgba(255,255,255,.45);box-shadow:0 0 '+(sz+2)+'px '+ColorRamp.css(dms,.3)+';cursor:pointer"></div>';
+      iconW = sz; iconH = sz; anchor = [sz/2, sz/2];
+    }
+
+    const icon = L.divIcon({ className: '', html, iconSize: [iconW, iconH], iconAnchor: anchor });
     State.markers.push(L.marker([spot.lat, spot.lng], { icon }).on('click', () => {
       Haptics.medium();
       openSheet(spot, hourIdx);
@@ -2050,6 +2121,7 @@ function openSheet(spot, hourIdx) {
         + '<div class="sh-name">' + spot.name + '</div>'
         + '<div class="sh-desc">' + spot.desc + '</div>'
         + '<div class="sh-datetime">🕐 ' + fmtDateTime(h.time ? h.time[idx] : null) + '</div>'
+        + (()=>{ const si=spotIndex(ms,dir,spot.bestDirs),sc=spotIndexColor(si); return '<div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:14px"><div style="background:rgba(6,9,18,.85);border:1.5px solid '+sc+';border-radius:8px;padding:3px 12px;font-family:DM Mono,monospace;font-size:22px;font-weight:700;color:'+sc+';line-height:1.2;box-shadow:0 0 10px '+sc+'44">'+si.toFixed(1)+'</div><div style="font-family:DM Mono,monospace;font-size:9px;color:rgba(180,215,255,.5);line-height:1.5">SPOTTIINDEKSI<br><span style="color:'+sc+';font-size:8px">'+(spot.bestDirs?spot.bestDirs.join(' · '):'')+'</span></div></div>'; })()
       + '</div>'
       + '<div class="sh-hero-right">'
         + '<div class="sh-big-wind" style="color:' + colorStr + '">' + Units.fmt(ms) + '</div>'
