@@ -2042,29 +2042,44 @@ function spotIndex(ms, windDeg, bestDirs, gustMs) {
   }
   dirPts *= speedWeight;
 
-  /* ── PUUSKAISUUS −0…−10 pts (vähemmän painoa) ────────────────
-     1.0–1.3 → ei rangaistusta
-     1.3–1.8 → −0…−7
-     1.8–2.5 → −7…−10                                         */
+  /* ── PUUSKAISUUS −0…−5 pts (pieni vaikutus) ──────────────────
+     Helsingissä aina puuskaista — vain äärimmäiset rangaistaan
+     1.0–1.4 → ei rangaistusta
+     1.4–2.5 → −0…−5                                           */
   let gustPenalty = 0;
   if (gustMs && ms > 1) {
     const ratio = gustMs / ms;
-    if (ratio > 1.3 && ratio <= 1.8) {
-      gustPenalty = (ratio - 1.3) / 0.5 * 7;
-    } else if (ratio > 1.8) {
-      gustPenalty = 7 + Math.min(3, (ratio - 1.8) / 0.7 * 3);
-    }
+    if (ratio > 1.4) gustPenalty = Math.min(5, (ratio - 1.4) / 1.1 * 5);
   }
 
   return Math.min(100, Math.max(0, Math.round(speedPts + dirPts - gustPenalty)));
 }
 
-/* Color by band: 0-29 grey, 30-59 yellow, 60-79 orange, 80-100 green */
+/* Smooth gradient color: grey → yellow → light green → green
+   0   = #888aaa (grey)
+   30  = #c8c020 (yellow-green starts)
+   50  = #7dd44a (light green)
+   65  = #4de87a (green)
+   100 = #00ff88 (bright green)
+   Uses RGB lerp between keypoints                              */
 function spotIndexColor(score) {
-  if (score < 30) return '#888aaa';  /* grey   */
-  if (score < 55) return '#f0dc00';  /* yellow */
-  if (score < 65) return '#ff8232';  /* orange */
-  return '#4de87a';                  /* green  */
+  const stops = [
+    [  0, [136, 138, 170]],   /* grey        */
+    [ 28, [180, 160,  20]],   /* yellow      */
+    [ 42, [160, 200,  30]],   /* yellow-green */
+    [ 55, [100, 220,  60]],   /* light green */
+    [ 70, [ 60, 220, 100]],   /* green       */
+    [100, [  0, 255, 130]],   /* bright green */
+  ];
+  const s = Math.max(0, Math.min(100, score));
+  let i = 0;
+  while (i < stops.length - 2 && stops[i+1][0] <= s) i++;
+  const [s0, c0] = stops[i], [s1, c1] = stops[i+1];
+  const t = (s - s0) / (s1 - s0);
+  const r = Math.round(c0[0] + t * (c1[0] - c0[0]));
+  const g = Math.round(c0[1] + t * (c1[1] - c0[1]));
+  const b = Math.round(c0[2] + t * (c1[2] - c0[2]));
+  return `rgb(${r},${g},${b})`;
 }
 
 /* SVG circle marker with arc progress bar + score + name */
