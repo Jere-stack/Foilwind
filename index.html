@@ -969,17 +969,17 @@ font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–muted); }
       <div id="fc-subtitle">5 vrk ennuste · parhaat 3h ikkunat spoteille</div>
       <div id="fc-toggles">
         <label class="fc-toggle">
-          <input type="checkbox" id="fc-tog-weekday" checked>
+          <input type="checkbox" id="fc-tog-weekday">
           <span class="fc-track"><span class="fc-thumb"></span></span>
           Ma–Pe 16–22
         </label>
         <label class="fc-toggle">
-          <input type="checkbox" id="fc-tog-weekend" checked>
+          <input type="checkbox" id="fc-tog-weekend">
           <span class="fc-track"><span class="fc-thumb"></span></span>
           La–Su 08–22
         </label>
         <label class="fc-toggle">
-          <input type="checkbox" id="fc-tog-allday">
+          <input type="checkbox" id="fc-tog-allday" checked>
           <span class="fc-track"><span class="fc-thumb"></span></span>
           Kaikki päiväajat
         </label>
@@ -3058,7 +3058,7 @@ const ForecastPanel = {
         const median = scores[1]; /* middle value */
 
         const d   = new Date(t0);
-        const day = d.toDateString();
+        const day = d.toISOString().slice(0,10); /* YYYY-MM-DD sorts correctly */
         allWindows.push({
           day,
           date: d,
