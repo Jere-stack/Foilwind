@@ -879,62 +879,46 @@ const Config = {
 
 /* ── HAPTICS ──────────────────────────────────────────────────── */
 const Haptics = {
-  /* iOS: uses AudioContext-based click + vibration API fallback */
   _ctx: null,
+  _unlocked: false,
+  /* Unlock AudioContext on first touch anywhere */
+  unlock() {
+    if (this._unlocked) return;
+    try {
+      const ctx = this._getCtx();
+      if (ctx && ctx.state === 'suspended') ctx.resume();
+      /* Trigger a silent buffer to unlock */
+      const buf = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.connect(ctx.destination); src.start(0);
+      this._unlocked = true;
+    } catch(e) {}
+  },
   _getCtx() {
     if (!this._ctx) {
       try { this._ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
     }
     return this._ctx;
   },
-  /** Light tap — buttons, chips */
-  light() {
+  _click(freq, dur, vol) {
     try {
-      if (navigator.vibrate) { navigator.vibrate(8); return; }
-      /* iOS: silent haptic via oscillator click */
-      const ctx = this._getCtx();
-      if (!ctx) return;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = 1400;
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.04);
-    } catch(e) {}
-  },
-  /** Medium — sheet open/close, timeline hour change */
-  medium() {
-    try {
-      if (navigator.vibrate) { navigator.vibrate([12, 4, 8]); return; }
+      /* Android / modern iOS 18+ */
+      if (navigator.vibrate) { navigator.vibrate(dur < 10 ? 6 : 10); }
+      /* iOS AudioContext fallback */
       const ctx = this._getCtx(); if (!ctx) return;
-      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
       osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = 800;
-      gain.gain.setValueAtTime(0.12, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.08);
+      osc.type = 'sine'; osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + dur);
     } catch(e) {}
   },
-  /** Selection — timeline tick scroll */
-  selection() {
-    try {
-      if (navigator.vibrate) { navigator.vibrate(4); return; }
-      const ctx = this._getCtx(); if (!ctx) return;
-      const osc = ctx.createOscillator(); const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.frequency.value = 1800;
-      gain.gain.setValueAtTime(0.05, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.025);
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.025);
-    } catch(e) {}
-  },
-  /** Error/dismiss */
-  error() {
-    try {
-      if (navigator.vibrate) { navigator.vibrate([20, 10, 20]); }
-    } catch(e) {}
-  }
+  light()     { this._click(1200, 0.04, 0.06); },
+  medium()    { this._click(800,  0.08, 0.10); },
+  /** Timeline tick — short crisp tap */
+  selection() { this._click(1600, 0.022, 0.07); },
+  error() { try { if (navigator.vibrate) navigator.vibrate([20,10,20]); } catch(e) {} }
 };
 
 /* ── SWIPE-TO-DISMISS — Reusable for any bottom sheet ─────────── */
@@ -2491,8 +2475,8 @@ function _tlUpdateNow(idx) {
   const dateStr = DAY[d.getDay()] + ' ' + d.getDate() + '.' + (d.getMonth()+1) + '.';
   const bubble = document.getElementById('tl-time-bubble');
   if (bubble) bubble.innerHTML =
-    '<div style="font-size:9px;color:rgba(0,207,255,.7);letter-spacing:.5px;font-weight:500;margin-bottom:1px">' + dateStr + '</div>'
-    + '<div style="font-size:18px;font-weight:700;letter-spacing:1px;color:#fff;line-height:1">' + hh + '<span style="opacity:.5">:00</span></div>';
+    '<div style="font-size:9px;color:rgba(0,207,255,.85);letter-spacing:.5px;font-weight:700;margin-bottom:1px">' + dateStr + '</div>'
+    + '<div style="font-size:18px;font-weight:700;letter-spacing:1px;color:#fff;line-height:1">' + hh + ':00</div>';
 }
 
 function _tlSnapSelect(tl) {
@@ -2940,6 +2924,9 @@ function main() {
   buildLegend(); initMap(); initCanvases();
   Crosshair.init(); WeatherWidget.init(); Units.init();
   hideLoading(); startRenderLoop();
+
+  /* Unlock AudioContext (needed for iOS haptics) on first touch */
+  document.addEventListener('touchstart', () => Haptics.unlock(), { once: true, passive: true });
 
   makeSwipeable(document.getElementById('sheet'), closeSheet);
   makeSwipeable(document.getElementById('spot-list'), () => SpotList.close());
