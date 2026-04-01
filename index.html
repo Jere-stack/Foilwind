@@ -799,7 +799,7 @@ animation: pulse-dot 1s ease infinite;
       <div id="bottom-bar-spacer"></div>
       <!-- Spots: wingfoil person icon, right side -->
       <div class="mctl" id="btn-spots" title="Spotit">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
           <!-- body -->
           <circle cx="12" cy="5" r="1.5" fill="white" stroke="none"/>
           <!-- wing (curved arc above) -->
@@ -2012,9 +2012,9 @@ function spotIndex(ms, windDeg, bestDirs, gustMs) {
      Huippu 11–14 m/s = 60 pts. Alle 2 nolla. Yli 22 nolla.  */
   let speedPts;
   if (ms < 2)        speedPts = 0;
-  else if (ms < 5)   speedPts = (ms-2)/3 * 14;           /* 0→14   */
-  else if (ms < 8)   speedPts = 14 + (ms-5)/3 * 28;      /* 14→42  */
-  else if (ms < 11)  speedPts = 42 + (ms-8)/3 * 18;      /* 42→60  */
+  else if (ms < 5)   speedPts = (ms-2)/3 * 16;           /* 0→16   */
+  else if (ms < 8)   speedPts = 16 + (ms-5)/3 * 36;      /* 16→52  */
+  else if (ms < 11)  speedPts = 52 + (ms-8)/3 * 8;       /* 52→60  */
   else if (ms < 14)  speedPts = 60;                       /* plateau */
   else if (ms < 17)  speedPts = 60 - (ms-14)/3 * 22;     /* 60→38  */
   else if (ms < 22)  speedPts = 38 - (ms-17)/5 * 34;     /* 38→4   */
@@ -2061,9 +2061,9 @@ function spotIndex(ms, windDeg, bestDirs, gustMs) {
 
 /* Color by band: 0-29 grey, 30-59 yellow, 60-79 orange, 80-100 green */
 function spotIndexColor(score) {
-  if (score < 30) return '#888aaa';  /* grey  */
-  if (score < 60) return '#f0dc00';  /* yellow */
-  if (score < 80) return '#ff8232';  /* orange */
+  if (score < 30) return '#888aaa';  /* grey   */
+  if (score < 55) return '#f0dc00';  /* yellow */
+  if (score < 65) return '#ff8232';  /* orange */
   return '#4de87a';                  /* green  */
 }
 
