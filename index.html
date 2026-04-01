@@ -2442,9 +2442,28 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
 
   let _scrollTimer = null;
   let _lastTickIdx = activeIdx;
+  let _isScrolling = false;
+
   tl.addEventListener('scroll', () => {
+    /* During scroll: update bubble live + haptic on each new hour */
+    if (!_isScrolling) { _isScrolling = true; }
+    const center = tl.scrollLeft + tl.offsetWidth / 2;
+    let bestIdx = 0, bestDist = Infinity;
+    for (let i = 0; i < State._tlTicks.length; i++) {
+      const dist = Math.abs(center - (State._tlTicks[i].offsetLeft + 12));
+      if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+    }
+    if (bestIdx !== _lastTickIdx) {
+      Haptics.selection();
+      _lastTickIdx = bestIdx;
+      _tlUpdateNow(bestIdx);
+    }
+    /* On scroll end: snap smoothly to center of nearest tick */
     clearTimeout(_scrollTimer);
-    _scrollTimer = setTimeout(() => _tlSnapSelect(tl), 150);
+    _scrollTimer = setTimeout(() => {
+      _isScrolling = false;
+      _tlSnapSelect(tl);
+    }, 120);
   }, { passive: true });
 
   tl.addEventListener('click', (e) => {
@@ -2473,7 +2492,7 @@ function _tlUpdateNow(idx) {
   const bubble = document.getElementById('tl-time-bubble');
   if (bubble) bubble.innerHTML =
     '<div style="font-size:9px;color:rgba(0,207,255,.7);letter-spacing:.5px;font-weight:500;margin-bottom:1px">' + dateStr + '</div>'
-    + '<div style="font-size:18px;font-weight:700;letter-spacing:-0.5px;color:#fff;line-height:1">' + hh + '<span style="font-size:12px;opacity:.6">:00</span></div>';
+    + '<div style="font-size:18px;font-weight:700;letter-spacing:1px;color:#fff;line-height:1">' + hh + '<span style="opacity:.5">:00</span></div>';
 }
 
 function _tlSnapSelect(tl) {
@@ -2481,17 +2500,18 @@ function _tlSnapSelect(tl) {
   let bestIdx = 0, bestDist = Infinity;
   for (let i = 0; i < State._tlTicks.length; i++) {
     const tick = State._tlTicks[i];
-    const tickCenter = tick.offsetLeft + 10;
+    const tickCenter = tick.offsetLeft + 12; /* 12 = TICK_W/2 */
     const dist = Math.abs(center - tickCenter);
     if (dist < bestDist) { bestDist = dist; bestIdx = i; }
   }
+  /* Snap scroll to exact center of winning tick */
+  const snapTarget = State._tlTicks[bestIdx];
+  if (snapTarget) {
+    tl.scrollTo({ left: snapTarget.offsetLeft - tl.offsetWidth / 2 + 12, behavior: 'smooth' });
+  }
   if (bestIdx !== State.currentHourIdx) {
-    /* Haptic only on actual hour change, not every scroll event */
-    if (Math.abs(bestIdx - State._lastTlHour) >= 1) {
-      Haptics.selection();
-      State._lastTlHour = bestIdx;
-    }
     State.currentHourIdx = bestIdx;
+    State._lastTlHour = bestIdx;
     _tlUpdateNow(bestIdx);
     buildWindField(bestIdx).then(() => { drawColorField(); resetParticles(); });
     renderSpots(bestIdx);
