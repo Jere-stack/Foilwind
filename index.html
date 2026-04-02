@@ -862,6 +862,66 @@ flex-shrink: 0; transition: background .12s;
 .wx-hour-icon { font-size: 22px; line-height: 1; }
 .wx-hour-temp { font-family: “DM Mono”,monospace; font-size: 13px; font-weight: 700; color: #fff; }
 .wx-hour-wind { font-family: “DM Mono”,monospace; font-size: 9px; font-weight: 600; }
+
+/* ── SPOT CARD ENHANCEMENTS ───────────────────────────────────── */
+
+/* Sun bar */
+.sh-sun-bar {
+display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted);
+}
+.sh-sun-track {
+flex: 1; height: 4px; border-radius: 2px;
+background: rgba(255,255,255,.1); position: relative; overflow: visible;
+}
+.sh-sun-fill {
+position: absolute; left: 0; top: 0; height: 100%; border-radius: 2px;
+background: linear-gradient(to right, #ff8c00, #ffd700);
+}
+.sh-sun-dot {
+position: absolute; top: 50%; transform: translate(-50%, -50%);
+width: 8px; height: 8px; border-radius: 50%;
+background: #ffd700; box-shadow: 0 0 6px #ffd700;
+}
+.sh-sun-label { color: rgba(255,220,80,.8); font-size: 9px; white-space: nowrap; }
+
+/* 24h line chart */
+.sh-24h-section { margin-bottom: 16px; }
+.sh-24h-header {
+display: flex; justify-content: space-between; align-items: baseline;
+margin-bottom: 6px;
+}
+.sh-24h-title { font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 600;
+color: rgba(255,255,255,.6); letter-spacing: .5px; }
+.sh-24h-peak { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–accent); }
+.sh-24h-svg { width: 100%; display: block; }
+
+/* FMI station card */
+.sh-fmi {
+background: rgba(0,207,255,.06); border: 1px solid rgba(0,207,255,.15);
+border-radius: 12px; padding: 10px 14px; margin-bottom: 14px;
+display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.sh-fmi-left { flex: 1; min-width: 0; }
+.sh-fmi-name { font-size: 11px; font-weight: 700; color: var(–text);
+white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-fmi-meta { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); margin-top: 2px; }
+.sh-fmi-wind { text-align: right; flex-shrink: 0; }
+.sh-fmi-ms { font-family: ‘DM Mono’, monospace; font-size: 20px; font-weight: 700; line-height: 1; }
+.sh-fmi-unit { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); }
+.sh-fmi-loading { font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–muted); }
+
+/* Navigate button */
+.sh-nav-btn {
+display: flex; align-items: center; justify-content: center; gap: 8px;
+width: 100%; padding: 12px; border-radius: 14px; margin-bottom: 8px;
+background: rgba(0,207,255,.08); border: 1px solid rgba(0,207,255,.2);
+font-family: ‘DM Mono’, monospace; font-size: 11px; font-weight: 600;
+color: var(–accent); cursor: pointer; transition: background .12s;
+-webkit-user-select: none; user-select: none;
+}
+.sh-nav-btn:active { background: rgba(0,207,255,.18); }
+.sh-nav-btn svg { flex-shrink: 0; }
 </style>
 
 </head>
@@ -2098,6 +2158,7 @@ function buildBatchUrl(points, model, forecastDays) {
   let url = 'https://api.open-meteo.com/v1/forecast?latitude=' + points.map(p => p.lat.toFixed(4)).join(',')
     + '&longitude=' + points.map(p => p.lng.toFixed(4)).join(',')
     + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
+    + '&daily=sunrise,sunset'
     + '&wind_speed_unit=ms&timezone=auto&forecast_days=' + days;
   if (model && model !== 'best_match') url += '&models=' + model;
   return url;
