@@ -271,10 +271,10 @@ transition: opacity 0.15s;
 .htick:active .htick-bar { opacity: 0.7; }
 .htick-lbl {
 position: absolute; bottom: 0; font-family: ‘DM Mono’, monospace;
-font-size: 7px; color: var(–muted); white-space: nowrap;
-pointer-events: none; opacity: 0.55;
+font-size: 7px; color: rgba(255,255,255,0.5); white-space: nowrap;
+pointer-events: none; opacity: 1;
 }
-.htick.show-lbl .htick-lbl { opacity: 0.85; font-weight: 500; }
+.htick.show-lbl .htick-lbl { color: rgba(255,255,255,0.9); font-weight: 600; font-size: 8px; }
 
 #tl-indicator {
 position: absolute; top: 0; left: 50%; width: 3px; height: 100%;
@@ -1539,6 +1539,9 @@ function initMap() {
       for (let i = 0; i < target; i++) State.particles.push(makeParticle(true));
     }
 
+    /* Update timeline to nearest loaded point to map center — 0 API calls */
+    updateTimelineToCenter();
+
     /* Then load fresh viewport data in background */
     _scheduleViewportLoad();
   });
@@ -1565,6 +1568,8 @@ function initMap() {
             if (!State.particles.length) resetParticles();
             renderSpots(State.currentHourIdx);
             Crosshair.refresh();
+            /* Refresh timeline with nearest fresh data point */
+            updateTimelineToCenter();
             setTimeout(() => dot.classList.remove('pulse'), 800);
           });
         })
@@ -2507,6 +2512,31 @@ function bestTimelineRef() {
     }
   }
   return best;
+}
+
+/* Returns the loaded data point closest to the map center — no API calls */
+function nearestPointToCenter() {
+  if (!State.map) return null;
+  const c = State.map.getCenter();
+  let best = null, bestDist = Infinity;
+  const candidates = [...SPOTS, ...ViewportGrid.getAllPoints()];
+  for (const p of candidates) {
+    if (!p.wx || !p.wx.hourly || !p.wx.hourly.windspeed_10m) continue;
+    const dlat = p.lat - c.lat, dlng = p.lng - c.lng;
+    const dist = dlat*dlat + dlng*dlng;
+    if (dist < bestDist) { bestDist = dist; best = p; }
+  }
+  return best;
+}
+
+/* Update timeline to nearest loaded point — called on moveend, 0 API calls */
+function updateTimelineToCenter() {
+  const p = nearestPointToCenter();
+  if (!p) return;
+  const h = p.wx.hourly;
+  const layer = State.activeLayer;
+  const sp = layer === 'gust' ? (h.windgusts_10m || h.windspeed_10m) : h.windspeed_10m;
+  renderTimeline(h.time, sp, h.winddirection_10m, State.currentHourIdx);
 }
 
 function nowIdx(times) {
