@@ -799,7 +799,7 @@ font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–muted); }
 /* ── UNITS PICKER — pill menu ──────────────────────────────────── */
 #units-picker {
 position: fixed;
-top: calc(var(–sat) + 62px);
+top: calc(var(–sat) + 88px);
 left: 50%; transform: translateX(-50%) translateY(-6px) scale(0.96);
 z-index: 40;
 display: flex; flex-direction: column; gap: 2px;
@@ -1265,7 +1265,7 @@ const ColorRamp = (() => {
     { t: 0.93, r: 180, g: 0,   b: 100 },
     { t: 1.00, r: 130, g: 0,   b: 180 }
   ];
-  function msToT(ms) { return Math.pow(Math.min(1, Math.max(0, ms / Config.MAX_MS)), 0.55); }
+  function msToT(ms) { return Math.pow(Math.min(1, Math.max(0, (ms + 0.5) / Config.MAX_MS)), 0.55); }
   function interpolate(ramp, t) {
     for (let i = 1; i < ramp.length; i++) {
       if (t <= ramp[i].t) {
@@ -1592,6 +1592,7 @@ function initMap() {
     State._panning = false;
     PerfTracker.reset();
     WeatherWidget.scheduleUpdate();
+    if (typeof WxPanel !== 'undefined' && WxPanel._open) WxPanel.render();
     renderSpots(State.currentHourIdx);
 
     if (State.windField.length) {
