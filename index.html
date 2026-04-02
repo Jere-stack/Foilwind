@@ -719,7 +719,8 @@ border-radius: 22px 22px 0 0;
 box-shadow: 0 -8px 40px rgba(0,0,0,.7);
 -webkit-transform: translate3d(0,100%,0); transform: translate3d(0,100%,0);
 transition: transform .38s cubic-bezier(.32,.72,.24,1);
-max-height: 78vh; overflow-y: auto;
+/* Fixed height — never collapses when content is empty */
+height: 72vh; overflow-y: auto;
 -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
 padding-bottom: calc(var(–sab) + 20px);
 }
@@ -1251,25 +1252,26 @@ const Units = {
 /* ── COLOUR RAMP ──────────────────────────────────────────────── */
 const ColorRamp = (() => {
   const RAMP = [
-    { t: 0.00, r: 10,  g: 20,  b: 60  },
-    { t: 0.10, r: 20,  g: 60,  b: 180 },
-    { t: 0.22, r: 0,   g: 100, b: 255 },
-    { t: 0.32, r: 0,   g: 200, b: 255 },
-    { t: 0.44, r: 0,   g: 245, b: 175 },
-    { t: 0.55, r: 30,  g: 245, b: 70  },
-    { t: 0.64, r: 170, g: 245, b: 5   },
-    { t: 0.72, r: 255, g: 220, b: 0   },
-    { t: 0.80, r: 255, g: 120, b: 0   },
-    { t: 0.86, r: 255, g: 40,  b: 0   },
-    { t: 0.93, r: 220, g: 0,   b: 20  },
-    { t: 0.97, r: 180, g: 0,   b: 100 },
-    { t: 1.00, r: 130, g: 0,   b: 180 }
+    { t: 0.00, r: 10,  g: 20,  b: 80  },
+    { t: 0.10, r: 15,  g: 60,  b: 200 },
+    { t: 0.22, r: 0,   g: 100, b: 255 },  /* ~3.5 m/s deep blue */
+    { t: 0.35, r: 0,   g: 210, b: 255 },  /* ~4.5 m/s cyan */
+    { t: 0.44, r: 80,  g: 240, b: 80  },  /* ~5 m/s yellow-green */
+    { t: 0.52, r: 180, g: 240, b: 10  },  /* ~5.5 m/s green */
+    { t: 0.60, r: 60,  g: 220, b: 30  },  /* ~6.5 m/s green */
+    { t: 0.68, r: 240, g: 210, b: 0   },  /* ~7 m/s yellow */
+    { t: 0.80, r: 255, g: 80,  b: 0   },  /* ~10 m/s orange */
+    { t: 0.90, r: 220, g: 10,  b: 10  },  /* ~12 m/s red — flat zone starts */
+    { t: 0.95, r: 200, g: 0,   b: 30  },
+    { t: 1.00, r: 180, g: 0,   b: 60  }   /* 20 m/s — nearly same red */
   ];
-  /* Linear 0-6 → t 0-0.30, then power curve: ensures 3.5 m/s is clearly blue */
+  /* Piecewise mapping: dense 3.5-7 zone, flat 12-20 zone */
   function msToT(ms) {
-    const clamped = Math.min(Config.MAX_MS, Math.max(0, ms));
-    if (clamped <= 6) return (clamped / 6) * 0.30;
-    return 0.30 + Math.pow((clamped - 6) / (Config.MAX_MS - 6), 0.65) * 0.70;
+    const m = Math.min(Config.MAX_MS, Math.max(0, ms));
+    if (m <= 3.5) return (m / 3.5) * 0.20;           /* 0–3.5 → 0–0.20 blue */
+    if (m <= 7)   return 0.20 + ((m - 3.5) / 3.5) * 0.48; /* 3.5–7 → 0.20–0.68 dense */
+    if (m <= 12)  return 0.68 + ((m - 7) / 5) * 0.22;     /* 7–12 → 0.68–0.90 */
+    return 0.90 + ((m - 12) / 8) * 0.10;             /* 12–20 → 0.90–1.00 flat */
   }
   function interpolate(ramp, t) {
     for (let i = 1; i < ramp.length; i++) {
