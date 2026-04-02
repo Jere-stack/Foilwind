@@ -218,17 +218,13 @@ color: var(–accent);
 WEATHER WIDGET
 ============================================================ */
 #wx-widget {
-position: absolute; bottom: calc(var(–sab) + 194px); left: calc(var(–sal) + 14px); z-index: 20;
-pointer-events: all; cursor: pointer; display: flex; align-items: center; gap: 8px;
-background: rgba(6,9,18,.65);
-border: 1px solid var(–border);
--webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
-border-radius: 12px; padding: 6px 10px;
+position: fixed; top: calc(var(–sat) + 8px); left: calc(var(–sal) + 14px); z-index: 22;
+pointer-events: all; cursor: pointer; display: flex; align-items: center; gap: 6px;
 transition: opacity 0.3s;
 }
 #wx-widget.hidden { opacity: 0; }
-#wx-icon { font-size: 22px; line-height: 1; }
-#wx-temp { font-family: ‘DM Mono’, monospace; font-size: 16px; font-weight: 500; color: var(–text); line-height: 1; }
+#wx-icon { font-size: 26px; line-height: 1; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+#wx-temp { font-family: ‘DM Mono’, monospace; font-size: 18px; font-weight: 500; color: var(–text); line-height: 1; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
 #wx-desc { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); line-height: 1.2; max-width: 80px; }
 
 /* ============================================================
@@ -802,66 +798,69 @@ font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–muted); }
 
 /* ── UNITS PICKER — pill menu ──────────────────────────────────── */
 #units-picker {
-position: absolute; top: calc(var(–sat) + 60px); left: calc(var(–sal) + 14px);
-z-index: 40; display: flex; flex-direction: column; gap: 6px;
+position: fixed;
+top: calc(var(–sat) + 62px);
+left: 50%; transform: translateX(-50%) translateY(-6px) scale(0.96);
+z-index: 40;
+display: flex; flex-direction: column; gap: 2px;
 opacity: 0; pointer-events: none;
-transform: translateY(-8px) scale(0.95);
-transition: opacity .18s, transform .18s;
+transition: opacity .15s, transform .15s;
 }
 #units-picker.open {
 opacity: 1; pointer-events: all;
-transform: translateY(0) scale(1);
+transform: translateX(-50%) translateY(0) scale(1);
 }
 .up-option {
-display: flex; align-items: center; gap: 10px;
-background: rgba(12,16,30,0.92); border: 1px solid rgba(255,255,255,.12);
--webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-border-radius: 12px; padding: 10px 16px; cursor: pointer;
-transition: background .12s, border-color .12s, transform .1s;
+display: flex; align-items: center; justify-content: center;
+padding: 10px 32px; cursor: pointer;
+transition: opacity .1s;
 }
-.up-option:active { transform: scale(0.96); }
-.up-option.active { border-color: var(–accent); background: rgba(0,207,255,.12); }
-.up-label { font-family: “DM Mono”, monospace; font-size: 13px; font-weight: 700; color: #fff; min-width: 36px; }
-.up-desc  { font-family: “DM Mono”, monospace; font-size: 10px; color: var(–muted); }
-.up-sample { font-family: “DM Mono”, monospace; font-size: 11px; color: rgba(0,207,255,.7); margin-left: auto; }
+.up-option:active { opacity: 0.5; }
+.up-label {
+font-family: “DM Mono”, monospace; font-size: 17px; font-weight: 500;
+color: rgba(255,255,255,0.75); letter-spacing: 0.5px;
+text-shadow: 0 1px 8px rgba(0,0,0,0.8);
+}
+.up-option.active .up-label { color: #fff; font-weight: 700; }
 
 /* ── HOURLY WEATHER PANEL ─────────────────────────────────────── */
 #wx-panel {
-position: absolute; top: calc(var(–sat) + 60px); left: calc(var(–sal) + 14px);
-z-index: 41; width: min(320px, calc(100vw - 28px));
-background: rgba(8,12,24,.95); border: 1px solid rgba(255,255,255,.1);
--webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
-border-radius: 18px; overflow: hidden;
-box-shadow: 0 8px 40px rgba(0,0,0,.6);
-opacity: 0; pointer-events: none;
-transform: translateY(-8px) scale(0.97);
+position: fixed;
+top: calc(var(–sat) + 56px);
+left: 0; right: 0;
+z-index: 41;
+background: rgba(6,9,18,.96);
+border-bottom: 1px solid rgba(255,255,255,.08);
+-webkit-backdrop-filter: blur(28px); backdrop-filter: blur(28px);
+box-shadow: 0 8px 32px rgba(0,0,0,.5);
+pointer-events: none; opacity: 0;
+transform: translateY(-12px);
 transition: opacity .2s, transform .2s;
 }
-#wx-panel.open { opacity: 1; pointer-events: all; transform: none; }
+#wx-panel.open { opacity: 1; pointer-events: all; transform: translateY(0); }
 #wx-panel-header {
-padding: 14px 16px 10px;
-border-bottom: 1px solid rgba(255,255,255,.07);
-display: flex; align-items: center; justify-content: space-between;
+padding: 10px 20px 8px;
+border-bottom: 1px solid rgba(255,255,255,.06);
 }
-#wx-panel-title { font-size: 13px; font-weight: 700; }
-#wx-panel-sub { font-family: “DM Mono”,monospace; font-size: 9px; color: var(–muted); margin-top: 1px; }
-#wx-panel-close { font-size: 18px; color: var(–muted); cursor: pointer; padding: 4px; }
+#wx-panel-title { font-size: 11px; font-weight: 700; color: rgba(255,255,255,.5); letter-spacing: 1px; text-transform: uppercase; }
+#wx-panel-sub { display: none; }
+#wx-panel-close { display: none; }
 #wx-panel-scroll {
-display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
-padding: 12px 16px; scrollbar-width: none;
+display: flex; gap: 4px; overflow-x: auto; overflow-y: hidden;
+padding: 10px 20px 14px; scrollbar-width: none;
 -webkit-overflow-scrolling: touch;
 }
 #wx-panel-scroll::-webkit-scrollbar { display: none; }
 .wx-hour {
-display: flex; flex-direction: column; align-items: center; gap: 4px;
-min-width: 52px; padding: 8px 4px; border-radius: 10px;
-cursor: default; transition: background .12s; flex-shrink: 0;
+display: flex; flex-direction: column; align-items: center; gap: 3px;
+min-width: 54px; padding: 8px 4px; border-radius: 12px;
+flex-shrink: 0; transition: background .12s;
 }
-.wx-hour.now { background: rgba(0,207,255,.1); border: 1px solid rgba(0,207,255,.2); }
-.wx-hour-time { font-family: “DM Mono”,monospace; font-size: 9px; color: var(–muted); }
-.wx-hour-icon { font-size: 20px; line-height: 1; }
-.wx-hour-temp { font-family: “DM Mono”,monospace; font-size: 12px; font-weight: 700; color: #fff; }
-.wx-hour-wind { font-family: “DM Mono”,monospace; font-size: 9px; }
+.wx-hour.now { background: rgba(0,207,255,.12); border: 1px solid rgba(0,207,255,.25); }
+.wx-hour-time { font-family: “DM Mono”,monospace; font-size: 9px; color: rgba(255,255,255,.4); font-weight: 500; }
+.wx-hour-icon { font-size: 22px; line-height: 1; }
+.wx-hour-temp { font-family: “DM Mono”,monospace; font-size: 13px; font-weight: 700; color: #fff; }
+.wx-hour-wind { font-family: “DM Mono”,monospace; font-size: 9px; font-weight: 600; }
 </style>
 
 </head>
@@ -929,26 +928,10 @@ cursor: default; transition: background .12s; flex-shrink: 0;
   <!-- Units picker -->
 
   <div id="units-picker">
-    <div class="up-option" data-unit="ms">
-      <span class="up-label">m/s</span>
-      <span class="up-desc">Metriä sekunnissa</span>
-      <span class="up-sample">12.4</span>
-    </div>
-    <div class="up-option" data-unit="kts">
-      <span class="up-label">kts</span>
-      <span class="up-desc">Solmua</span>
-      <span class="up-sample">24.1</span>
-    </div>
-    <div class="up-option" data-unit="kmh">
-      <span class="up-label">km/h</span>
-      <span class="up-desc">Kilometriä tunnissa</span>
-      <span class="up-sample">44.6</span>
-    </div>
-    <div class="up-option" data-unit="bft">
-      <span class="up-label">bft</span>
-      <span class="up-desc">Beaufort-asteikko</span>
-      <span class="up-sample">6</span>
-    </div>
+    <div class="up-option" data-unit="ms"><span class="up-label">m/s</span></div>
+    <div class="up-option" data-unit="kts"><span class="up-label">kts</span></div>
+    <div class="up-option" data-unit="kmh"><span class="up-label">km/h</span></div>
+    <div class="up-option" data-unit="bft"><span class="up-label">bft</span></div>
   </div>
 
   <!-- Settings popup -->
@@ -3352,7 +3335,7 @@ const WxPanel = {
         const ms = sh.windspeed_10m[sIdx] || 0;
         const cRamp = ColorRamp.rgb(ms);
         windStr = '<div class="wx-hour-wind" style="color:rgb('+cRamp.r+','+cRamp.g+','+cRamp.b+')">'
-          + Units.fmt(ms) + '</div>';
+          + Units.fmt(ms) + '<span style="opacity:.6;font-size:8px"> '+Units.label()+'</span></div>';
       }
       return '<div class="wx-hour' + (isNow ? ' now' : '') + '">'
         + '<div class="wx-hour-time">' + hh + ':00</div>'
@@ -3377,6 +3360,29 @@ document.getElementById('wx-widget').addEventListener('click', (e) => {
 }, { passive: false });
 
 document.getElementById('wx-panel-close').addEventListener('click', () => WxPanel.close(), { passive: true });
+
+/* ── WX-PANEL swipe up to dismiss ──────────────────────────────── */
+(function() {
+  const panel = document.getElementById('wx-panel');
+  let startY = 0, dragging = false;
+  panel.addEventListener('touchstart', e => {
+    startY = e.touches[0].clientY; dragging = true;
+    panel.style.transition = 'none';
+  }, { passive: true });
+  panel.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const dy = startY - e.touches[0].clientY; /* positive = swipe up */
+    if (dy > 0) panel.style.transform = 'translateY(' + (-dy) + 'px)';
+  }, { passive: true });
+  panel.addEventListener('touchend', e => {
+    if (!dragging) return;
+    dragging = false;
+    panel.style.transition = '';
+    panel.style.transform = '';
+    const dy = startY - e.changedTouches[0].clientY;
+    if (dy > 40) WxPanel.close();
+  }, { passive: true });
+})();
 
 /* ── FORECAST PANEL — swipe down to dismiss ───────────────────── */
 (function() {
