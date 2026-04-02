@@ -98,7 +98,7 @@ pointer-events: none;
 #crosshair-readout {
 position: fixed; top: calc(var(–sat) + 12px); left: 50%; z-index: 22;
 transform: translateX(-50%);
-pointer-events: none;
+pointer-events: all;
 text-align: center;
 transition: opacity 0.3s;
 }
@@ -219,7 +219,7 @@ WEATHER WIDGET
 ============================================================ */
 #wx-widget {
 position: absolute; bottom: calc(var(–sab) + 194px); left: calc(var(–sal) + 14px); z-index: 20;
-pointer-events: none; display: flex; align-items: center; gap: 8px;
+pointer-events: all; cursor: pointer; display: flex; align-items: center; gap: 8px;
 background: rgba(6,9,18,.65);
 border: 1px solid var(–border);
 -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
@@ -2579,7 +2579,10 @@ function closeSheet() {
 }
 
 document.getElementById('sheet-overlay').addEventListener('click', () => {
-  closeSheet(); SpotList.close(); ForecastPanel.close();
+  closeSheet();
+  ForecastPanel.close();
+  if (typeof UnitsPicker !== 'undefined') UnitsPicker.close();
+  if (typeof WxPanel !== 'undefined') WxPanel.close();
 }, { passive: true });
 document.getElementById('sheet-handle').addEventListener('click', closeSheet, { passive: true });
 
@@ -3022,83 +3025,9 @@ document.getElementById('btn-play').addEventListener('click', togglePlay, { pass
 /* ── SPOT LIST ────────────────────────────────────────────────── */
 const SpotList = {
   _open: false,
-  toggle() {
-    this._open = !this._open;
-    const el = document.getElementById('spot-list');
-    const overlay = document.getElementById('sheet-overlay');
-    if (this._open) {
-      Haptics.medium();
-      closeSheet();
-      this.render();
-      el.classList.add('open');
-      overlay.classList.add('open');
-    } else {
-      el.classList.remove('open');
-      overlay.classList.remove('open');
-    }
-  },
-  close() {
-    this._open = false;
-    document.getElementById('spot-list').classList.remove('open');
-    document.getElementById('sheet-overlay').classList.remove('open');
-    document.getElementById('sheet-overlay').style.background = '';
-  },
-  render() {
-    if (!State.map) return;
-    const bounds = State.map.getBounds(), hourIdx = State.currentHourIdx, layer = State.activeLayer;
-    const visible = SPOTS.filter(s => {
-      if (!s.wx || !s.wx.hourly) return false;
-      return bounds.contains(L.latLng(s.lat, s.lng));
-    });
-    const ranked = visible.map(s => {
-      const h = s.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
-      const ms = h.windspeed_10m[idx] || 0;
-      const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
-      const dir = h.winddirection_10m[idx] || 0;
-      const dms = layer === 'gust' ? gst : ms;
-      return { spot: s, ms, gst, dir, dms };
-    })
-    .filter(() => !(State._tlTimes && State._tlTimes[hourIdx] && isNightHour(State._tlTimes[hourIdx])))
-    .sort((a, b) => b.dms - a.dms)
-    .slice(0, 5);
-
-    document.getElementById('sl-count').textContent = 'Top ' + ranked.length + ' kartalla';
-    const container = document.getElementById('sl-items');
-    container.innerHTML = ranked.map((r, i) => {
-      const c = ColorRamp.rgb(r.dms);
-      const col = 'rgb('+c.r+','+c.g+','+c.b+')';
-      const foilable = r.ms >= 8;
-      const arrow = dirArrow(r.dir);
-      return '<div class="sl-item" data-spot="'+r.spot.name+'">'
-        + '<span class="sl-rank">'+(i+1)+'</span>'
-        + '<div class="sl-dot" style="background:'+col+';box-shadow:0 0 6px '+ColorRamp.css(r.dms,0.4)+'"></div>'
-        + '<div class="sl-info"><div class="sl-name">'+r.spot.name
-        + (foilable ? '<span class="sl-badge-foilable">FOIL ✓</span>' : '')
-        + '</div><div class="sl-desc">'+arrow+' '+Math.round(r.dir)+'° · '+r.spot.desc+'</div></div>'
-        + '<div class="sl-wind"><div class="sl-wind-val" style="color:'+col+'">'+Units.fmt(r.dms)+'</div>'
-        + '<div class="sl-wind-sub">'+Units.label()+(r.gst > r.ms*1.1 ? ' · G '+Units.fmt(r.gst) : '')+'</div></div>'
-        + '</div>';
-    }).join('');
-
-    if (!ranked.length) {
-      const _isNight = State._tlTimes && State._tlTimes[hourIdx] && isNightHour(State._tlTimes[hourIdx]);
-      const _nm = _isNight ? '<br><span style="color:rgba(255,200,80,.7)">🌙 Yöaika (23–06) — valitse eri aika</span>' : '';
-      container.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted);font-family:DM Mono,monospace;font-size:11px">Ei spotteja kartalla<br>— zoomaa lähemmäs Suomea'+_nm+'</div>';
-    }
-
-    container.querySelectorAll('.sl-item').forEach(el => {
-      el.addEventListener('click', () => {
-        Haptics.medium();
-        const name = el.dataset.spot;
-        const spot = SPOTS.find(s => s.name === name);
-        if (spot) {
-          this.close();
-          State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
-          setTimeout(() => openSheet(spot, State.currentHourIdx), 600);
-        }
-      });
-    });
-  }
+  toggle() {},
+  close() {},
+  render() {}
 };
 
 /* btn-spots removed — fc-btn handles ForecastPanel */
@@ -3566,7 +3495,7 @@ function main() {
   document.addEventListener('touchstart', () => Haptics.unlock(), { once: true, passive: true });
 
   makeSwipeable(document.getElementById('sheet'), closeSheet);
-  makeSwipeable(document.getElementById('spot-list'), () => SpotList.close());
+  /* spot-list removed */
 
   /* Load spots first (small batch, 7-day forecast), then viewport, skip coarse global */
   const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
