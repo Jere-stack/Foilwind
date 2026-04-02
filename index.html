@@ -2513,32 +2513,175 @@ function openSheet(spot, hourIdx) {
   if (!spot.wx || !spot.wx.hourly) return;
   State.sheetSpot = spot;
   const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
-  const ms = h.windspeed_10m[idx] || 0;
+  const ms  = h.windspeed_10m[idx] || 0;
   const dir = h.winddirection_10m[idx] || 0;
   const gst = (h.windgusts_10m && h.windgusts_10m[idx]) || ms;
-  const badge = windBadge(ms);
-  const gi = gustIndex(ms, gst);
-  const trend = windTrend(h, idx);
-  const c = ColorRamp.rgb(ms);
+  const badge    = windBadge(ms);
+  const gi       = gustIndex(ms, gst);
+  const trend    = windTrend(h, idx);
+  const c        = ColorRamp.rgb(ms);
   const colorStr = 'rgb('+c.r+','+c.g+','+c.b+')';
   const waterTemp = spot._waterTemp != null ? spot._waterTemp.toFixed(1) + '°C' : '—';
 
-  /* 12h forecast bars */
-  const cs = idx, ce = Math.min(h.windspeed_10m.length, cs + 12);
-  let maxMs = 1;
-  for (let i = cs; i < ce; i++) { const v = h.windspeed_10m[i] || 0; if (v > maxMs) maxMs = v; }
-  let peakMs = 0, peakHour = '';
-  for (let i = cs; i < ce; i++) { const v = h.windspeed_10m[i] || 0; if (v > peakMs) { peakMs = v; peakHour = fmtHour(h.time[i]); } }
-
-  let bars = '';
-  for (let i = cs; i < ce; i++) {
-    const v = h.windspeed_10m[i] || 0;
-    const bc = ColorRamp.rgb(v);
-    const barH = Math.max(6, (v / maxMs) * 100);
-    const isNow = i === idx;
-    const foilH = v >= 8;
-    bars += '<div class="sh-bar' + (foilH ? ' foilable' : '') + '" style="height:' + barH + '%;background:rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ');' + (isNow ? 'outline:1.5px solid rgba(255,255,255,.5);outline-offset:-1px;' : '') + '"></div>';
+  /* ── SUN BAR ─────────────────────────────────────────────────── */
+  function buildSunBar() {
+    const daily = spot.wx.daily;
+    if (!daily || !daily.sunrise || !daily.sunrise[0]) return '';
+    const now = h.time && h.time[idx] ? new Date(h.time[idx]) : new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    /* Find today's sunrise/sunset */
+    let rise = null, set = null;
+    for (let i = 0; i < (daily.time || daily.sunrise).length; i++) {
+      const d = daily.time ? daily.time[i] : daily.sunrise[i].slice(0, 10);
+      if (d === dateStr) { rise = new Date(daily.sunrise[i]); set = new Date(daily.sunset[i]); break; }
+    }
+    if (!rise || !set) return '';
+    const riseStr = ('0'+rise.getHours()).slice(-2) + ':' + ('0'+rise.getMinutes()).slice(-2);
+    const setStr  = ('0'+set.getHours()).slice(-2)  + ':' + ('0'+set.getMinutes()).slice(-2);
+    const total   = set - rise;
+    const nowMs   = now.getTime();
+    const prog    = Math.max(0, Math.min(1, (nowMs - rise.getTime()) / total));
+    const isDaytime = nowMs >= rise.getTime() && nowMs <= set.getTime();
+    const hoursLeft = Math.max(0, ((set.getTime() - nowMs) / 3600000)).toFixed(1);
+    const leftLabel = isDaytime ? hoursLeft + 'h valoa jäljellä' : 'Auringon lasku ' + setStr;
+    return '<div class="sh-sun-bar">'
+      + '<span class="sh-sun-label">☀️ ' + riseStr + '</span>'
+      + '<div class="sh-sun-track">'
+        + '<div class="sh-sun-fill" style="width:' + (prog*100).toFixed(1) + '%"></div>'
+        + (isDaytime ? '<div class="sh-sun-dot" style="left:' + (prog*100).toFixed(1) + '%"></div>' : '')
+      + '</div>'
+      + '<span class="sh-sun-label">' + setStr + ' · ' + leftLabel + '</span>'
+    + '</div>';
   }
+
+  /* ── 24H SVG LINE CHART ──────────────────────────────────────── */
+  function build24hChart() {
+    const cs = idx, ce = Math.min(h.windspeed_10m.length, cs + 24);
+    const vals = [], times = [];
+    for (let i = cs; i < ce; i++) {
+      vals.push(h.windspeed_10m[i] || 0);
+      times.push(h.time ? h.time[i] : '');
+    }
+    if (!vals.length) return '';
+    const maxV = Math.max(...vals, 1);
+    let peakMs = 0, peakH = '';
+    vals.forEach((v, i) => { if (v > peakMs) { peakMs = v; peakH = fmtHour(times[i]); } });
+
+    const W = 300, H = 72, pad = 4;
+    const xStep = (W - pad*2) / (vals.length - 1);
+
+    /* Build polyline points */
+    const pts = vals.map((v, i) =>
+      (pad + i * xStep).toFixed(1) + ',' + (H - pad - (v / maxV) * (H - pad*2)).toFixed(1)
+    ).join(' ');
+
+    /* Build area fill path */
+    const area = 'M ' + pad + ',' + (H - pad)
+      + ' L ' + vals.map((v, i) =>
+          (pad + i * xStep).toFixed(1) + ',' + (H - pad - (v / maxV) * (H - pad*2)).toFixed(1)
+        ).join(' L ')
+      + ' L ' + (pad + (vals.length-1) * xStep).toFixed(1) + ',' + (H - pad) + ' Z';
+
+    /* Hour labels every 6h */
+    let labels = '';
+    vals.forEach((v, i) => {
+      if (i === 0 || i % 6 === 0 || i === vals.length - 1) {
+        const x = (pad + i * xStep).toFixed(1);
+        const t = times[i] ? new Date(times[i]).getHours() : '';
+        labels += `<text x="${x}" y="${H}" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.3)" text-anchor="middle">${('0'+t).slice(-2)}</text>`;
+      }
+    });
+
+    /* Now marker */
+    const nowX = (pad + 0 * xStep).toFixed(1);
+    const nowY = (H - pad - (vals[0] / maxV) * (H - pad*2)).toFixed(1);
+
+    /* Color gradient stops */
+    const gradStops = vals.map((v, i) => {
+      const cx = pad + i * xStep, pct = ((cx - pad) / (W - pad*2) * 100).toFixed(1);
+      const cc = ColorRamp.rgb(v);
+      return `<stop offset="${pct}%" stop-color="rgb(${cc.r},${cc.g},${cc.b})"/>`;
+    }).join('');
+
+    return '<div class="sh-24h-section">'
+      + '<div class="sh-24h-header">'
+        + '<span class="sh-24h-title">24h ennuste</span>'
+        + (peakMs > 0 ? '<span class="sh-24h-peak">Huippu ' + Units.fmt(peakMs) + ' ' + Units.label() + ' klo ' + peakH + '</span>' : '')
+      + '</div>'
+      + `<svg class="sh-24h-svg" viewBox="0 0 ${W} ${H+10}" preserveAspectRatio="none">`
+        + `<defs>`
+          + `<linearGradient id="lcg" x1="0%" y1="0%" x2="100%" y2="0%">${gradStops}</linearGradient>`
+          + `<linearGradient id="afg" x1="0%" y1="0%" x2="0%" y2="100%">`
+            + `<stop offset="0%" stop-color="rgba(0,207,255,.25)"/>`
+            + `<stop offset="100%" stop-color="rgba(0,207,255,.0)"/>`
+          + `</linearGradient>`
+        + `</defs>`
+        /* Area fill */
+        + `<path d="${area}" fill="url(#afg)"/>`
+        /* Line */
+        + `<polyline points="${pts}" fill="none" stroke="url(#lcg)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
+        /* Now dot */
+        + `<circle cx="${nowX}" cy="${nowY}" r="3.5" fill="white" opacity="0.9"/>`
+        /* Hour labels */
+        + labels
+      + `</svg>`
+    + '</div>';
+  }
+
+  /* ── FMI NEAREST STATION ─────────────────────────────────────── */
+  function buildFmiCard(elId) {
+    /* Use Open-Meteo current conditions as proxy — FMI WFS is XML,
+       loaded async and injected after sheet opens */
+    setTimeout(() => {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      const lat = spot.lat.toFixed(3), lng = spot.lng.toFixed(3);
+      const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat
+        + '&longitude=' + lng
+        + '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
+        + '&wind_speed_unit=ms&timezone=auto';
+      fetch(url).then(r => r.json()).then(data => {
+        if (!data.current || !el) return;
+        const cw = data.current;
+        const cMs = cw.wind_speed_10m || 0;
+        const cDir = cw.wind_direction_10m || 0;
+        const cGst = cw.wind_gusts_10m || cMs;
+        const cc = ColorRamp.rgb(cMs);
+        el.innerHTML = '<div class="sh-fmi-left">'
+          + '<div class="sh-fmi-name">🛰 Reaaliaikainen havainto</div>'
+          + '<div class="sh-fmi-meta">' + dirArrow(cDir) + ' ' + Math.round(cDir) + '° · Puuska ' + Units.fmt(cGst) + ' ' + Units.label() + '</div>'
+        + '</div>'
+        + '<div class="sh-fmi-wind">'
+          + '<div class="sh-fmi-ms" style="color:rgb('+cc.r+','+cc.g+','+cc.b+')">' + Units.fmt(cMs) + '</div>'
+          + '<div class="sh-fmi-unit">' + Units.label() + '</div>'
+        + '</div>';
+      }).catch(() => {
+        if (el) el.innerHTML = '<span class="sh-fmi-loading">Havaintoa ei saatavilla</span>';
+      });
+    }, 100);
+    return '<div class="sh-fmi" id="' + elId + '">'
+      + '<span class="sh-fmi-loading">Ladataan havaintoa...</span>'
+    + '</div>';
+  }
+
+  /* ── NAVIGATION BUTTONS ──────────────────────────────────────── */
+  function buildNavButtons() {
+    const lat = spot.lat, lng = spot.lng, name = encodeURIComponent(spot.name);
+    const mapsUrl  = 'https://maps.google.com/?daddr=' + lat + ',' + lng + '&travelmode=driving';
+    const wazeUrl  = 'https://waze.com/ul?ll=' + lat + '%2C' + lng + '&navigate=yes';
+    return '<div style="display:flex;gap:8px;margin-bottom:8px">'
+      + '<a href="' + mapsUrl + '" target="_blank" class="sh-nav-btn" style="text-decoration:none;flex:1">'
+        + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>'
+        + 'Google Maps'
+      + '</a>'
+      + '<a href="' + wazeUrl + '" target="_blank" class="sh-nav-btn" style="text-decoration:none;flex:1">'
+        + '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>'
+        + 'Waze'
+      + '</a>'
+    + '</div>';
+  }
+
+  const fmiId = 'fmi-' + spot.name.replace(/\s/g, '_');
 
   document.getElementById('sheet-content').innerHTML =
     /* Hero */
@@ -2565,8 +2708,11 @@ function openSheet(spot, hourIdx) {
         + '<div class="sh-big-wind" style="color:' + colorStr + '">' + Units.fmt(ms) + '</div>'
         + '<span class="sh-big-unit">' + Units.label() + '</span>'
       + '</div>'
-      + '</div>'  /* close sh-hero-top */
+      + '</div>'
     + '</div>'
+
+    /* Sun bar */
+    + buildSunBar()
 
     /* Foil badge */
     + '<div class="sh-foil-badge ' + badge.cls + '">'
@@ -2591,15 +2737,14 @@ function openSheet(spot, hourIdx) {
     /* Wind rose */
     + buildWindRoseSVG(h, idx)
 
-    /* 12h chart */
-    + '<div class="sh-chart-section">'
-      + '<div class="sh-chart-header">'
-        + '<span class="sh-chart-title">Seuraavat 12h</span>'
-        + (peakMs > 0 ? '<span class="sh-chart-peak">Huippu ' + Units.fmt(peakMs) + ' ' + Units.label() + ' klo ' + peakHour + '</span>' : '')
-      + '</div>'
-      + '<div class="sh-chart">' + bars + '</div>'
-      + '<div class="sh-chart-labels"><span>' + fmtHour(h.time[cs]) + '</span><span>+12h</span></div>'
-    + '</div>';
+    /* 24h SVG line chart */
+    + build24hChart()
+
+    /* FMI / live observation */
+    + buildFmiCard(fmiId)
+
+    /* Navigation buttons */
+    + buildNavButtons();
 
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet-overlay').classList.add('open');
