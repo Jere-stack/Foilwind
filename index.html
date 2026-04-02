@@ -223,8 +223,8 @@ pointer-events: all; cursor: pointer; display: flex; align-items: center; gap: 6
 transition: opacity 0.3s;
 }
 #wx-widget.hidden { opacity: 0; }
-#wx-icon { font-size: 26px; line-height: 1; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
-#wx-temp { font-family: ‘DM Mono’, monospace; font-size: 18px; font-weight: 500; color: var(–text); line-height: 1; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+#wx-icon { font-size: 30px; line-height: 1; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+#wx-temp { font-family: ‘DM Mono’, monospace; font-size: 28px; font-weight: 500; color: var(–text); line-height: 1; letter-spacing: -0.5px; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
 #wx-desc { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); line-height: 1.2; max-width: 80px; }
 
 /* ============================================================
@@ -799,7 +799,7 @@ font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–muted); }
 /* ── UNITS PICKER — pill menu ──────────────────────────────────── */
 #units-picker {
 position: fixed;
-top: calc(var(–sat) + 88px);
+/* top set dynamically in JS below cr-gust */
 left: 50%; transform: translateX(-50%) translateY(-6px) scale(0.96);
 z-index: 40;
 display: flex; flex-direction: column; gap: 2px;
@@ -1047,7 +1047,7 @@ flex-shrink: 0; transition: background .12s;
     <div id="fc-handle"></div>
     <div id="fc-header">
       <div id="fc-title">Parhaat ajankohdat</div>
-      <div id="fc-subtitle">5 vrk ennuste · parhaat 3h ikkunat spoteille</div>
+      <div id="fc-subtitle">5 vrk ennuste · parhaat 2h ikkunat spoteille</div>
       <div id="fc-toggles">
         <label class="fc-toggle">
           <input type="checkbox" id="fc-tog-weekday">
@@ -1251,21 +1251,26 @@ const Units = {
 /* ── COLOUR RAMP ──────────────────────────────────────────────── */
 const ColorRamp = (() => {
   const RAMP = [
-    { t: 0.00, r: 20,  g: 40,  b: 80  },
-    { t: 0.05, r: 30,  g: 70,  b: 140 },
-    { t: 0.12, r: 0,   g: 120, b: 255 },
-    { t: 0.22, r: 0,   g: 200, b: 255 },
-    { t: 0.34, r: 0,   g: 245, b: 175 },
-    { t: 0.46, r: 30,  g: 245, b: 70  },
-    { t: 0.56, r: 170, g: 245, b: 5   },
-    { t: 0.64, r: 255, g: 220, b: 0   },
-    { t: 0.72, r: 255, g: 120, b: 0   },
-    { t: 0.75, r: 255, g: 40,  b: 0   },
-    { t: 0.85, r: 220, g: 0,   b: 20  },
-    { t: 0.93, r: 180, g: 0,   b: 100 },
+    { t: 0.00, r: 10,  g: 20,  b: 60  },
+    { t: 0.10, r: 20,  g: 60,  b: 180 },
+    { t: 0.22, r: 0,   g: 100, b: 255 },
+    { t: 0.32, r: 0,   g: 200, b: 255 },
+    { t: 0.44, r: 0,   g: 245, b: 175 },
+    { t: 0.55, r: 30,  g: 245, b: 70  },
+    { t: 0.64, r: 170, g: 245, b: 5   },
+    { t: 0.72, r: 255, g: 220, b: 0   },
+    { t: 0.80, r: 255, g: 120, b: 0   },
+    { t: 0.86, r: 255, g: 40,  b: 0   },
+    { t: 0.93, r: 220, g: 0,   b: 20  },
+    { t: 0.97, r: 180, g: 0,   b: 100 },
     { t: 1.00, r: 130, g: 0,   b: 180 }
   ];
-  function msToT(ms) { return Math.pow(Math.min(1, Math.max(0, (ms + 0.5) / Config.MAX_MS)), 0.55); }
+  /* Linear 0-6 → t 0-0.30, then power curve: ensures 3.5 m/s is clearly blue */
+  function msToT(ms) {
+    const clamped = Math.min(Config.MAX_MS, Math.max(0, ms));
+    if (clamped <= 6) return (clamped / 6) * 0.30;
+    return 0.30 + Math.pow((clamped - 6) / (Config.MAX_MS - 6), 0.65) * 0.70;
+  }
   function interpolate(ramp, t) {
     for (let i = 1; i < ramp.length; i++) {
       if (t <= ramp[i].t) {
@@ -3153,12 +3158,7 @@ const ForecastPanel = {
     const container = document.getElementById('fc-content');
 
     if (!days.length) {
-      const togOn = document.getElementById('fc-tog-weekday').checked ||
-                    document.getElementById('fc-tog-weekend').checked ||
-                    document.getElementById('fc-tog-allday').checked;
-      container.innerHTML = '<div class="fc-empty">'
-        + (togOn ? 'Ei foilauskeli 5 vrk:n ennusteessa.' : 'Valitse aikasuodatin ylhäältä.')
-        + '</div>';
+      container.innerHTML = '<div class="fc-empty">Valitse aikasuodatin ylhäältä nähdäksesi parhaat ajankohdat.</div>';
       return;
     }
 
@@ -3240,7 +3240,14 @@ const UnitsPicker = {
   open() {
     this._open = true;
     this._syncActive();
-    document.getElementById('units-picker').classList.add('open');
+    /* Position below crosshair-readout with 8px gap */
+    const cr = document.getElementById('crosshair-readout');
+    const picker = document.getElementById('units-picker');
+    if (cr) {
+      const rect = cr.getBoundingClientRect();
+      picker.style.top = (rect.bottom + 8) + 'px';
+    }
+    picker.classList.add('open');
     Haptics.light();
   },
   close() {
