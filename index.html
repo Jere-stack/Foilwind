@@ -1026,6 +1026,7 @@ color: var(–accent); cursor: pointer; transition: background .12s;
     <div class="sp-section">
       <div class="sp-label">Merikartta</div>
       <div class="sp-chips" id="seamap-toggle">
+        <div class="sp-chip active" id="fairway-btn"><span class="l-icon">🚢</span>Väylät</div>
         <div class="sp-chip" id="seamap-btn" data-seamap="off"><span class="l-icon">⚓</span>OpenSeaMap</div>
       </div>
     </div>
@@ -1667,6 +1668,16 @@ function initMap() {
     attribution: '&copy; <a href="https://www.openseamap.org">OpenSeaMap</a>'
   });
   State._seamapOn = false;
+
+  /* Väylävirasto WMS — Suomen viralliset vesiväylät (vakio päällä) */
+  State._fairwayLayer = L.tileLayer.wms('https://avoinapi.vaylapilvi.fi/vaylatiedot/ows', {
+    layers: 'vesivaylatiedot:vaylaalueet_a,vesivaylatiedot:vaylat_l',
+    format: 'image/png', transparent: true, opacity: 0.45,
+    version: '1.1.1',
+    attribution: '&copy; <a href="https://vayla.fi">Väylävirasto</a> CC 4.0'
+  });
+  State._fairwayLayer.addTo(map); /* vakio päällä */
+  State._fairwayOn = true;
 
   State.map = map;
   map.on('moveend', () => {
@@ -3652,6 +3663,21 @@ document.getElementById('wx-panel-close').addEventListener('click', () => WxPane
 document.addEventListener('click', () => {
   UnitsPicker.close();
   WxPanel.close();
+}, { passive: true });
+
+/* ── VÄYLÄT TOGGLE (Väylävirasto WMS) ────────────────────────── */
+document.getElementById('fairway-btn').addEventListener('click', () => {
+  if (!State.map) return;
+  State._fairwayOn = !State._fairwayOn;
+  const btn = document.getElementById('fairway-btn');
+  if (State._fairwayOn) {
+    State._fairwayLayer.addTo(State.map);
+    btn.classList.add('active');
+  } else {
+    State.map.removeLayer(State._fairwayLayer);
+    btn.classList.remove('active');
+  }
+  Haptics.light();
 }, { passive: true });
 
 /* ── OPENSEAMAP TOGGLE ────────────────────────────────────────── */
