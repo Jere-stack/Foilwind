@@ -1023,6 +1023,12 @@ color: var(–accent); cursor: pointer; transition: background .12s;
         <div class="sp-chip" data-unit="bft">bft</div>
       </div>
     </div>
+    <div class="sp-section">
+      <div class="sp-label">Merikartta</div>
+      <div class="sp-chips" id="seamap-toggle">
+        <div class="sp-chip" id="seamap-btn" data-seamap="off"><span class="l-icon">⚓</span>OpenSeaMap</div>
+      </div>
+    </div>
   </div>
 
   <div id="bottom">
@@ -1654,6 +1660,14 @@ function initMap() {
     subdomains: 'abcd', maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
+
+  /* OpenSeaMap overlay — nautical marks, shipping lanes, depth */
+  State._seamapLayer = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+    maxZoom: 18, opacity: 0.85,
+    attribution: '&copy; <a href="https://www.openseamap.org">OpenSeaMap</a>'
+  });
+  State._seamapOn = false;
+
   State.map = map;
   map.on('moveend', () => {
     GeoProject.update(map);
@@ -3638,6 +3652,21 @@ document.getElementById('wx-panel-close').addEventListener('click', () => WxPane
 document.addEventListener('click', () => {
   UnitsPicker.close();
   WxPanel.close();
+}, { passive: true });
+
+/* ── OPENSEAMAP TOGGLE ────────────────────────────────────────── */
+document.getElementById('seamap-btn').addEventListener('click', () => {
+  if (!State.map) return;
+  State._seamapOn = !State._seamapOn;
+  const btn = document.getElementById('seamap-btn');
+  if (State._seamapOn) {
+    State._seamapLayer.addTo(State.map);
+    btn.classList.add('active');
+  } else {
+    State.map.removeLayer(State._seamapLayer);
+    btn.classList.remove('active');
+  }
+  Haptics.light();
 }, { passive: true });
 
 document.getElementById('layers').addEventListener('click', e => {
