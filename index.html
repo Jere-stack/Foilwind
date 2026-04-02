@@ -1252,26 +1252,30 @@ const Units = {
 /* ── COLOUR RAMP ──────────────────────────────────────────────── */
 const ColorRamp = (() => {
   const RAMP = [
-    { t: 0.00, r: 10,  g: 20,  b: 80  },
-    { t: 0.10, r: 15,  g: 60,  b: 200 },
-    { t: 0.22, r: 0,   g: 100, b: 255 },  /* ~3.5 m/s deep blue */
-    { t: 0.35, r: 0,   g: 210, b: 255 },  /* ~4.5 m/s cyan */
-    { t: 0.44, r: 80,  g: 240, b: 80  },  /* ~5 m/s yellow-green */
-    { t: 0.52, r: 180, g: 240, b: 10  },  /* ~5.5 m/s green */
-    { t: 0.60, r: 60,  g: 220, b: 30  },  /* ~6.5 m/s green */
-    { t: 0.68, r: 240, g: 210, b: 0   },  /* ~7 m/s yellow */
-    { t: 0.80, r: 255, g: 80,  b: 0   },  /* ~10 m/s orange */
-    { t: 0.90, r: 220, g: 10,  b: 10  },  /* ~12 m/s red — flat zone starts */
-    { t: 0.95, r: 200, g: 0,   b: 30  },
-    { t: 1.00, r: 180, g: 0,   b: 60  }   /* 20 m/s — nearly same red */
+    { t: 0.00, r: 10,  g: 20,  b: 80  },  /* 0 m/s  */
+    { t: 0.08, r: 12,  g: 50,  b: 195 },  /* 1 m/s  */
+    { t: 0.20, r: 0,   g: 95,  b: 255 },  /* 2 m/s deep blue */
+    { t: 0.29, r: 0,   g: 195, b: 255 },  /* 3.5 m/s cyan */
+    { t: 0.36, r: 100, g: 235, b: 100 },  /* 4 m/s yellow-green */
+    { t: 0.44, r: 175, g: 245, b: 10  },  /* 5 m/s bright green */
+    { t: 0.52, r: 75,  g: 225, b: 20  },  /* 5.5 m/s green */
+    { t: 0.60, r: 40,  g: 215, b: 30  },  /* 6 m/s pure green */
+    { t: 0.68, r: 235, g: 210, b: 0   },  /* 7 m/s yellow */
+    { t: 0.80, r: 255, g: 75,  b: 0   },  /* 10 m/s orange */
+    { t: 0.90, r: 215, g: 10,  b: 10  },  /* 12 m/s red */
+    { t: 1.00, r: 175, g: 0,   b: 55  }   /* 20 m/s deep red */
   ];
-  /* Piecewise mapping: dense 3.5-7 zone, flat 12-20 zone */
+  /* Piecewise mapping: dense 3.5-7 zone, flat 12-20 zone
+     Key targets: 3.5→t0.29(cyan), 4→t0.36(yel-grn), 5→t0.44(grn), 7→t0.68(yel) */
   function msToT(ms) {
     const m = Math.min(Config.MAX_MS, Math.max(0, ms));
-    if (m <= 3.5) return (m / 3.5) * 0.20;           /* 0–3.5 → 0–0.20 blue */
-    if (m <= 7)   return 0.20 + ((m - 3.5) / 3.5) * 0.48; /* 3.5–7 → 0.20–0.68 dense */
-    if (m <= 12)  return 0.68 + ((m - 7) / 5) * 0.22;     /* 7–12 → 0.68–0.90 */
-    return 0.90 + ((m - 12) / 8) * 0.10;             /* 12–20 → 0.90–1.00 flat */
+    if (m <= 2)   return (m / 2) * 0.20;              /* 0–2   → 0–0.20 blue */
+    if (m <= 3.5) return 0.20 + ((m - 2) / 1.5) * 0.09;  /* 2–3.5 → 0.20–0.29 cyan */
+    if (m <= 4)   return 0.29 + ((m - 3.5) / 0.5) * 0.07; /* 3.5–4 → 0.29–0.36 yel-grn */
+    if (m <= 5)   return 0.36 + ((m - 4) / 1) * 0.08;    /* 4–5   → 0.36–0.44 grn */
+    if (m <= 7)   return 0.44 + ((m - 5) / 2) * 0.24;    /* 5–7   → 0.44–0.68 yel */
+    if (m <= 12)  return 0.68 + ((m - 7) / 5) * 0.22;    /* 7–12  → 0.68–0.90 */
+    return 0.90 + ((m - 12) / 8) * 0.10;              /* 12–20 → 0.90–1.00 flat */
   }
   function interpolate(ramp, t) {
     for (let i = 1; i < ramp.length; i++) {
@@ -1569,7 +1573,7 @@ function buildLegend() {
   const bar = document.getElementById('wind-scale-bar');
   const ticks = document.getElementById('wind-scale-ticks');
   if (!bar || !ticks) return;
-  const stops = [{val:20,lbl:'20'},{val:15,lbl:'15'},{val:12,lbl:'12'},{val:8,lbl:'8'},{val:4,lbl:'4'},{val:0,lbl:'0'}];
+  const stops = [{val:12,lbl:'12+'},{val:9,lbl:'9'},{val:7,lbl:'7'},{val:6,lbl:'6'},{val:5,lbl:'5'},{val:3.5,lbl:'3.5'},{val:2,lbl:'2'},{val:0,lbl:'0'}];
   bar.style.background = 'linear-gradient(to bottom,' + stops.map(s => {
     const c = ColorRamp.rgb(s.val); return 'rgb('+c.r+','+c.g+','+c.b+')';
   }).join(',') + ')';
