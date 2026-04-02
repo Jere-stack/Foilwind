@@ -137,7 +137,8 @@ text-align: center;
 MAP CONTROLS — bottom bar row
 ============================================================ */
 #bottom-bar {
-display: flex; align-items: flex-end; gap: 0; margin-bottom: 6px; pointer-events: all;
+display: flex; align-items: flex-end; gap: 0; margin-bottom: 6px;
+pointer-events: none; /* pass touches to map by default */
 }
 .mctl {
 width: 46px; height: 46px; border-radius: 0; border: none;
@@ -147,17 +148,20 @@ cursor: pointer; font-size: 22px; line-height: 1; flex-shrink: 0;
 -webkit-user-select: none; user-select: none; touch-action: manipulation;
 transition: opacity .15s, transform .12s;
 -webkit-transform: translate3d(0,0,0); transform: translate3d(0,0,0);
+pointer-events: all; /* each button captures its own touches */
 }
 .mctl:active { opacity: 0.5; transform: scale(0.88); }
 .mctl.playing { color: var(–accent); }
-#bottom-bar-spacer { flex: 1; }
+#bottom-bar-spacer { flex: 1; pointer-events: none; }
 /* Left column: settings at bottom, loc+play stacked above */
 #btn-left-col {
 display: flex; flex-direction: column; align-items: center;
+pointer-events: none; /* column itself transparent, buttons handle touches */
 }
 /* Right column: calendar above, wingfoil below */
 #btn-spots-wrap {
 display: flex; flex-direction: column; align-items: center; position: relative;
+pointer-events: none;
 }
 
 /* ============================================================
