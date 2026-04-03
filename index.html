@@ -1023,13 +1023,6 @@ color: var(–accent); cursor: pointer; transition: background .12s;
         <div class="sp-chip" data-unit="bft">bft</div>
       </div>
     </div>
-    <div class="sp-section">
-      <div class="sp-label">Merikartta</div>
-      <div class="sp-chips" id="seamap-toggle">
-        <div class="sp-chip active" id="fairway-btn"><span class="l-icon">🚢</span>Väylät</div>
-        <div class="sp-chip" id="seamap-btn" data-seamap="off"><span class="l-icon">⚓</span>OpenSeaMap</div>
-      </div>
-    </div>
   </div>
 
   <div id="bottom">
@@ -1661,27 +1654,6 @@ function initMap() {
     subdomains: 'abcd', maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
-
-  /* OpenSeaMap overlay — nautical marks, shipping lanes, depth */
-  State._seamapLayer = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
-    maxZoom: 18, opacity: 0.85,
-    attribution: '&copy; <a href="https://www.openseamap.org">OpenSeaMap</a>'
-  });
-  State._seamapOn = false;
-
-  /* Väylävirasto INSPIRE Water Transport Network WMS
-     Tukee EPSG:3857 (Web Mercator) — toimii suoraan Leafletissä
-     Layer: TN.WaterTransportNetwork.FairwayArea = virallinen väyläalue */
-  State._fairwayLayer = L.tileLayer.wms('https://avoinapi.vaylapilvi.fi/inspirepalvelu/tn-w/wms', {
-    layers: 'TN.WaterTransportNetwork.FairwayArea',
-    styles: '',
-    format: 'image/png', transparent: true, opacity: 0.5,
-    version: '1.3.0',
-    crs: L.CRS.EPSG3857,
-    attribution: '&copy; <a href="https://vayla.fi">Väylävirasto</a> CC 4.0'
-  });
-  State._fairwayLayer.addTo(map); /* vakio päällä */
-  State._fairwayOn = true;
 
   State.map = map;
   map.on('moveend', () => {
@@ -3686,36 +3658,6 @@ document.getElementById('wx-panel-close').addEventListener('click', () => WxPane
 document.addEventListener('click', () => {
   UnitsPicker.close();
   WxPanel.close();
-}, { passive: true });
-
-/* ── VÄYLÄT TOGGLE (Väylävirasto WMS) ────────────────────────── */
-document.getElementById('fairway-btn').addEventListener('click', () => {
-  if (!State.map) return;
-  State._fairwayOn = !State._fairwayOn;
-  const btn = document.getElementById('fairway-btn');
-  if (State._fairwayOn) {
-    State._fairwayLayer.addTo(State.map);
-    btn.classList.add('active');
-  } else {
-    State.map.removeLayer(State._fairwayLayer);
-    btn.classList.remove('active');
-  }
-  Haptics.light();
-}, { passive: true });
-
-/* ── OPENSEAMAP TOGGLE ────────────────────────────────────────── */
-document.getElementById('seamap-btn').addEventListener('click', () => {
-  if (!State.map) return;
-  State._seamapOn = !State._seamapOn;
-  const btn = document.getElementById('seamap-btn');
-  if (State._seamapOn) {
-    State._seamapLayer.addTo(State.map);
-    btn.classList.add('active');
-  } else {
-    State.map.removeLayer(State._seamapLayer);
-    btn.classList.remove('active');
-  }
-  Haptics.light();
 }, { passive: true });
 
 document.getElementById('layers').addEventListener('click', e => {
