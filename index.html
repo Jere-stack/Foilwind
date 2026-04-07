@@ -871,12 +871,12 @@ display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
 font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted);
 }
 .sh-sun-track {
-flex: 1; height: 4px; border-radius: 2px;
-background: rgba(255,255,255,.1); position: relative; overflow: visible;
+flex: 1; height: 5px; border-radius: 3px;
+background: rgba(255,255,255,.08); position: relative; overflow: visible;
 }
 .sh-sun-fill {
-position: absolute; left: 0; top: 0; height: 100%; border-radius: 2px;
-background: linear-gradient(to right, #ff8c00, #ffd700);
+position: absolute; top: 0; height: 100%; border-radius: 3px;
+background: linear-gradient(to right, #ff8c00, #ffd700, #ff8c00);
 }
 .sh-sun-dot {
 position: absolute; top: 50%; transform: translate(-50%, -50%);
@@ -2525,125 +2525,173 @@ function openSheet(spot, hourIdx) {
 
   /* ── SUN BAR ─────────────────────────────────────────────────── */
   function buildSunBar() {
-    /* Laskennallinen auringonnousu/lasku — ei API-kutsuja
-       Jean Meeus "Astronomical Algorithms" yksinkertaistettu versio
-       Tarkkuus ±2 min koordinaateille 55–70°N                        */
+    /* Jean Meeus auringonnousu/lasku + siviilihämärä (aurinko -6°)
+       cosH-kynnys: aurinko  = sin(-0.833°) = -0.0145
+                    hämärä   = sin(-6°)      = -0.1045               */
     const now = h.time && h.time[idx] ? new Date(h.time[idx]) : new Date();
     const lat = spot.lat * Math.PI / 180;
     const lng = spot.lng;
 
-    function calcSun(date, isRise) {
-      const JD = Math.floor(date / 86400000) + 2440587.5;
-      const n  = JD - 2451545.0;
-      const L  = (280.460 + 0.9856474 * n) % 360;
-      const g  = (357.528 + 0.9856003 * n) % 360 * Math.PI / 180;
+    function calcSunAngle(dateMs, isRise, horizonRad) {
+      const JD  = Math.floor(dateMs / 86400000) + 2440587.5;
+      const n   = JD - 2451545.0;
+      const L   = (280.460 + 0.9856474 * n) % 360;
+      const g   = (357.528 + 0.9856003 * n) % 360 * Math.PI / 180;
       const lam = (L + 1.915 * Math.sin(g) + 0.020 * Math.sin(2*g)) * Math.PI / 180;
       const sinDec = Math.sin(23.439 * Math.PI / 180) * Math.sin(lam);
-      const dec = Math.asin(sinDec);
-      const cosH = (Math.sin(-0.0145) - Math.sin(lat) * sinDec)
-                   / (Math.cos(lat) * Math.cos(dec));
-      if (Math.abs(cosH) > 1) return null; /* midnight sun / polar night */
-      const H = Math.acos(cosH) * 180 / Math.PI;
+      const dec    = Math.asin(sinDec);
+      const cosH   = (Math.sin(horizonRad) - Math.sin(lat) * sinDec)
+                     / (Math.cos(lat) * Math.cos(dec));
+      if (Math.abs(cosH) > 1) return null;
+      const H    = Math.acos(cosH) * 180 / Math.PI;
       const noon = 12 - (lng / 15) - ((n % 1) - 0.5) * 24
                    - (0.0053 * Math.sin(g) - 0.0069 * Math.sin(2*lam));
       const t = isRise ? noon - H/15 : noon + H/15;
-      const d = new Date(date);
-      d.setUTCHours(0, 0, 0, 0);
+      const d = new Date(dateMs); d.setUTCHours(0, 0, 0, 0);
       return new Date(d.getTime() + t * 3600000);
     }
 
-    const rise = calcSun(now.getTime(), true);
-    const set  = calcSun(now.getTime(), false);
-    if (!rise || !set) return ''; /* revontulet / kaamos */
+    const SUN    = -0.0145;  /* aurinko: -0.833° */
+    const TWILIT = -0.1045;  /* siviilihämärä: -6° */
 
-    const fmt = d => ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
-    const total = set - rise;
+    const rise   = calcSunAngle(now.getTime(), true,  SUN);
+    const set    = calcSunAngle(now.getTime(), false, SUN);
+    const dawn   = calcSunAngle(now.getTime(), true,  TWILIT); /* aamuhämärä */
+    const dusk   = calcSunAngle(now.getTime(), false, TWILIT); /* iltahämärä */
+    if (!rise || !set) return '';
+
+    const fmt  = d => ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
     const nowMs = now.getTime();
-    const prog  = Math.max(0, Math.min(1, (nowMs - rise.getTime()) / total));
+
+    /* Janan aikaikkuna: aamuhämärästä iltahämärään (tai rise±3h jos ei hämärää) */
+    const start = dawn ? dawn.getTime() : rise.getTime() - 3*3600000;
+    const end   = dusk ? dusk.getTime() : set.getTime()  + 3*3600000;
+    const total = end - start;
+
+    const pct = t => Math.max(0, Math.min(100, (t - start) / total * 100)).toFixed(1);
+
+    const riseP  = pct(rise.getTime());
+    const setP   = pct(set.getTime());
+    const dawnP  = dawn ? pct(dawn.getTime()) : '0';
+    const duskP  = dusk ? pct(dusk.getTime()) : '100';
+    const nowP   = pct(nowMs);
+
     const isDaytime = nowMs >= rise.getTime() && nowMs <= set.getTime();
+    const isTwilit  = !isDaytime && nowMs >= start && nowMs <= end;
     const hoursLeft = Math.max(0, ((set.getTime() - nowMs) / 3600000)).toFixed(1);
-    const leftLabel = isDaytime ? hoursLeft + 'h valoa jäljellä' : 'Aurinko laski ' + fmt(set);
+    const label = isDaytime
+      ? hoursLeft + 'h valoa jäljellä'
+      : (dusk && nowMs < dusk.getTime() ? 'Hämärä klo ' + fmt(dusk) : 'Aurinko nousi ' + fmt(rise));
 
     return '<div class="sh-sun-bar">'
-      + '<span class="sh-sun-label">☀️ ' + fmt(rise) + '</span>'
+      + '<span class="sh-sun-label">🌅 ' + (dawn ? fmt(dawn) : fmt(rise)) + '</span>'
       + '<div class="sh-sun-track">'
-        + '<div class="sh-sun-fill" style="width:' + (prog*100).toFixed(1) + '%"></div>'
-        + (isDaytime ? '<div class="sh-sun-dot" style="left:' + (prog*100).toFixed(1) + '%"></div>' : '')
+        /* Hämäräalueet */
+        + (dawn ? '<div style="position:absolute;left:0%;width:' + riseP + '%;height:100%;background:linear-gradient(to right,rgba(255,140,0,.15),rgba(255,200,60,.3));border-radius:2px"></div>' : '')
+        + (dusk ? '<div style="position:absolute;left:' + setP + '%;width:' + (parseFloat(duskP)-parseFloat(setP)).toFixed(1) + '%;height:100%;background:linear-gradient(to right,rgba(255,200,60,.3),rgba(255,140,0,.15));border-radius:2px"></div>' : '')
+        /* Päiväalue */
+        + '<div class="sh-sun-fill" style="left:' + riseP + '%;width:' + (parseFloat(setP)-parseFloat(riseP)).toFixed(1) + '%;"></div>'
+        /* Nykyhetki-viiva */
+        + '<div style="position:absolute;left:' + nowP + '%;top:-3px;bottom:-3px;width:2px;background:rgba(255,255,255,0.9);border-radius:1px;box-shadow:0 0 4px rgba(255,255,255,.6)"></div>'
       + '</div>'
-      + '<span class="sh-sun-label">' + fmt(set) + ' · ' + leftLabel + '</span>'
+      + '<span class="sh-sun-label">' + (dusk ? fmt(dusk) : fmt(set)) + ' · ' + label + '</span>'
+    + '</div>'
+    /* Aika-arvot pienellä */
+    + '<div style="display:flex;justify-content:space-between;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,200,80,.5);margin:-8px 0 10px;padding:0 2px">'
+      + '<span>☀ ' + fmt(rise) + '</span>'
+      + '<span>' + fmt(set) + ' ☀</span>'
     + '</div>';
   }
 
-  /* ── 24H SVG LINE CHART ──────────────────────────────────────── */
+  /* ── 24H SVG LINE CHART — menneet harmaat, nykyhetki-viiva, tiheät labels ── */
   function build24hChart() {
-    const cs = idx, ce = Math.min(h.windspeed_10m.length, cs + 24);
+    /* Aloitetaan 2h ennen nykyhetkeä jotta konteksti näkyy */
+    const startOff = 2;
+    const cs = Math.max(0, idx - startOff);
+    const ce = Math.min(h.windspeed_10m.length, cs + 26);
     const vals = [], times = [];
     for (let i = cs; i < ce; i++) {
       vals.push(h.windspeed_10m[i] || 0);
       times.push(h.time ? h.time[i] : '');
     }
-    if (!vals.length) return '';
+    if (vals.length < 2) return '';
+
+    const nowSlot = Math.min(startOff, idx); /* indeksi vals-taulukossa jossa "nyt" on */
     const maxV = Math.max(...vals, 1);
     let peakMs = 0, peakH = '';
-    vals.forEach((v, i) => { if (v > peakMs) { peakMs = v; peakH = fmtHour(times[i]); } });
+    vals.forEach((v, i) => { if (i >= nowSlot && v > peakMs) { peakMs = v; peakH = fmtHour(times[i]); } });
 
-    const W = 300, H = 72, pad = 4;
+    const W = 300, H = 68, pad = 4, labelH = 12;
+    const TH = H + labelH;
     const xStep = (W - pad*2) / (vals.length - 1);
+    const xOf   = i => pad + i * xStep;
+    const yOf   = v => H - pad - (v / maxV) * (H - pad*2);
+    const nowX  = xOf(nowSlot).toFixed(1);
 
-    /* Build polyline points */
-    const pts = vals.map((v, i) =>
-      (pad + i * xStep).toFixed(1) + ',' + (H - pad - (v / maxV) * (H - pad*2)).toFixed(1)
-    ).join(' ');
+    /* Split line: past (grey) + future (color gradient) */
+    const pastPts   = vals.slice(0, nowSlot+1).map((v,i) => xOf(i).toFixed(1)+','+yOf(v).toFixed(1)).join(' ');
+    const futurePts = vals.slice(nowSlot).map((v,i) => xOf(nowSlot+i).toFixed(1)+','+yOf(v).toFixed(1)).join(' ');
 
-    /* Build area fill path */
-    const area = 'M ' + pad + ',' + (H - pad)
-      + ' L ' + vals.map((v, i) =>
-          (pad + i * xStep).toFixed(1) + ',' + (H - pad - (v / maxV) * (H - pad*2)).toFixed(1)
-        ).join(' L ')
-      + ' L ' + (pad + (vals.length-1) * xStep).toFixed(1) + ',' + (H - pad) + ' Z';
+    /* Area fills */
+    const pastArea = 'M '+xOf(0).toFixed(1)+','+(H-pad)
+      + ' L '+vals.slice(0,nowSlot+1).map((v,i)=>xOf(i).toFixed(1)+','+yOf(v).toFixed(1)).join(' L ')
+      + ' L '+xOf(nowSlot).toFixed(1)+','+(H-pad)+' Z';
 
-    /* Hour labels every 6h */
-    let labels = '';
-    vals.forEach((v, i) => {
-      if (i === 0 || i % 6 === 0 || i === vals.length - 1) {
-        const x = (pad + i * xStep).toFixed(1);
-        const t = times[i] ? new Date(times[i]).getHours() : '';
-        labels += `<text x="${x}" y="${H}" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.3)" text-anchor="middle">${('0'+t).slice(-2)}</text>`;
-      }
-    });
+    const futureArea = 'M '+xOf(nowSlot).toFixed(1)+','+(H-pad)
+      + ' L '+vals.slice(nowSlot).map((v,i)=>xOf(nowSlot+i).toFixed(1)+','+yOf(v).toFixed(1)).join(' L ')
+      + ' L '+xOf(vals.length-1).toFixed(1)+','+(H-pad)+' Z';
 
-    /* Now marker */
-    const nowX = (pad + 0 * xStep).toFixed(1);
-    const nowY = (H - pad - (vals[0] / maxV) * (H - pad*2)).toFixed(1);
-
-    /* Color gradient stops */
-    const gradStops = vals.map((v, i) => {
-      const cx = pad + i * xStep, pct = ((cx - pad) / (W - pad*2) * 100).toFixed(1);
+    /* Color gradient for future */
+    const gradStops = vals.slice(nowSlot).map((v,i) => {
+      const x = xOf(nowSlot+i), pct = ((x-xOf(nowSlot))/(xOf(vals.length-1)-xOf(nowSlot))*100).toFixed(1);
       const cc = ColorRamp.rgb(v);
       return `<stop offset="${pct}%" stop-color="rgb(${cc.r},${cc.g},${cc.b})"/>`;
     }).join('');
 
+    /* Hour labels — joka tunti pieni piste, joka 3h numero */
+    let labels = '', ticks = '';
+    vals.forEach((v, i) => {
+      const x    = xOf(i).toFixed(1);
+      const hr   = times[i] ? new Date(times[i]).getHours() : -1;
+      const past = i < nowSlot;
+      const fill = past ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.5)';
+      /* Piste joka tunti */
+      ticks += `<circle cx="${x}" cy="${(H-pad+3).toFixed(1)}" r="1.2" fill="${fill}"/>`;
+      /* Numero joka 3h */
+      if (hr >= 0 && hr % 3 === 0) {
+        const col = past ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.55)';
+        labels += `<text x="${x}" y="${TH-1}" font-family="DM Mono,monospace" font-size="7.5" fill="${col}" text-anchor="middle">${('0'+hr).slice(-2)}</text>`;
+      }
+    });
+
+    /* Now line */
+    const nowLine = `<line x1="${nowX}" y1="${pad}" x2="${nowX}" y2="${H-pad+4}" stroke="rgba(255,255,255,.85)" stroke-width="1.5" stroke-dasharray="2,2"/>`;
+    const nowLabel = `<text x="${nowX}" y="${pad+6}" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.7)" text-anchor="middle">NYT</text>`;
+
     return '<div class="sh-24h-section">'
       + '<div class="sh-24h-header">'
         + '<span class="sh-24h-title">24h ennuste</span>'
-        + (peakMs > 0 ? '<span class="sh-24h-peak">Huippu ' + Units.fmt(peakMs) + ' ' + Units.label() + ' klo ' + peakH + '</span>' : '')
+        + (peakMs > 0 ? '<span class="sh-24h-peak">↑ ' + Units.fmt(peakMs) + ' ' + Units.label() + ' klo ' + peakH + '</span>' : '')
       + '</div>'
-      + `<svg class="sh-24h-svg" viewBox="0 0 ${W} ${H+10}" preserveAspectRatio="none">`
+      + `<svg class="sh-24h-svg" viewBox="0 0 ${W} ${TH}" preserveAspectRatio="none">`
         + `<defs>`
-          + `<linearGradient id="lcg" x1="0%" y1="0%" x2="100%" y2="0%">${gradStops}</linearGradient>`
-          + `<linearGradient id="afg" x1="0%" y1="0%" x2="0%" y2="100%">`
-            + `<stop offset="0%" stop-color="rgba(0,207,255,.25)"/>`
-            + `<stop offset="100%" stop-color="rgba(0,207,255,.0)"/>`
+          + `<linearGradient id="fcg" x1="0%" y1="0%" x2="100%" y2="0%">${gradStops}</linearGradient>`
+          + `<linearGradient id="fag" x1="0%" y1="0%" x2="0%" y2="100%">`
+            + `<stop offset="0%" stop-color="rgba(0,207,255,.2)"/><stop offset="100%" stop-color="rgba(0,207,255,.0)"/>`
           + `</linearGradient>`
         + `</defs>`
-        /* Area fill */
-        + `<path d="${area}" fill="url(#afg)"/>`
-        /* Line */
-        + `<polyline points="${pts}" fill="none" stroke="url(#lcg)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
-        /* Now dot */
-        + `<circle cx="${nowX}" cy="${nowY}" r="3.5" fill="white" opacity="0.9"/>`
-        /* Hour labels */
-        + labels
+        /* Past area — harmaa */
+        + `<path d="${pastArea}" fill="rgba(255,255,255,.04)"/>`
+        /* Future area */
+        + `<path d="${futureArea}" fill="url(#fag)"/>`
+        /* Past line — harmaa */
+        + (pastPts ? `<polyline points="${pastPts}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>` : '')
+        /* Future line — värillisenä */
+        + `<polyline points="${futurePts}" fill="none" stroke="url(#fcg)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
+        /* Ticks + labels */
+        + ticks + labels
+        /* Now marker */
+        + nowLine + nowLabel
       + `</svg>`
     + '</div>';
   }
