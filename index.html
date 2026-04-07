@@ -2700,9 +2700,27 @@ function openSheet(spot, hourIdx) {
   function buildFmiCard(elId) {
     /* Use Open-Meteo current conditions as proxy — FMI WFS is XML,
        loaded async and injected after sheet opens */
+    const CURRENT_TTL = 10 * 60 * 1000; /* 10 min cache */
+    function renderFmi(el, cMs, cDir, cGst) {
+      const cc = ColorRamp.rgb(cMs);
+      el.innerHTML = '<div class="sh-fmi-left">'
+        + '<div class="sh-fmi-name">🛰 Reaaliaikainen havainto</div>'
+        + '<div class="sh-fmi-meta">' + dirArrow(cDir) + ' ' + Math.round(cDir) + '° · Puuska ' + Units.fmt(cGst) + ' ' + Units.label() + '</div>'
+      + '</div>'
+      + '<div class="sh-fmi-wind">'
+        + '<div class="sh-fmi-ms" style="color:rgb('+cc.r+','+cc.g+','+cc.b+')">' + Units.fmt(cMs) + '</div>'
+        + '<div class="sh-fmi-unit">' + Units.label() + '</div>'
+      + '</div>';
+    }
     setTimeout(() => {
       const el = document.getElementById(elId);
       if (!el) return;
+      /* Käytä cachea jos alle 10 min vanha */
+      if (spot._currentWx && Date.now() - spot._currentWx.ts < CURRENT_TTL) {
+        const c = spot._currentWx;
+        renderFmi(el, c.ms, c.dir, c.gst);
+        return;
+      }
       const lat = spot.lat.toFixed(3), lng = spot.lng.toFixed(3);
       const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat
         + '&longitude=' + lng
@@ -2711,18 +2729,12 @@ function openSheet(spot, hourIdx) {
       fetch(url).then(r => r.json()).then(data => {
         if (!data.current || !el) return;
         const cw = data.current;
-        const cMs = cw.wind_speed_10m || 0;
+        const cMs  = cw.wind_speed_10m || 0;
         const cDir = cw.wind_direction_10m || 0;
         const cGst = cw.wind_gusts_10m || cMs;
-        const cc = ColorRamp.rgb(cMs);
-        el.innerHTML = '<div class="sh-fmi-left">'
-          + '<div class="sh-fmi-name">🛰 Reaaliaikainen havainto</div>'
-          + '<div class="sh-fmi-meta">' + dirArrow(cDir) + ' ' + Math.round(cDir) + '° · Puuska ' + Units.fmt(cGst) + ' ' + Units.label() + '</div>'
-        + '</div>'
-        + '<div class="sh-fmi-wind">'
-          + '<div class="sh-fmi-ms" style="color:rgb('+cc.r+','+cc.g+','+cc.b+')">' + Units.fmt(cMs) + '</div>'
-          + '<div class="sh-fmi-unit">' + Units.label() + '</div>'
-        + '</div>';
+        /* Tallenna spotti-objektiin — pysyy session ajan */
+        spot._currentWx = { ts: Date.now(), ms: cMs, dir: cDir, gst: cGst };
+        renderFmi(el, cMs, cDir, cGst);
       }).catch(() => {
         if (el) el.innerHTML = '<span class="sh-fmi-loading">Havaintoa ei saatavilla</span>';
       });
@@ -3240,16 +3252,27 @@ function buildWindRoseSVG(h, idx) {
 
 /* ── MARINE API ───────────────────────────────────────────────── */
 async function loadMarineTemp() {
+  const MARINE_TTL = 60 * 60 * 1000; /* 60 min — vedenlämpö ei muutu nopeasti */
+  /* Skipataan jos kaikilla spoteilla on tuore data */
+  const needsUpdate = SPOTS.some(s =>
+    s._waterTemp == null || !s._waterTempTs || Date.now() - s._waterTempTs > MARINE_TTL
+  );
+  if (!needsUpdate) return;
   try {
-    const lats = SPOTS.map(s => s.lat.toFixed(2)).join(',');
-    const lngs = SPOTS.map(s => s.lng.toFixed(2)).join(',');
+    /* Haetaan vain spotit joilla data puuttuu tai on vanhentunut */
+    const toFetch = SPOTS.filter(s =>
+      s._waterTemp == null || !s._waterTempTs || Date.now() - s._waterTempTs > MARINE_TTL
+    );
+    const lats = toFetch.map(s => s.lat.toFixed(2)).join(',');
+    const lngs = toFetch.map(s => s.lng.toFixed(2)).join(',');
     const url = 'https://marine-api.open-meteo.com/v1/marine?latitude='+lats+'&longitude='+lngs+'&current=sea_surface_temperature';
     const r = await fetch(url); if (!r.ok) throw new Error(r.status);
     const data = await r.json();
     const arr = Array.isArray(data) ? data : [data];
     arr.forEach((d, i) => {
-      if (i < SPOTS.length && d && d.current && d.current.sea_surface_temperature != null) {
-        SPOTS[i]._waterTemp = d.current.sea_surface_temperature;
+      if (i < toFetch.length && d && d.current && d.current.sea_surface_temperature != null) {
+        toFetch[i]._waterTemp   = d.current.sea_surface_temperature;
+        toFetch[i]._waterTempTs = Date.now();
       }
     });
   } catch(e) { console.log('[Marine]', e.message); }
