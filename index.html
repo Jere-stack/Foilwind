@@ -1612,7 +1612,7 @@ const State = {
   lastDataLoad: 0,
   refreshTimer: null,
   sheetSpot: null,
-  _panning: false,
+  _panning: false, _dragZooming: false,
   _tlTimes: null, _tlSpeeds: null, _tlDirs: null, _tlTicks: [],
   _lastTlHour: -1,
 };
@@ -1661,75 +1661,75 @@ function initMap() {
   State.map = map;
 
   /* ── DOUBLE-TAP ZOOM + DRAG ZOOM (Apple Maps style) ─────────────
-     iOS Safari ei laukaise dblclick-eventtejä touchista luotettavasti.
-     Toteutetaan itse:
-     - double-tap (nopea) → zoomIn()
-     - double-tap + pidä + vedä ylös/alas → zoom in/out jatkuvasti  */
+     - double-tap nopea → zoomIn() napaytuspisteeseen
+     - double-tap + pidä + vedä ylös/alas → jatkuva zoom
+     State._dragZooming-lippu estää moveend/zoomend-handlerit
+     toimimasta drag aikana (vältetään heatmap-flicker ja API-tulva) */
   (function() {
     const mapEl = document.getElementById('map');
     let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
-    let dragZooming = false, dragStartY = 0, dragStartZoom = 0;
-    const DBL_MS = 280;   /* max ms tuplanapaytukselle */
-    const DBL_PX = 40;    /* max pikselietäisyys napaytuksille */
-    const HOLD_MS = 120;  /* aika jonka jälkeen drag-zoom aktivoituu */
+    let dragStartY = 0, dragStartZoom = 0, dragCenter = null;
+    const DBL_MS  = 280;
+    const DBL_PX  = 40;
+    const HOLD_MS = 130;
     let holdTimer = null;
 
     mapEl.addEventListener('touchstart', e => {
       if (e.touches.length !== 1) {
-        dragZooming = false;
+        State._dragZooming = false;
         clearTimeout(holdTimer);
         return;
       }
-      const t = e.touches[0];
+      const t   = e.touches[0];
       const now = Date.now();
-      const dt = now - lastTapTime;
-      const dx = Math.abs(t.clientX - lastTapX);
-      const dy = Math.abs(t.clientY - lastTapY);
+      const dt  = now - lastTapTime;
+      const dx  = Math.abs(t.clientX - lastTapX);
+      const dy  = Math.abs(t.clientY - lastTapY);
 
-      if (dt < DBL_MS && dx < DBL_PX && dy < DBL_PX) {
-        /* Tuplanapaytus — käynnistä hold-timer drag-zoomille */
+      if (dt < DBL_MS && dt > 20 && dx < DBL_PX && dy < DBL_PX) {
         e.preventDefault();
+        /* Lukitaan center ennen drag-zoom alkua */
+        dragCenter    = map.getCenter();
         dragStartY    = t.clientY;
         dragStartZoom = map.getZoom();
-        dragZooming   = false;
+        State._dragZooming = false;
+        lastTapTime = 0;
 
         holdTimer = setTimeout(() => {
-          /* Pitkä pito → drag zoom mode */
-          dragZooming = true;
+          State._dragZooming = true;
+          /* Opacity alas drag-zoom aikana kuten pannaessa */
+          if (State.windCvs) State.windCvs.style.opacity = '0.15';
         }, HOLD_MS);
-
-        /* Nopea nosto = pelkkä double-tap zoom */
-        lastTapTime = 0; /* reset jottei kolmas tap triggaa */
       } else {
         lastTapTime = now;
         lastTapX    = t.clientX;
         lastTapY    = t.clientY;
-        dragZooming = false;
+        State._dragZooming = false;
         clearTimeout(holdTimer);
       }
     }, { passive: false });
 
     mapEl.addEventListener('touchmove', e => {
-      if (!dragZooming || e.touches.length !== 1) return;
+      if (!State._dragZooming || e.touches.length !== 1) return;
       e.preventDefault();
-      clearTimeout(holdTimer);
-      const moved = dragStartY - e.touches[0].clientY; /* ylös = positiivinen */
-      const newZoom = dragStartZoom + moved / 65;
-      map.setZoom(
-        Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), newZoom)),
-        { animate: false }
-      );
+      const moved   = dragStartY - e.touches[0].clientY;
+      const newZoom = Math.max(map.getMinZoom(),
+                       Math.min(map.getMaxZoom(), dragStartZoom + moved / 65));
+      /* setView pitää centerin paikallaan drag aikana */
+      map.setView(dragCenter, newZoom, { animate: false, noMoveStart: true });
     }, { passive: false });
 
     mapEl.addEventListener('touchend', e => {
       clearTimeout(holdTimer);
-      if (dragZooming) {
-        dragZooming = false;
-        /* Snap lähimpään 0.5-tasoon */
+      if (State._dragZooming) {
+        State._dragZooming = false;
+        /* Snap lähimpään 0.5-tasoon, käynnistä moveend-logiikka kerran */
         const snapped = Math.round(map.getZoom() * 2) / 2;
-        map.setZoom(snapped, { animate: true });
+        map.setView(dragCenter, snapped, { animate: true });
+        /* Pakota moveend-toiminnot kerran drag-zoom jälkeen */
+        setTimeout(() => { map.fire('moveend'); }, 350);
       } else if (lastTapTime === 0 && e.changedTouches.length === 1) {
-        /* Nopea double-tap ilman draggia → zoom in */
+        /* Nopea double-tap → zoom in napaytuspisteeseen */
         const latlng = map.containerPointToLatLng(
           L.point(e.changedTouches[0].clientX, e.changedTouches[0].clientY)
         );
@@ -1739,6 +1739,7 @@ function initMap() {
     }, { passive: true });
   })();
   map.on('moveend', () => {
+    if (State._dragZooming) return; /* drag-zoom hoitaa oman cleanup-kierroksensa */
     GeoProject.update(map);
     const { windCtx, windCvs, dpr } = State;
     if (windCtx) windCtx.clearRect(0, 0, windCvs.width / dpr, windCvs.height / dpr);
@@ -1773,6 +1774,7 @@ function initMap() {
   });
   map.on('movestart', () => { State._panning = true; });
   map.on('move', () => {
+    if (State._dragZooming) return; /* opacity hoidetaan drag-zoom koodissa */
     if (State.windCvs) State.windCvs.style.opacity = '0.15';
     Crosshair._scheduleUpdate();
   });
@@ -1805,6 +1807,7 @@ function initMap() {
 
   let _prevZoom = map.getZoom();
   map.on('zoomend', () => {
+    if (State._dragZooming) return; /* drag-zoom laukaisee moveend itse kerran lopussa */
     WeatherWidget.scheduleUpdate(); _scheduleViewportLoad(); updateHeatmapBlur();
     GeoProject.update(map);
     const newZoom = map.getZoom();
