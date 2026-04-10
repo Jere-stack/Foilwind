@@ -50,14 +50,14 @@ body {
   overflow: hidden; position: fixed; inset: 0;
   -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
   overscroll-behavior: none;
-  touch-action: none;
+  /* touch-action ei bodylle — estää iOS double-tap zoom detection */
 }
 #app { position: absolute; inset: 0; }
 
 /* ============================================================
 MAP  z:1
 ============================================================ */
-#map { position: absolute; inset: 0; z-index: 1; background: var(–bg); }
+#map { position: absolute; inset: 0; z-index: 1; background: var(–bg); touch-action: none; }
 .leaflet-container { background: var(–bg) !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
 .leaflet-tile-pane { -webkit-filter: brightness(2.0) contrast(1.05) saturate(1.15); filter: brightness(2.0) contrast(1.05) saturate(1.15); }
 .leaflet-control-zoom { display: none !important; }
@@ -1659,6 +1659,48 @@ function initMap() {
   }).addTo(map);
 
   State.map = map;
+
+  /* ── APPLE MAPS DRAG ZOOM ─────────────────────────────────────
+     Double-tap + hold + drag up/down = zoom in/out (1 sormi)
+     Toimii iOS Safarissa jossa pinch ei aina ole mahdollinen    */
+  (function() {
+    const mapEl = document.getElementById('map');
+    let lastTap = 0, dragZooming = false, dragStartY = 0, dragStartZoom = 0;
+    const DBL_TAP_MS = 300; /* max aika tuplanapaytuksille */
+
+    mapEl.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) { dragZooming = false; return; }
+      const now = Date.now();
+      const dt  = now - lastTap;
+      if (dt < DBL_TAP_MS && dt > 30) {
+        /* Tuplanapaytus tunnistettu — aloita drag zoom */
+        e.preventDefault();
+        dragZooming  = true;
+        dragStartY   = e.touches[0].clientY;
+        dragStartZoom = map.getZoom();
+      } else {
+        dragZooming = false;
+      }
+      lastTap = now;
+    }, { passive: false });
+
+    mapEl.addEventListener('touchmove', e => {
+      if (!dragZooming || e.touches.length !== 1) return;
+      e.preventDefault();
+      const dy = dragStartY - e.touches[0].clientY; /* ylös = zoom in */
+      const newZoom = dragStartZoom + dy / 60;       /* 60px per zoom level */
+      map.setZoom(Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), newZoom)), { animate: false });
+    }, { passive: false });
+
+    mapEl.addEventListener('touchend', e => {
+      if (dragZooming) {
+        dragZooming = false;
+        /* Snap to nearest 0.5 zoom level smoothly */
+        const snapped = Math.round(map.getZoom() * 2) / 2;
+        map.setZoom(snapped, { animate: true });
+      }
+    }, { passive: true });
+  })();
   map.on('moveend', () => {
     GeoProject.update(map);
     const { windCtx, windCvs, dpr } = State;
