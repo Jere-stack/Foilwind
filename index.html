@@ -1648,7 +1648,10 @@ function initMap() {
   const map = L.map('map', {
     center: [62.5, 25.5], zoom: 5, zoomControl: false, attributionControl: true,
     minZoom: 2, maxZoom: 13, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5,
-    worldCopyJump: true
+    worldCopyJump: true,
+    doubleClickZoom: true,  /* iOS Safari tuplanapaytus zoomaa */
+    tap: true,              /* iOS touch event handling */
+    tapTolerance: 15        /* suurempi toleranssi kosketusnäytölle */
   });
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd', maxZoom: 19,
