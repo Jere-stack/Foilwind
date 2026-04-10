@@ -1798,6 +1798,41 @@ function initMap() {
   map.options.doubleTapDragZoomOptions = { reverse: false, sensitivity: 120 };
   State.map = map;
 
+  /* ── NOPEA DOUBLE-TAP ZOOM ────────────────────────────────────
+     DoubleTapDragZoom-plugin hoitaa drag-zoom (tap+hold+vedä).
+     Tämä hoitaa nopean double-tap → zoomIn() napaytuspisteeseen.
+     Kaksi erillistä elettä, ei konfliktia.                       */
+  (function() {
+    const mapEl = document.getElementById('map');
+    let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
+    const DBL_MS = 300, DBL_PX = 45;
+
+    mapEl.addEventListener('touchstart', e => {
+      if (e.touches.length !== 1) { lastTapTime = 0; return; }
+      const t = e.touches[0];
+      const now = Date.now();
+      const dt  = now - lastTapTime;
+      const dx  = Math.abs(t.clientX - lastTapX);
+      const dy  = Math.abs(t.clientY - lastTapY);
+
+      if (dt < DBL_MS && dt > 20 && dx < DBL_PX && dy < DBL_PX) {
+        /* Double-tap tunnistettu — preventDefault estää kartan scrollauksen */
+        e.preventDefault();
+        const rect   = mapEl.getBoundingClientRect();
+        const latlng = map.containerPointToLatLng(
+          L.point(t.clientX - rect.left, t.clientY - rect.top)
+        );
+        map.setZoomAround(latlng, map.getZoom() + 1, { animate: true });
+        Haptics.light();
+        lastTapTime = 0; /* reset ettei kolmas tap triggaa */
+      } else {
+        lastTapTime = now;
+        lastTapX    = t.clientX;
+        lastTapY    = t.clientY;
+      }
+    }, { passive: false });
+  })();
+
   /* drag-zoom: handled by Leaflet.DoubleTapDragZoom plugin */
   map.on('moveend', () => {
     if (State._dragZooming) return; /* drag-zoom hoitaa oman cleanup-kierroksensa */
