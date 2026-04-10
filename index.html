@@ -1595,6 +1595,141 @@ const ViewportGrid = {
   }
 };
 
+/* ═══════════════════════════════════════════════════════════════
+   Leaflet.DoubleTapDrag + Leaflet.DoubleTapDragZoom (MIT)
+   Lähde: npmjs.com/leaflet-doubletapdrag v0.1.2
+           npmjs.com/leaflet-doubletapdragzoom v0.3.2
+   Integroitu suoraan ilman CDN-riippuvuutta
+   ═══════════════════════════════════════════════════════════════ */
+
+/* -- Base: lähettää doubletapdragstart/drag/end eventit kartalle -- */
+(function() {
+  function DoubleTapDragInitHook() {
+    var timer = null, fired = false, lastTs = null;
+    var DBL_TIMEOUT  = 350;
+    var DRAG_TIMEOUT = 80;
+    this._container.addEventListener('touchstart', L.Util.bind(function(e) {
+      if (e.touches.length !== 1) return;
+      var now = Date.now();
+      if (lastTs !== null) {
+        if (now - lastTs < DBL_TIMEOUT) {
+          timer = setTimeout(L.Util.bind(function() {
+            this.fire('doubletapdragstart', e); timer = null; fired = true;
+          }, this), DRAG_TIMEOUT);
+        }
+        lastTs = null;
+      } else {
+        lastTs = now;
+        setTimeout(L.Util.bind(function() { lastTs = null; }, this), DBL_TIMEOUT);
+      }
+    }, this));
+    this._container.addEventListener('touchend', L.Util.bind(function(e) {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (fired) { this.fire('doubletapdragend', e); fired = null; }
+    }, this));
+    this._container.addEventListener('touchmove', L.Util.bind(function(e) {
+      if (fired) this.fire('doubletapdrag', e);
+    }, this));
+  }
+  L.Map.addInitHook(DoubleTapDragInitHook);
+})();
+
+/* -- DoubleTapDragZoom: käyttää map._move() + requestAnimFrame -- */
+(function() {
+  L.Map.mergeOptions({
+    doubleTapDragZoom: true,
+    doubleTapDragZoomOptions: { reverse: false, sensitivity: 120 },
+  });
+
+  L.Map.addInitHook('addHandler', 'doubleTapDragZoom', L.Handler.extend({
+    addHooks: function() {
+      this._map.on('doubletapdragstart', this._onStart, this);
+      this._map.on('doubletapdrag',      this._onDrag,  this);
+      this._map.on('doubletapdragend',   this._onEnd,   this);
+    },
+    removeHooks: function() {
+      this._map.off('doubletapdragstart', this._onStart, this);
+      this._map.off('doubletapdrag',      this._onDrag,  this);
+      this._map.off('doubletapdragend',   this._onEnd,   this);
+    },
+    _onStart: function(e) {
+      var map = this._map;
+      if (!e.touches || e.touches.length !== 1 || map._animatingZoom) return;
+      var p = map.mouseEventToContainerPoint(e.touches[0]);
+      this._startY     = p.y;
+      this._startPt    = p;
+      this._centerPt   = map.getSize()._divideBy(2);
+      this._startLlng  = map.containerPointToLatLng(p);
+      this._startZoom  = map.getZoom();
+      this._zoom       = this._startZoom;
+      this._center     = this._startLlng;
+      this._dragging   = true;
+      map._stop(); map._moveStart(true, false);
+      /* Piilota canvas + spotit drag aikana */
+      if (typeof State !== 'undefined') {
+        State._dragZooming = true;
+        if (State.windCvs) State.windCvs.style.opacity = '0';
+        (State.markers || []).forEach(function(m) {
+          var el = m.getElement(); if (el) el.style.opacity = '0';
+        });
+      }
+    },
+    _onDrag: function(e) {
+      if (!this._dragging || !e.touches || e.touches.length !== 1) return;
+      var map  = this._map;
+      var sens = (map.options.doubleTapDragZoomOptions || {}).sensitivity || 120;
+      var p    = map.mouseEventToContainerPoint(e.touches[0]);
+      if (p.y <= 0) return;
+      var dist  = this._startY - p.y;
+      var scale = Math.pow(Math.E, dist / sens);
+      this._zoom = map.getScaleZoom(scale, this._startZoom);
+      /* Pidä sormenpää paikallaan — laske uusi center */
+      var delta = L.point(this._startPt.x, p.y)
+        ._add(this._startPt).divideBy(2)._subtract(this._centerPt);
+      this._center = map.unproject(
+        map.project(this._startLlng, this._zoom).subtract(delta), this._zoom
+      );
+      L.Util.cancelAnimFrame(this._req);
+      this._req = L.Util.requestAnimFrame(
+        L.Util.bind(map._move, map, this._center, this._zoom, { pinch: true, round: false }),
+        this, true
+      );
+    },
+    _onEnd: function() {
+      this._dragging = false;
+      if (!this._center) return;
+      L.Util.cancelAnimFrame(this._req);
+      var map     = this._map;
+      var snapped = map._limitZoom(this._zoom);
+      /* Leafletin oma animaatio — lataa oikeat tilet automaattisesti */
+      if (map.options.zoomAnimation) {
+        map._animateZoom(this._center, snapped, true, map.options.zoomSnap);
+      } else {
+        map._resetView(this._center, snapped);
+      }
+      this._center = null;
+      /* Palauta canvas + spotit animaation jälkeen */
+      if (typeof State !== 'undefined') {
+        setTimeout(function() {
+          State._dragZooming = false;
+          if (typeof renderSpots === 'function') renderSpots(State.currentHourIdx);
+          if (State.windField && State.windField.length && typeof WindTexture !== 'undefined') {
+            WindTexture.build(State.windField, map.getBounds()).then(function() {
+              if (typeof drawColorField === 'function') drawColorField();
+              if (typeof resetParticles === 'function') resetParticles();
+              if (State.windCvs) State.windCvs.style.opacity = '1';
+            });
+          } else {
+            if (State.windCvs) State.windCvs.style.opacity = '1';
+          }
+          if (typeof _scheduleViewportLoad === 'function') _scheduleViewportLoad();
+          if (typeof updateHeatmapBlur === 'function') updateHeatmapBlur();
+        }, 380);
+      }
+    }
+  }));
+})();
+
 /* ── STATE ────────────────────────────────────────────────────── */
 const State = {
   map: null,
@@ -1649,8 +1784,8 @@ function initMap() {
     center: [62.5, 25.5], zoom: 5, zoomControl: false, attributionControl: true,
     minZoom: 2, maxZoom: 13, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5,
     worldCopyJump: true,
-    doubleClickZoom: false, /* hoidamme itse alla */
-    tap: false,             /* käytämme omaa touch-logiikkaa */
+    doubleClickZoom: false,  /* hoidetaan DoubleTapDrag-pluginilla */
+    tap: false,              /* plugin hoitaa touch-eventtien käsittelyn */
     tapTolerance: 15
   });
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
@@ -1658,126 +1793,12 @@ function initMap() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
 
+  /* Konfiguroi DoubleTapDragZoom-plugin */
+  map.options.doubleTapDragZoom = L.Browser.touch;
+  map.options.doubleTapDragZoomOptions = { reverse: false, sensitivity: 120 };
   State.map = map;
 
-  /* ── DOUBLE-TAP ZOOM + DRAG ZOOM (Apple Maps style) ──────────────
-     Drag aikana: CSS scale() #map-elementille, origin = sormenpää.
-     Spotit piilotetaan drag aikana — päivitetään oikealla koolla lopussa.
-     Canvas + CSS scale poistetaan vasta kun uudet tilet ovat latautuneet.
-     _dragZooming-lippu estää moveend/zoomend sivuvaikutukset.            */
-  (function() {
-    const mapEl = document.getElementById('map');
-    let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
-    let holdTimer = null;
-    let dz = {
-      active: false, startY: 0, startZoom: 0, currentZoom: 0,
-      originX: 0, originY: 0, fingerLatLng: null,
-    };
-    const DBL_MS = 280, DBL_PX = 40, HOLD_MS = 150;
-    const SPEED  = 120; /* px / zoom-taso — suurempi = rauhallisempi */
-
-    function applyTransform(zoom) {
-      const scale = Math.pow(2, zoom - dz.startZoom);
-      mapEl.style.transformOrigin = dz.originX + 'px ' + dz.originY + 'px';
-      mapEl.style.transform = 'scale(' + scale.toFixed(6) + ')';
-    }
-    function resetTransform() {
-      mapEl.style.transform = '';
-      mapEl.style.transformOrigin = '';
-    }
-    function hideMarkers() {
-      State.markers.forEach(m => { const el = m.getElement(); if (el) el.style.opacity = '0'; });
-    }
-    function showMarkersWithCorrectZoom() {
-      /* Renderöi spotit uudella zoom-tasolla ja tuo näkyviin */
-      renderSpots(State.currentHourIdx);
-    }
-
-    mapEl.addEventListener('touchstart', e => {
-      if (e.touches.length !== 1) {
-        dz.active = false; State._dragZooming = false;
-        clearTimeout(holdTimer); resetTransform(); return;
-      }
-      const t = e.touches[0], now = Date.now();
-      const dt  = now - lastTapTime;
-      const ddx = Math.abs(t.clientX - lastTapX);
-      const ddy = Math.abs(t.clientY - lastTapY);
-
-      if (dt < DBL_MS && dt > 20 && ddx < DBL_PX && ddy < DBL_PX) {
-        e.preventDefault();
-        const rect = mapEl.getBoundingClientRect();
-        dz.originX = t.clientX - rect.left;
-        dz.originY = t.clientY - rect.top;
-        dz.startY = t.clientY;
-        dz.startZoom = map.getZoom();
-        dz.currentZoom = dz.startZoom;
-        dz.fingerLatLng = map.containerPointToLatLng(L.point(dz.originX, dz.originY));
-        dz.active = false; State._dragZooming = false; lastTapTime = 0;
-
-        holdTimer = setTimeout(() => {
-          dz.active = true;
-          State._dragZooming = true;
-          /* Piilota canvas + spottimarkerit drag aikana */
-          if (State.windCvs) State.windCvs.style.opacity = '0';
-          hideMarkers();
-        }, HOLD_MS);
-      } else {
-        lastTapTime = now; lastTapX = t.clientX; lastTapY = t.clientY;
-        dz.active = false; State._dragZooming = false;
-        clearTimeout(holdTimer); resetTransform();
-      }
-    }, { passive: false });
-
-    mapEl.addEventListener('touchmove', e => {
-      if (!dz.active || e.touches.length !== 1) return;
-      e.preventDefault();
-      const moved = dz.startY - e.touches[0].clientY;
-      dz.currentZoom = Math.max(map.getMinZoom(),
-                        Math.min(map.getMaxZoom(), dz.startZoom + moved / SPEED));
-      applyTransform(dz.currentZoom);
-    }, { passive: false });
-
-    mapEl.addEventListener('touchend', () => {
-      clearTimeout(holdTimer);
-      if (dz.active) {
-        dz.active = false;
-        State._dragZooming = false;
-        const snapped = Math.round(dz.currentZoom * 2) / 2;
-
-        /* Leaflet lataa uudet tilet setZoomAround-kutsulla.
-           Pidämme CSS-skaalauksen päällä kunnes tilet ovat valmiit,
-           jotta ei näy tyhjää reunoilla. */
-        map.once('zoomend', () => {
-          /* Tilet alkavat latautua — odota niiden valmistumista */
-          const container = mapEl.querySelector('.leaflet-tile-pane');
-          const onTilesLoaded = () => {
-            resetTransform();
-            showMarkersWithCorrectZoom();
-            if (State.windField.length) {
-              WindTexture.build(State.windField, map.getBounds()).then(() => {
-                drawColorField(); resetParticles(); Crosshair.refresh();
-                if (State.windCvs) State.windCvs.style.opacity = '1';
-              });
-            } else {
-              if (State.windCvs) State.windCvs.style.opacity = '1';
-            }
-            _scheduleViewportLoad();
-            updateHeatmapBlur();
-          };
-          /* Kuuntele tile-latauksia tai fallback 400ms */
-          map.once('load', onTilesLoaded);
-          setTimeout(onTilesLoaded, 400);
-        });
-
-        map.setZoomAround(dz.fingerLatLng, snapped, { animate: true });
-
-      } else if (lastTapTime === 0 && dz.fingerLatLng) {
-        /* Nopea double-tap → zoom in */
-        map.setZoomAround(dz.fingerLatLng, map.getZoom() + 1, { animate: true });
-        Haptics.light();
-      }
-    }, { passive: true });
-  })();
+  /* drag-zoom: handled by Leaflet.DoubleTapDragZoom plugin */
   map.on('moveend', () => {
     if (State._dragZooming) return; /* drag-zoom hoitaa oman cleanup-kierroksensa */
     GeoProject.update(map);
