@@ -1661,79 +1661,117 @@ function initMap() {
   State.map = map;
 
   /* ── DOUBLE-TAP ZOOM + DRAG ZOOM (Apple Maps style) ─────────────
-     - double-tap nopea → zoomIn() napaytuspisteeseen
-     - double-tap + pidä + vedä ylös/alas → jatkuva zoom
-     State._dragZooming-lippu estää moveend/zoomend-handlerit
-     toimimasta drag aikana (vältetään heatmap-flicker ja API-tulva) */
+     Tekniikka:
+     - Drag aikana: CSS scale() koko #map-elementille, transform-origin
+       sormen pikselikohdassa → sormenpää pysyy täsmälleen paikallaan
+     - Vasta touchend: resetTransform() + yksi setZoomAround()
+     - _dragZooming-lippu estää moveend/zoomend välitulokset            */
   (function() {
     const mapEl = document.getElementById('map');
+
     let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
-    let dragStartY = 0, dragStartZoom = 0, dragCenter = null;
+    let holdTimer   = null;
+    let dz = {
+      active:      false,
+      startY:      0,
+      startZoom:   0,
+      currentZoom: 0,
+      originX:     0,   /* transform-origin px suhteessa #map */
+      originY:     0,
+      fingerLatLng: null,
+    };
+
     const DBL_MS  = 280;
     const DBL_PX  = 40;
-    const HOLD_MS = 130;
-    let holdTimer = null;
+    const HOLD_MS = 150;
+
+    function applyTransform(zoom) {
+      const scale = Math.pow(2, zoom - dz.startZoom);
+      mapEl.style.transformOrigin = dz.originX + 'px ' + dz.originY + 'px';
+      mapEl.style.transform       = 'scale(' + scale.toFixed(6) + ')';
+    }
+
+    function resetTransform() {
+      mapEl.style.transform       = '';
+      mapEl.style.transformOrigin = '';
+    }
 
     mapEl.addEventListener('touchstart', e => {
       if (e.touches.length !== 1) {
+        dz.active = false;
         State._dragZooming = false;
         clearTimeout(holdTimer);
+        resetTransform();
         return;
       }
       const t   = e.touches[0];
       const now = Date.now();
       const dt  = now - lastTapTime;
-      const dx  = Math.abs(t.clientX - lastTapX);
-      const dy  = Math.abs(t.clientY - lastTapY);
+      const ddx = Math.abs(t.clientX - lastTapX);
+      const ddy = Math.abs(t.clientY - lastTapY);
 
-      if (dt < DBL_MS && dt > 20 && dx < DBL_PX && dy < DBL_PX) {
+      if (dt < DBL_MS && dt > 20 && ddx < DBL_PX && ddy < DBL_PX) {
         e.preventDefault();
-        /* Lukitaan center ennen drag-zoom alkua */
-        dragCenter    = map.getCenter();
-        dragStartY    = t.clientY;
-        dragStartZoom = map.getZoom();
+        /* Laske transform-origin kerran — käytetään koko drag-zoom ajan */
+        const rect    = mapEl.getBoundingClientRect();
+        dz.originX    = t.clientX - rect.left;
+        dz.originY    = t.clientY - rect.top;
+        dz.startY     = t.clientY;
+        dz.startZoom  = map.getZoom();
+        dz.currentZoom = dz.startZoom;
+        /* Sormen latlng touchend-setZoomAround varten */
+        dz.fingerLatLng = map.containerPointToLatLng(L.point(dz.originX, dz.originY));
+        dz.active     = false;
         State._dragZooming = false;
-        lastTapTime = 0;
+        lastTapTime   = 0;
 
         holdTimer = setTimeout(() => {
+          dz.active = true;
           State._dragZooming = true;
-          /* Opacity alas drag-zoom aikana kuten pannaessa */
-          if (State.windCvs) State.windCvs.style.opacity = '0.15';
+          /* Piilota wind canvas drag aikana */
+          if (State.windCvs) State.windCvs.style.opacity = '0';
         }, HOLD_MS);
+
       } else {
         lastTapTime = now;
         lastTapX    = t.clientX;
         lastTapY    = t.clientY;
+        dz.active   = false;
         State._dragZooming = false;
         clearTimeout(holdTimer);
+        resetTransform();
       }
     }, { passive: false });
 
     mapEl.addEventListener('touchmove', e => {
-      if (!State._dragZooming || e.touches.length !== 1) return;
+      if (!dz.active || e.touches.length !== 1) return;
       e.preventDefault();
-      const moved   = dragStartY - e.touches[0].clientY;
-      const newZoom = Math.max(map.getMinZoom(),
-                       Math.min(map.getMaxZoom(), dragStartZoom + moved / 65));
-      /* setView pitää centerin paikallaan drag aikana */
-      map.setView(dragCenter, newZoom, { animate: false, noMoveStart: true });
+      const moved = dz.startY - e.touches[0].clientY;
+      dz.currentZoom = Math.max(map.getMinZoom(),
+                         Math.min(map.getMaxZoom(), dz.startZoom + moved / 65));
+      applyTransform(dz.currentZoom);
     }, { passive: false });
 
-    mapEl.addEventListener('touchend', e => {
+    mapEl.addEventListener('touchend', () => {
       clearTimeout(holdTimer);
-      if (State._dragZooming) {
+
+      if (dz.active) {
+        dz.active          = false;
         State._dragZooming = false;
-        /* Snap lähimpään 0.5-tasoon, käynnistä moveend-logiikka kerran */
-        const snapped = Math.round(map.getZoom() * 2) / 2;
-        map.setView(dragCenter, snapped, { animate: true });
-        /* Pakota moveend-toiminnot kerran drag-zoom jälkeen */
-        setTimeout(() => { map.fire('moveend'); }, 350);
-      } else if (lastTapTime === 0 && e.changedTouches.length === 1) {
-        /* Nopea double-tap → zoom in napaytuspisteeseen */
-        const latlng = map.containerPointToLatLng(
-          L.point(e.changedTouches[0].clientX, e.changedTouches[0].clientY)
-        );
-        map.setZoomAround(latlng, map.getZoom() + 1, { animate: true });
+        const snapped      = Math.round(dz.currentZoom * 2) / 2;
+
+        /* 1. Poista CSS-skaalaus */
+        resetTransform();
+        /* 2. Yksi Leaflet-kutsu: sormen latlng pysyy sormenpään alla */
+        map.setZoomAround(dz.fingerLatLng, snapped, { animate: true });
+        /* 3. Palauta wind canvas animaation jälkeen */
+        if (State.windCvs) {
+          setTimeout(() => { if (State.windCvs) State.windCvs.style.opacity = '1'; }, 320);
+        }
+
+      } else if (lastTapTime === 0 && dz.fingerLatLng) {
+        /* Nopea double-tap → zoom in sormen latlng-pisteeseen */
+        map.setZoomAround(dz.fingerLatLng, map.getZoom() + 1, { animate: true });
         Haptics.light();
       }
     }, { passive: true });
