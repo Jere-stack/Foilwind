@@ -1649,9 +1649,9 @@ function initMap() {
     center: [62.5, 25.5], zoom: 5, zoomControl: false, attributionControl: true,
     minZoom: 2, maxZoom: 13, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5,
     worldCopyJump: true,
-    doubleClickZoom: true,  /* iOS Safari tuplanapaytus zoomaa */
-    tap: true,              /* iOS touch event handling */
-    tapTolerance: 15        /* suurempi toleranssi kosketusnäytölle */
+    doubleClickZoom: false, /* hoidamme itse alla */
+    tap: false,             /* käytämme omaa touch-logiikkaa */
+    tapTolerance: 15
   });
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd', maxZoom: 19,
@@ -1660,44 +1660,81 @@ function initMap() {
 
   State.map = map;
 
-  /* ── APPLE MAPS DRAG ZOOM ─────────────────────────────────────
-     Double-tap + hold + drag up/down = zoom in/out (1 sormi)
-     Toimii iOS Safarissa jossa pinch ei aina ole mahdollinen    */
+  /* ── DOUBLE-TAP ZOOM + DRAG ZOOM (Apple Maps style) ─────────────
+     iOS Safari ei laukaise dblclick-eventtejä touchista luotettavasti.
+     Toteutetaan itse:
+     - double-tap (nopea) → zoomIn()
+     - double-tap + pidä + vedä ylös/alas → zoom in/out jatkuvasti  */
   (function() {
     const mapEl = document.getElementById('map');
-    let lastTap = 0, dragZooming = false, dragStartY = 0, dragStartZoom = 0;
-    const DBL_TAP_MS = 300; /* max aika tuplanapaytuksille */
+    let lastTapTime = 0, lastTapX = 0, lastTapY = 0;
+    let dragZooming = false, dragStartY = 0, dragStartZoom = 0;
+    const DBL_MS = 280;   /* max ms tuplanapaytukselle */
+    const DBL_PX = 40;    /* max pikselietäisyys napaytuksille */
+    const HOLD_MS = 120;  /* aika jonka jälkeen drag-zoom aktivoituu */
+    let holdTimer = null;
 
     mapEl.addEventListener('touchstart', e => {
-      if (e.touches.length !== 1) { dragZooming = false; return; }
-      const now = Date.now();
-      const dt  = now - lastTap;
-      if (dt < DBL_TAP_MS && dt > 30) {
-        /* Tuplanapaytus tunnistettu — aloita drag zoom */
-        e.preventDefault();
-        dragZooming  = true;
-        dragStartY   = e.touches[0].clientY;
-        dragStartZoom = map.getZoom();
-      } else {
+      if (e.touches.length !== 1) {
         dragZooming = false;
+        clearTimeout(holdTimer);
+        return;
       }
-      lastTap = now;
+      const t = e.touches[0];
+      const now = Date.now();
+      const dt = now - lastTapTime;
+      const dx = Math.abs(t.clientX - lastTapX);
+      const dy = Math.abs(t.clientY - lastTapY);
+
+      if (dt < DBL_MS && dx < DBL_PX && dy < DBL_PX) {
+        /* Tuplanapaytus — käynnistä hold-timer drag-zoomille */
+        e.preventDefault();
+        dragStartY    = t.clientY;
+        dragStartZoom = map.getZoom();
+        dragZooming   = false;
+
+        holdTimer = setTimeout(() => {
+          /* Pitkä pito → drag zoom mode */
+          dragZooming = true;
+        }, HOLD_MS);
+
+        /* Nopea nosto = pelkkä double-tap zoom */
+        lastTapTime = 0; /* reset jottei kolmas tap triggaa */
+      } else {
+        lastTapTime = now;
+        lastTapX    = t.clientX;
+        lastTapY    = t.clientY;
+        dragZooming = false;
+        clearTimeout(holdTimer);
+      }
     }, { passive: false });
 
     mapEl.addEventListener('touchmove', e => {
       if (!dragZooming || e.touches.length !== 1) return;
       e.preventDefault();
-      const dy = dragStartY - e.touches[0].clientY; /* ylös = zoom in */
-      const newZoom = dragStartZoom + dy / 60;       /* 60px per zoom level */
-      map.setZoom(Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), newZoom)), { animate: false });
+      clearTimeout(holdTimer);
+      const moved = dragStartY - e.touches[0].clientY; /* ylös = positiivinen */
+      const newZoom = dragStartZoom + moved / 65;
+      map.setZoom(
+        Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), newZoom)),
+        { animate: false }
+      );
     }, { passive: false });
 
     mapEl.addEventListener('touchend', e => {
+      clearTimeout(holdTimer);
       if (dragZooming) {
         dragZooming = false;
-        /* Snap to nearest 0.5 zoom level smoothly */
+        /* Snap lähimpään 0.5-tasoon */
         const snapped = Math.round(map.getZoom() * 2) / 2;
         map.setZoom(snapped, { animate: true });
+      } else if (lastTapTime === 0 && e.changedTouches.length === 1) {
+        /* Nopea double-tap ilman draggia → zoom in */
+        const latlng = map.containerPointToLatLng(
+          L.point(e.changedTouches[0].clientX, e.changedTouches[0].clientY)
+        );
+        map.setZoomAround(latlng, map.getZoom() + 1, { animate: true });
+        Haptics.light();
       }
     }, { passive: true });
   })();
