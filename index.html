@@ -105,6 +105,7 @@ async function loadLatest() {
       // Näytä myös kaikki property-avaimet ensimmäisestä featuresta
       const keys = Object.keys(gj.features[0].properties || {});
       console.log('Property keys:', keys);
+      console.log('measurement field:', JSON.stringify(gj.features[0].properties.measurement, null, 2));
       document.getElementById('status').textContent += ' | Keys: ' + keys.join(', ');
     }
 
@@ -119,10 +120,23 @@ async function loadHistory(id) {
   const r = await fetch(BASE + id + '.geojson');
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const gj = await r.json();
-  return (gj.features||[]).map(f => ({
-    t: f.properties.time || f.properties.timestamp,
-    v: f.properties.water_temperature ?? f.properties.temperature
-  })).filter(p => p.t && p.v != null).sort((a,b) => a.t < b.t ? -1 : 1);
+
+  // DEBUG: näytä historia-featureiden rakenne
+  if (gj.features && gj.features.length > 0) {
+    console.log('=== HISTORY DEBUG for', id, '===');
+    console.log('First feature props:', JSON.stringify(gj.features[0].properties, null, 2));
+    console.log('Last feature props:', JSON.stringify(gj.features[gj.features.length-1].properties, null, 2));
+    console.log('Total features:', gj.features.length);
+  }
+
+  return (gj.features||[]).map(f => {
+    const p = f.properties || {};
+    const m = p.measurement || {};
+    // Aika ja lämpötila measurement-objektista tai suoraan propertiesista
+    const t = m.time || m.timestamp || p.time || p.timestamp;
+    const v = m.water_temperature ?? m.temperature ?? p.water_temperature ?? p.temperature;
+    return { t, v };
+  }).filter(p => p.t && p.v != null).sort((a,b) => a.t < b.t ? -1 : 1);
 }
 
 // ── Pisteet kartalle ───────────────────────────────────────────
@@ -131,8 +145,17 @@ function addMarkers(latestData) {
   if (latestData) {
     (latestData.features||[]).forEach(f => {
       const p = f.properties||{};
-      const id = p.dev_id || p.sensor_id || p.id;
-      if (id) tempMap[id] = { temp: p.water_temperature ?? p.temperature ?? null, time: p.time || null };
+      // ID voi olla featuressa suoraan tai measurement-objektissa
+      const id = f.id || p.dev_id || p.sensor_id || p.id ||
+                 (p.measurement && p.measurement.dev_id) ||
+                 (p.measurement && p.measurement.sensor_id);
+      // Lämpötila on measurement-objektin sisällä
+      const m = p.measurement || {};
+      const temp = m.water_temperature ?? m.temperature ?? p.water_temperature ?? p.temperature ?? null;
+      const time = m.time || m.timestamp || p.time || p.timestamp || null;
+      if (id) tempMap[id] = { temp, time };
+      // Debug: näytä mitä löytyi
+      console.log('Station:', p.name, '| id:', id, '| temp:', temp, '| measurement keys:', Object.keys(m));
     });
   }
 
