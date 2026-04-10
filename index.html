@@ -92,7 +92,22 @@ async function loadLatest() {
     const r = await fetch(BASE + 'uiras_latest.geojson');
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const gj = await r.json();
-    setStatus('✅ Data ladattu — ' + (gj.features||[]).length + ' asemaa löytyi');
+    const count = (gj.features||[]).length;
+    setStatus('✅ Data ladattu — ' + count + ' asemaa löytyi');
+
+    // DEBUG: näytä 3 ensimmäisen featureen kaikki properties konsolissa
+    if (gj.features && gj.features.length > 0) {
+      console.log('=== UIRAS DEBUG ===');
+      gj.features.slice(0, 3).forEach((f, i) => {
+        console.log('Feature', i, 'properties:', JSON.stringify(f.properties, null, 2));
+        console.log('Feature', i, 'geometry:', JSON.stringify(f.geometry));
+      });
+      // Näytä myös kaikki property-avaimet ensimmäisestä featuresta
+      const keys = Object.keys(gj.features[0].properties || {});
+      console.log('Property keys:', keys);
+      document.getElementById('status').textContent += ' | Keys: ' + keys.join(', ');
+    }
+
     return gj;
   } catch(e) {
     setStatus('❌ API-virhe: ' + e.message);
