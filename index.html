@@ -863,6 +863,7 @@ flex-shrink: 0; transition: background .12s;
 .wx-hour-temp { font-family: “DM Mono”,monospace; font-size: 13px; font-weight: 700; color: #fff; }
 .wx-hour-wind { font-family: “DM Mono”,monospace; font-size: 9px; font-weight: 600; }
 
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 /* ── SPOT CARD ENHANCEMENTS ───────────────────────────────────── */
 
 /* Sun bar */
@@ -2858,7 +2859,10 @@ function buildUirasCard(spot, elId) {
   }, 200); /* 200ms viive — ei hidasta kortin avaamista */
 
   return '<div class="sh-uiras" id="' + elId + '">'
-    + '<span style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted)">Ladataan vedenlämpöä...</span>'
+    + '<div style="display:flex;align-items:center;gap:8px;font-family:DM Mono,monospace;font-size:10px;color:var(--muted)">'
+    + '<span style="animation:spin 1s linear infinite;display:inline-block">⟳</span>'
+    + 'Ladataan vedenlämpöä...'
+    + '</div>'
   + '</div>';
 }
 
@@ -3278,7 +3282,7 @@ function openSheet(spot, hourIdx) {
 
     /* UiRas vedenlämpö — vain PKS-spoteille, ladataan 200ms viiveellä */
     + (spot.lat >= 59.9 && spot.lat <= 60.5 && spot.lng >= 24.3 && spot.lng <= 25.5
-        ? buildUirasCard(spot, 'uiras-' + spot.name.replace(/\s/g,'_'))
+        ? buildUirasCard(spot, 'uiras-' + spot.name.replace(/[^a-zA-Z0-9]/g,'_'))
         : '');
 
   document.getElementById('sheet').classList.add('open');
