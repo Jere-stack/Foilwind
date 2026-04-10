@@ -2717,55 +2717,77 @@ function isNightHour(iso) {
 
 
 /* ═══════════════════════════════════════════════════════════════
-   UiRas — Helsingin uimarantojen vedenlämpötila (FVH IoT)
-   Lähde: https://iot.fvh.fi/opendata/uiras/uiras_latest.geojson
+   UiRas — Helsingin uimarantojen vedenlämpötila
+   Asemat hardkoodattu — koordinaatit tiedossa etukäteen.
+   API haetaan vain reaaliaikaiseen lämpötilaan.
    ═══════════════════════════════════════════════════════════════ */
+
+/* Tunnetut UiRas-asemat PKS:ssa koordinaatteineen */
+const UIRAS_STATIONS = [
+  { name: 'Hietaniemi',        lat: 60.1734, lng: 24.9100, id: '70B3D57050001AB9' },
+  { name: 'Lauttasaari',       lat: 60.1490, lng: 24.8760, id: '70B3D57050001A97' },
+  { name: 'Marjaniemi',        lat: 60.1978, lng: 25.0990, id: '70B3D57050001ADA' },
+  { name: 'Mustikkamaa',       lat: 60.1754, lng: 24.9912, id: '70B3D57050001BA6' },
+  { name: 'Rastila',           lat: 60.2081, lng: 25.1320, id: '70B3D57050001BBE' },
+  { name: 'Kallahdenniemi',    lat: 60.1871, lng: 25.1490, id: '70B3D57050004740' },
+  { name: 'Pihlajasaari',      lat: 60.1443, lng: 24.9160, id: '70B3D57050004CDB' },
+  { name: 'Uunisaari',         lat: 60.1480, lng: 24.9540, id: '70B3D5705000516A' },
+  { name: 'Aurinkolahti',      lat: 60.2094, lng: 25.1189, id: '70B3D5705000DFED' },
+  { name: 'Pikkukoski',        lat: 60.2374, lng: 24.9610, id: '70B3D5705000E070' },
+  { name: 'Vartiosaari',       lat: 60.1900, lng: 25.0570, id: '70B3D5705000E3B2' },
+  { name: 'Kivinokka',         lat: 60.1985, lng: 25.0445, id: '70B3D5705000E3C0' },
+  { name: 'Seurasaari',        lat: 60.1892, lng: 24.8870, id: '70B3D5705000E430' },
+  { name: 'Hanika (Espoo)',    lat: 60.1462, lng: 24.7620, id: '70B3D570500113C4' },
+  { name: 'Kattilajärvi',      lat: 60.2970, lng: 24.6240, id: '70B3D5705001140F' },
+  { name: 'Kuusijärvi (Vantaa)',lat:60.3110, lng: 25.1050, id: '70B3D57050011422' },
+  { name: 'Vetokannas',        lat: 60.3450, lng: 25.0320, id: '70B3D57050011458' },
+  { name: 'Iso Huopalahti',    lat: 60.2050, lng: 24.8760, id: '70B3D5705001148E' },
+];
+
 const UiRas = {
   BASE: 'https://iot.fvh.fi/opendata/uiras/',
-  TTL:  30 * 60 * 1000,
-  _cache: null, _ts: 0,
+  _latestCache: null, _latestTs: 0, LATEST_TTL: 30*60*1000,
 
-  /* Haversine-etäisyys km */
-  _km(a, b, c, d) {
-    const R = 6371, dL = (c-a)*Math.PI/180, dG = (d-b)*Math.PI/180;
-    return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));
-  },
-
-  /* Lataa viimeisin data kaikista asemista */
-  async load() {
-    if (this._cache && Date.now()-this._ts < this.TTL) return this._cache;
-    const r = await fetch(this.BASE+'uiras_latest.geojson');
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    const gj = await r.json();
-    this._cache = (gj.features||[]).map(f => {
-      const p = f.properties||{}, c = f.geometry&&f.geometry.coordinates;
-      return { name: p.name||p.site_name||'?', lat: c?c[1]:null, lng: c?c[0]:null,
-               temp: p.water_temperature??p.temperature??null,
-               time: p.time||p.timestamp||null, id: p.dev_id||p.sensor_id||p.id||null };
-    }).filter(s => s.lat&&s.lng&&s.temp!=null);
-    this._ts = Date.now();
-    return this._cache;
-  },
+  /* Haversine km */
+  _km(a,b,c,d){const R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;
+    return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));},
 
   /* Lähin asema max 10km */
   nearest(lat, lng) {
-    if (!this._cache) return null;
     let best=null, bd=10;
-    for (const s of this._cache) { const d=this._km(lat,lng,s.lat,s.lng); if(d<bd){bd=d;best={...s,km:d};} }
+    for (const s of UIRAS_STATIONS) {
+      const d=this._km(lat,lng,s.lat,s.lng);
+      if (d<bd){bd=d;best={...s,km:d};}
+    }
     return best;
   },
 
-  /* Historia yksittäiselle sensorille */
-  async history(id) {
-    if (!id) throw new Error('no id');
-    const key='_uh_'+id, cached=window[key];
-    if (cached&&Date.now()-cached.ts<15*60*1000) return cached.d;
-    const r = await fetch(this.BASE+id+'.geojson');
+  /* Hae viimeisin lämpötila kaikille asemille (1 kutsu) */
+  async loadLatest() {
+    if (this._latestCache && Date.now()-this._latestTs < this.LATEST_TTL) return this._latestCache;
+    const r = await fetch(this.BASE+'uiras_latest.geojson');
     if (!r.ok) throw new Error('HTTP '+r.status);
     const gj = await r.json();
-    const pts = (gj.features||[]).map(f=>({
-      t: f.properties.time||f.properties.timestamp,
-      v: f.properties.water_temperature??f.properties.temperature
+    const map = {};
+    (gj.features||[]).forEach(f => {
+      const p=f.properties||{};
+      const id=p.dev_id||p.sensor_id||p.id;
+      if (id) map[id]={temp:p.water_temperature??p.temperature??null, time:p.time||p.timestamp||null};
+    });
+    this._latestCache=map; this._latestTs=Date.now();
+    return map;
+  },
+
+  /* Hae historia yksittäiselle asemalle */
+  async history(id) {
+    const key='_uh_'+id, c=window[key];
+    if (c&&Date.now()-c.ts<15*60*1000) return c.d;
+    const r=await fetch(this.BASE+id+'.geojson');
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    const gj=await r.json();
+    const pts=(gj.features||[]).map(f=>({
+      t:f.properties.time||f.properties.timestamp,
+      v:f.properties.water_temperature??f.properties.temperature
     })).filter(p=>p.t&&p.v!=null).sort((a,b)=>a.t<b.t?-1:1);
     window[key]={ts:Date.now(),d:pts};
     return pts;
@@ -2773,151 +2795,118 @@ const UiRas = {
 };
 
 /* PKS-rajaus */
-function _isPKS(spot) {
-  return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spot.lng<=25.5;
-}
+function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spot.lng<=25.5;}
 
-/* Palauttaa placeholder-div:n ja käynnistää async latauksen */
+/* Rakenna UiRas-kortti */
 function buildUirasPlaceholder(spot) {
   if (!_isPKS(spot)) return '';
-  const id = 'ur-'+spot.name.replace(/[^a-z0-9]/gi,'_');
+  const station = UiRas.nearest(spot.lat, spot.lng);
+  if (!station) return '';
+  const id='ur-'+station.id;
 
-  /* Async lataus — päivittää DOM-elementin suoraan */
-  UiRas.load().then(() => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const s = UiRas.nearest(spot.lat, spot.lng);
-    if (!s) { el.style.display='none'; return; }
+  /* Async: hae lämpötila ja päivitä DOM */
+  UiRas.loadLatest().then(map => {
+    const el=document.getElementById(id); if(!el) return;
+    const d=map[station.id];
+    const temp=d&&d.temp!=null ? d.temp : null;
+    const time=d&&d.time ? d.time : null;
+    const dist=station.km<1?Math.round(station.km*1000)+'m':station.km.toFixed(1)+'km';
+    const fmtT=t=>{if(!t)return'';const dd=new Date(t);return('0'+dd.getHours()).slice(-2)+':'+('0'+dd.getMinutes()).slice(-2);};
+    const tempStr=temp!=null?temp.toFixed(1):'—';
 
-    const dist = s.km<1 ? Math.round(s.km*1000)+'m' : s.km.toFixed(1)+'km';
-    const fmtT = t => { if(!t) return ''; const d=new Date(t); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); };
-
-    el.innerHTML =
+    el.innerHTML=
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
         +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🏊 '+s.name+'</div>'
-          +'<div style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-top:2px">'+dist+' · '+fmtT(s.time)+'</div>'
+          +'<div style="font-size:11px;font-weight:700;color:var(--text)">🏊 '+station.name+'</div>'
+          +'<div style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-top:2px">'+dist+' · '+fmtT(time)+'</div>'
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0;margin-left:12px">'
-          +'<div style="font-family:DM Mono,monospace;font-size:24px;font-weight:700;color:#4dd;line-height:1">'+s.temp.toFixed(1)+'</div>'
+          +'<div style="font-family:DM Mono,monospace;font-size:24px;font-weight:700;color:#4dd;line-height:1">'+tempStr+'</div>'
           +'<div style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">°C</div>'
         +'</div>'
       +'</div>'
-      +'<button id="'+id+'-btn" style="width:100%;border:none;background:none;border-top:1px solid rgba(0,180,255,.15);'
-        +'padding-top:8px;font-family:DM Mono,monospace;font-size:10px;color:rgba(0,207,255,.7);'
-        +'cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;-webkit-user-select:none">'
+      +'<button id="'+id+'-btn" style="width:100%;border:none;background:none;'
+        +'border-top:1px solid rgba(0,180,255,.15);padding:8px 0 0;'
+        +'font-family:DM Mono,monospace;font-size:10px;color:rgba(0,207,255,.7);'
+        +'cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;'
+        +'-webkit-user-select:none;user-select:none">'
         +'<span id="'+id+'-arr">▼</span> Näytä lämpötilahistoria'
       +'</button>'
       +'<div id="'+id+'-chart" style="display:none;margin-top:10px"></div>';
 
-    /* Historia-toggle */
-    document.getElementById(id+'-btn').addEventListener('click', async () => {
-      const chartEl = document.getElementById(id+'-chart');
-      const arrEl   = document.getElementById(id+'-arr');
-      if (!chartEl||!arrEl) return;
-      if (chartEl.style.display==='block') {
-        chartEl.style.display='none'; arrEl.textContent='▼'; return;
-      }
-      chartEl.style.display='block'; arrEl.textContent='▲';
-      if (chartEl.dataset.ok) return;
-      chartEl.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ladataan...</div>';
+    document.getElementById(id+'-btn').addEventListener('click',async()=>{
+      const cEl=document.getElementById(id+'-chart');
+      const aEl=document.getElementById(id+'-arr');
+      if(!cEl||!aEl)return;
+      if(cEl.style.display==='block'){cEl.style.display='none';aEl.textContent='▼';return;}
+      cEl.style.display='block';aEl.textContent='▲';
+      if(cEl.dataset.ok)return;
+      cEl.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ladataan...</div>';
       Haptics.light();
-      try {
-        const pts = await UiRas.history(s.id);
-        chartEl.dataset.ok='1';
-        _uirasRenderChart(chartEl, pts, '7d', 1);
-      } catch(e) {
-        chartEl.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
+      try{
+        const pts=await UiRas.history(station.id);
+        cEl.dataset.ok='1';
+        _uirasChart(cEl,pts,'7d',1);
+      }catch(e){
+        cEl.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ei historiadataa</div>';
       }
     },{passive:true});
 
-  }).catch(() => {
+  }).catch(()=>{
     const el=document.getElementById(id);
-    if (el) el.style.display='none';
+    if(el)el.style.display='none';
   });
 
-  /* Placeholder joka näytetään välittömästi */
   return '<div id="'+id+'" style="background:rgba(0,180,255,.07);border:1px solid rgba(0,180,255,.18);'
     +'border-radius:14px;padding:12px 14px;margin-bottom:14px">'
-    +'<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);display:flex;align-items:center;gap:6px">'
-      +'🏊 Ladataan vedenlämpöä...'
+    +'<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted)">'
+      +'🏊 '+station.name+' · ladataan...'
     +'</div>'
   +'</div>';
 }
 
-/* Piirtää SVG-historiakaavion */
-function _uirasRenderChart(el, allPts, period, avgWin) {
+/* SVG-historiakaavio */
+function _uirasChart(el,allPts,period,avgWin){
   const pMs={'7d':7*864e5,'30d':30*864e5,'90d':90*864e5};
-  const now=Date.now();
-  const ms=pMs[period]||7*864e5;
+  const now=Date.now(),ms=pMs[period]||7*864e5;
   let pts=allPts.filter(p=>new Date(p.t).getTime()>=now-ms);
-  if (pts.length<5) pts=allPts;
-  if (!pts.length) { el.innerHTML='<div style="text-align:center;font-size:10px;color:var(--muted);padding:12px">Ei dataa</div>'; return; }
-
-  const temps=pts.map(p=>p.v), times=pts.map(p=>new Date(p.t).getTime());
-  const minV=Math.min(...temps)-.5, maxV=Math.max(...temps)+.5;
-  const minMs=times[0], maxMs=times[times.length-1];
+  if(pts.length<5)pts=allPts;
+  if(!pts.length){el.innerHTML='<div style="text-align:center;font-size:10px;color:var(--muted);padding:12px">Ei dataa</div>';return;}
+  const vs=pts.map(p=>p.v),ts=pts.map(p=>new Date(p.t).getTime());
+  const minV=Math.min(...vs)-.5,maxV=Math.max(...vs)+.5;
+  const minMs=ts[0],maxMs=ts[ts.length-1];
   const W=300,H=80,pad=4,lH=14,TH=H+lH;
-  const xOf=ms=>pad+(ms-minMs)/(maxMs-minMs||1)*(W-pad*2);
+  const xOf=m=>pad+(m-minMs)/(maxMs-minMs||1)*(W-pad*2);
   const yOf=v=>H-pad-(v-minV)/(maxV-minV||1)*(H-pad*2);
-
-  /* Liukuva keskiarvo */
   const avg=pts.map((_,i)=>{const sl=pts.slice(Math.max(0,i-avgWin+1),i+1);return sl.reduce((s,x)=>s+x.v,0)/sl.length;});
-
-  const rawPts=pts.map((p,i)=>xOf(times[i]).toFixed(1)+','+yOf(p.v).toFixed(1)).join(' ');
-  const avgPts=pts.map((_,i)=>xOf(times[i]).toFixed(1)+','+yOf(avg[i]).toFixed(1)).join(' ');
-
-  /* Päivämäärämerkit */
-  let xlbls='';
-  const dayMs=864e5, step=pts.length>500?7*dayMs:dayMs;
-  let t0=new Date(minMs); t0.setHours(0,0,0,0);
-  for(let t=t0.getTime();t<=maxMs;t+=step){
+  const raw=pts.map((p,i)=>xOf(ts[i]).toFixed(1)+','+yOf(p.v).toFixed(1)).join(' ');
+  const aln=pts.map((_,i)=>xOf(ts[i]).toFixed(1)+','+yOf(avg[i]).toFixed(1)).join(' ');
+  let xl='';
+  const stp=pts.length>500?7*864e5:864e5;
+  let t0=new Date(minMs);t0.setHours(0,0,0,0);
+  for(let t=t0.getTime();t<=maxMs;t+=stp){
     if(t<minMs)continue;
     const d=new Date(t);
-    xlbls+=`<text x="${xOf(t).toFixed(1)}" y="${TH-1}" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.3)" text-anchor="middle">${d.getDate()}.${d.getMonth()+1}.</text>`;
+    xl+=`<text x="${xOf(t).toFixed(1)}" y="${TH-1}" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.3)" text-anchor="middle">${d.getDate()}.${d.getMonth()+1}.</text>`;
   }
-
-  /* Lämpötilaviivat */
-  let ylbls='';
+  let yl='';
   for(let t=Math.ceil(minV);t<=Math.floor(maxV);t++){
     if(t<=minV||t>=maxV)continue;
-    ylbls+=`<text x="${pad+1}" y="${yOf(t).toFixed(1)}" font-family="DM Mono,monospace" font-size="7" fill="rgba(0,200,255,.4)" dominant-baseline="middle">${t}°</text>`;
+    yl+=`<text x="${pad+1}" y="${yOf(t).toFixed(1)}" font-family="DM Mono,monospace" font-size="7" fill="rgba(0,200,255,.4)" dominant-baseline="middle">${t}°</text>`;
   }
-
-  const nowX=xOf(Math.min(now,maxMs)).toFixed(1);
-
-  /* Napit */
-  const periodBtns=['7d','30d','90d'].map(p=>{
-    const lbl=p==='7d'?'7 vrk':p==='30d'?'30 vrk':'90 vrk';
-    const active=p===period;
-    return `<button data-period="${p}" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 8px;border-radius:8px;`
-      +`border:1px solid rgba(0,180,255,${active?.4:.2});background:${active?'rgba(0,207,255,.15)':'none'};`
-      +`color:${active?'var(--accent)':'rgba(0,207,255,.6)'};cursor:pointer">${lbl}</button>`;
-  }).join('');
-  const avgBtns=[1,6,12].map(w=>{
-    const active=w===avgWin;
-    return `<button data-avg="${w}" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 8px;border-radius:8px;`
-      +`border:1px solid rgba(0,180,255,${active?.4:.2});background:${active?'rgba(0,207,255,.15)':'none'};`
-      +`color:${active?'var(--accent)':'rgba(0,207,255,.6)'};cursor:pointer">MA${w}</button>`;
-  }).join('');
-
-  el.innerHTML=
-    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+periodBtns+avgBtns+'</div>'
+  const nx=xOf(Math.min(now,maxMs)).toFixed(1);
+  const pbtn=(p)=>`<button data-period="${p}" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 8px;border-radius:8px;border:1px solid rgba(0,180,255,${p===period?.4:.2});background:${p===period?'rgba(0,207,255,.15)':'none'};color:${p===period?'var(--accent)':'rgba(0,207,255,.6)'};cursor:pointer">${p==='7d'?'7 vrk':p==='30d'?'30 vrk':'90 vrk'}</button>`;
+  const abtn=(w)=>`<button data-avg="${w}" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 8px;border-radius:8px;border:1px solid rgba(0,180,255,${w===avgWin?.4:.2});background:${w===avgWin?'rgba(0,207,255,.15)':'none'};color:${w===avgWin?'var(--accent)':'rgba(0,207,255,.6)'};cursor:pointer">MA${w}</button>`;
+  el.innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+['7d','30d','90d'].map(pbtn).join('')+[1,6,12].map(abtn).join('')+'</div>'
     +`<svg viewBox="0 0 ${W} ${TH}" style="width:100%;display:block">`
-      +`<polyline points="${rawPts}" fill="none" stroke="rgba(0,180,255,.25)" stroke-width="1" stroke-linejoin="round"/>`
-      +`<polyline points="${avgPts}" fill="none" stroke="rgba(0,220,255,.9)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
-      +`<line x1="${nowX}" y1="${pad}" x2="${nowX}" y2="${H}" stroke="rgba(255,255,255,.4)" stroke-width="1" stroke-dasharray="2,2"/>`
-      +ylbls+xlbls
-    +`</svg>`;
-
-  /* Napin eventit */
-  el.querySelectorAll('[data-period]').forEach(btn=>btn.addEventListener('click',()=>{
-    _uirasRenderChart(el,allPts,btn.dataset.period,avgWin);
-  },{passive:true}));
-  el.querySelectorAll('[data-avg]').forEach(btn=>btn.addEventListener('click',()=>{
-    _uirasRenderChart(el,allPts,period,parseInt(btn.dataset.avg));
-  },{passive:true}));
+      +`<polyline points="${raw}" fill="none" stroke="rgba(0,180,255,.25)" stroke-width="1" stroke-linejoin="round"/>`
+      +`<polyline points="${aln}" fill="none" stroke="rgba(0,220,255,.9)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
+      +`<line x1="${nx}" y1="${pad}" x2="${nx}" y2="${H}" stroke="rgba(255,255,255,.4)" stroke-width="1" stroke-dasharray="2,2"/>`
+      +yl+xl+`</svg>`;
+  el.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>_uirasChart(el,allPts,b.dataset.period,avgWin),{passive:true}));
+  el.querySelectorAll('[data-avg]').forEach(b=>b.addEventListener('click',()=>_uirasChart(el,allPts,period,parseInt(b.dataset.avg)),{passive:true}));
 }
+
 
 function openSheet(spot, hourIdx) {
   if (!spot.wx || !spot.wx.hourly) return;
