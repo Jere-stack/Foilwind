@@ -922,6 +922,47 @@ color: var(–accent); cursor: pointer; transition: background .12s;
 }
 .sh-nav-btn:active { background: rgba(0,207,255,.18); }
 .sh-nav-btn svg { flex-shrink: 0; }
+
+/* ── UIRAS VEDENLÄMPÖ ─────────────────────────────────────────── */
+.sh-uiras {
+background: rgba(0,180,255,.07); border: 1px solid rgba(0,180,255,.18);
+border-radius: 14px; padding: 12px 14px; margin-bottom: 14px;
+}
+.sh-uiras-header {
+display: flex; align-items: center; justify-content: space-between;
+margin-bottom: 0;
+}
+.sh-uiras-left { flex: 1; min-width: 0; }
+.sh-uiras-name {
+font-size: 11px; font-weight: 700; color: var(–text);
+white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sh-uiras-meta { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); margin-top: 2px; }
+.sh-uiras-temp { text-align: right; flex-shrink: 0; }
+.sh-uiras-val { font-family: ‘DM Mono’, monospace; font-size: 22px; font-weight: 700; color: #4dd; line-height: 1; }
+.sh-uiras-unit { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); }
+.sh-uiras-toggle {
+width: 100%; margin-top: 10px; padding: 8px 0 0;
+border: none; background: none; border-top: 1px solid rgba(0,180,255,.12);
+font-family: ‘DM Mono’, monospace; font-size: 10px; color: rgba(0,207,255,.7);
+cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+-webkit-user-select: none; user-select: none;
+}
+.sh-uiras-chart { margin-top: 10px; display: none; }
+.sh-uiras-chart.open { display: block; }
+.sh-uiras-controls {
+display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;
+}
+.sh-uiras-chip {
+font-family: ‘DM Mono’, monospace; font-size: 9px; padding: 3px 8px;
+border-radius: 8px; border: 1px solid rgba(0,180,255,.25);
+color: rgba(0,207,255,.6); cursor: pointer; background: none;
+-webkit-user-select: none; user-select: none; transition: background .12s;
+}
+.sh-uiras-chip.active {
+background: rgba(0,207,255,.15); color: var(–accent);
+border-color: rgba(0,207,255,.4);
+}
 </style>
 
 </head>
@@ -2671,6 +2712,253 @@ function isNightHour(iso) {
 }
 
 
+
+/* ═══════════════════════════════════════════════════════════════
+   UiRas — Helsingin uimarantojen vedenlämpötila
+   API: https://iot.fvh.fi/opendata/uiras/uiras_latest.geojson
+   Historia: https://iot.fvh.fi/opendata/uiras/[SENSORID].geojson
+   ═══════════════════════════════════════════════════════════════ */
+const UiRas = {
+  _stations: null,     /* [{name, lat, lng, temp, time, sensorId}] */
+  _ts: 0,
+  TTL: 30 * 60 * 1000, /* 30 min — sama kuin sensorien päivitystahti */
+  BASE: 'https://iot.fvh.fi/opendata/uiras/',
+
+  /* Haetaan viimeisin data — kutsutaan lazy kun kortti avataan */
+  async load() {
+    if (this._stations && Date.now() - this._ts < this.TTL) return this._stations;
+    try {
+      const r = await fetch(this.BASE + 'uiras_latest.geojson');
+      if (!r.ok) throw new Error(r.status);
+      const gj = await r.json();
+      this._stations = (gj.features || []).map(f => {
+        const p  = f.properties || {};
+        const co = f.geometry && f.geometry.coordinates;
+        return {
+          name:     p.name || p.site_name || p.location_name || 'Tuntematon',
+          lat:      co ? co[1] : null,
+          lng:      co ? co[0] : null,
+          temp:     p.water_temperature ?? p.temperature ?? null,
+          time:     p.time || p.timestamp || null,
+          sensorId: p.dev_id || p.sensor_id || p.id || null,
+        };
+      }).filter(s => s.lat && s.lng && s.temp !== null);
+      this._ts = Date.now();
+      return this._stations;
+    } catch(e) {
+      console.log('[UiRas]', e.message);
+      return null;
+    }
+  },
+
+  /* Haversine-etäisyys km */
+  _dist(lat1, lng1, lat2, lng2) {
+    const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+    return R * 2 * Math.asin(Math.sqrt(a));
+  },
+
+  /* Löydä lähin asema max 10km säteellä */
+  nearest(spotLat, spotLng) {
+    if (!this._stations) return null;
+    let best = null, bestDist = 10; /* max km */
+    for (const s of this._stations) {
+      const d = this._dist(spotLat, spotLng, s.lat, s.lng);
+      if (d < bestDist) { bestDist = d; best = { ...s, distKm: d }; }
+    }
+    return best;
+  },
+
+  /* Hae yksittäisen aseman historia */
+  async loadHistory(sensorId) {
+    if (!sensorId) return null;
+    const cacheKey = '_uiras_hist_' + sensorId;
+    const cached = window[cacheKey];
+    if (cached && Date.now() - cached.ts < 15 * 60 * 1000) return cached.data;
+    try {
+      const r = await fetch(this.BASE + sensorId + '.geojson');
+      if (!r.ok) throw new Error(r.status);
+      const gj = await r.json();
+      const pts = (gj.features || []).map(f => ({
+        t:    f.properties.time || f.properties.timestamp,
+        temp: f.properties.water_temperature ?? f.properties.temperature,
+      })).filter(p => p.t && p.temp !== null).sort((a,b) => a.t > b.t ? 1 : -1);
+      window[cacheKey] = { ts: Date.now(), data: pts };
+      return pts;
+    } catch(e) {
+      console.log('[UiRas hist]', e.message);
+      return null;
+    }
+  },
+};
+
+/* Rakenna UiRas-kortti spottikorttiin */
+function buildUirasCard(spot, elId) {
+  /* Alusta placeholder */
+  setTimeout(async () => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+
+    /* Lataa data (cached tai uusi) */
+    const stations = await UiRas.load();
+    if (!stations || !el) return;
+    const nearest = UiRas.nearest(spot.lat, spot.lng);
+    if (!nearest) { el.remove(); return; } /* Ei asemaa 10km sisällä */
+
+    const fmt = t => {
+      if (!t) return '';
+      const d = new Date(t);
+      return ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+    };
+    const distStr = nearest.distKm < 1
+      ? Math.round(nearest.distKm * 1000) + ' m'
+      : nearest.distKm.toFixed(1) + ' km';
+
+    el.innerHTML =
+      '<div class="sh-uiras-header">'
+        + '<div class="sh-uiras-left">'
+          + '<div class="sh-uiras-name">🏊 ' + nearest.name + '</div>'
+          + '<div class="sh-uiras-meta">' + distStr + ' · päivitetty ' + fmt(nearest.time) + '</div>'
+        + '</div>'
+        + '<div class="sh-uiras-temp">'
+          + '<div class="sh-uiras-val">' + nearest.temp.toFixed(1) + '</div>'
+          + '<div class="sh-uiras-unit">°C</div>'
+        + '</div>'
+      + '</div>'
+      + '<button class="sh-uiras-toggle" id="' + elId + '-btn">'
+        + '<span id="' + elId + '-arr">▼</span> Näytä lämpötilahistoria'
+      + '</button>'
+      + '<div class="sh-uiras-chart" id="' + elId + '-chart"></div>';
+
+    /* Toggle historia */
+    document.getElementById(elId + '-btn').addEventListener('click', async () => {
+      const chartEl = document.getElementById(elId + '-chart');
+      const arrEl   = document.getElementById(elId + '-arr');
+      if (!chartEl) return;
+      const isOpen = chartEl.classList.contains('open');
+      if (isOpen) {
+        chartEl.classList.remove('open');
+        arrEl.textContent = '▼';
+        return;
+      }
+      chartEl.classList.add('open');
+      arrEl.textContent = '▲';
+      if (chartEl.dataset.loaded) return;
+      chartEl.dataset.loaded = '1';
+      chartEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan...</div>';
+      Haptics.light();
+
+      const pts = await UiRas.loadHistory(nearest.sensorId);
+      if (!pts || !pts.length) {
+        chartEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ei historiadataa</div>';
+        return;
+      }
+      renderUirasChart(chartEl, pts, '7d');
+    }, { passive: true });
+  }, 200); /* 200ms viive — ei hidasta kortin avaamista */
+
+  return '<div class="sh-uiras" id="' + elId + '">'
+    + '<span style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted)">Ladataan vedenlämpöä...</span>'
+  + '</div>';
+}
+
+/* SVG-kuvaaja historialle */
+function renderUirasChart(el, allPts, period) {
+  const now = Date.now();
+  const periodMs = {
+    '7d':  7  * 86400000,
+    '30d': 30 * 86400000,
+    '90d': 90 * 86400000,
+  };
+
+  function draw(pts, avgWin) {
+    if (!pts.length) return;
+    /* Liukuva keskiarvo */
+    function movAvg(data, win) {
+      return data.map((p, i) => {
+        const slice = data.slice(Math.max(0, i-win+1), i+1);
+        return slice.reduce((s, x) => s + x.temp, 0) / slice.length;
+      });
+    }
+    const temps = pts.map(p => p.temp);
+    const times = pts.map(p => new Date(p.t).getTime());
+    const minT = Math.min(...temps) - 0.5;
+    const maxT = Math.max(...temps) + 0.5;
+    const minMs = times[0], maxMs = times[times.length-1];
+
+    const W = 300, H = 80, pad = 4, lblH = 14;
+    const TH = H + lblH;
+    const xOf = ms => pad + (ms - minMs) / (maxMs - minMs) * (W - pad*2);
+    const yOf = t  => H - pad - (t - minT) / (maxT - minT) * (H - pad*2);
+
+    /* Raw viiva */
+    const rawPts = pts.map((p,i) => xOf(times[i]).toFixed(1) + ',' + yOf(p.temp).toFixed(1)).join(' ');
+
+    /* Liukuva keskiarvo */
+    const avg = movAvg(pts, avgWin);
+    const avgPts = pts.map((p,i) => xOf(times[i]).toFixed(1) + ',' + yOf(avg[i]).toFixed(1)).join(' ');
+
+    /* X-akselimerkit */
+    let xLabels = '';
+    const dayMs = 86400000;
+    const step  = pts.length > 500 ? 7*dayMs : dayMs;
+    let t0 = new Date(minMs); t0.setHours(0,0,0,0);
+    for (let t = t0.getTime(); t <= maxMs; t += step) {
+      if (t < minMs) continue;
+      const x = xOf(t).toFixed(1);
+      const d = new Date(t);
+      const lbl = (d.getDate()) + '.' + (d.getMonth()+1) + '.';
+      xLabels += `<text x="${x}" y="${TH-1}" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.3)" text-anchor="middle">${lbl}</text>`;
+    }
+
+    /* Y-arvot */
+    let yLabels = '';
+    for (let t = Math.ceil(minT); t <= Math.floor(maxT); t++) {
+      if (t <= minT || t >= maxT) continue;
+      const y = yOf(t).toFixed(1);
+      yLabels += `<text x="${pad+1}" y="${y}" font-family="DM Mono,monospace" font-size="7" fill="rgba(0,200,255,.4)" dominant-baseline="middle">${t}°</text>`;
+    }
+
+    /* Nykyhetki-viiva */
+    const nowX = xOf(Math.min(now, maxMs)).toFixed(1);
+
+    el.innerHTML =
+      '<div class="sh-uiras-controls">'
+        + ['7d','30d','90d'].map(p =>
+            `<button class="sh-uiras-chip ${p === period ? 'active' : ''}" data-period="${p}">${p === '7d' ? '7 vrk' : p === '30d' ? '30 vrk' : '90 vrk'}</button>`
+          ).join('')
+        + ['1','6','12'].map(w =>
+            `<button class="sh-uiras-chip ${avgWin === parseInt(w) ? 'active' : ''}" data-avg="${w}">MA${w}</button>`
+          ).join('')
+      + '</div>'
+      + `<svg viewBox="0 0 ${W} ${TH}" style="width:100%;display:block">`
+        + `<polyline points="${rawPts}" fill="none" stroke="rgba(0,180,255,.25)" stroke-width="1" stroke-linejoin="round"/>`
+        + `<polyline points="${avgPts}" fill="none" stroke="rgba(0,220,255,.85)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
+        + `<line x1="${nowX}" y1="${pad}" x2="${nowX}" y2="${H-pad}" stroke="rgba(255,255,255,.4)" stroke-width="1" stroke-dasharray="2,2"/>`
+        + yLabels + xLabels
+      + `</svg>`;
+
+    /* Napit */
+    el.querySelectorAll('[data-period]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const p = btn.dataset.period;
+        const ms = periodMs[p] || 7*86400000;
+        const filtered = allPts.filter(x => new Date(x.t).getTime() >= now - ms);
+        renderUirasChart(el, filtered.length > 10 ? filtered : allPts, p);
+      }, { passive: true });
+    });
+    el.querySelectorAll('[data-avg]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        draw(pts, parseInt(btn.dataset.avg));
+      }, { passive: true });
+    });
+  }
+
+  const ms   = periodMs[period] || 7*86400000;
+  const filt = allPts.filter(x => new Date(x.t).getTime() >= now - ms);
+  draw(filt.length > 10 ? filt : allPts, 1);
+}
+
 function openSheet(spot, hourIdx) {
   if (!spot.wx || !spot.wx.hourly) return;
   State.sheetSpot = spot;
@@ -2986,7 +3274,12 @@ function openSheet(spot, hourIdx) {
     + buildFmiCard(fmiId)
 
     /* Navigation buttons */
-    + buildNavButtons();
+    + buildNavButtons()
+
+    /* UiRas vedenlämpö — vain PKS-spoteille, ladataan 200ms viiveellä */
+    + (spot.lat >= 59.9 && spot.lat <= 60.5 && spot.lng >= 24.3 && spot.lng <= 25.5
+        ? buildUirasCard(spot, 'uiras-' + spot.name.replace(/\s/g,'_'))
+        : '');
 
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet-overlay').classList.add('open');
