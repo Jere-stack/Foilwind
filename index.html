@@ -583,12 +583,20 @@ cursor: pointer;
 -webkit-user-select: none; user-select: none;
 }
 .sh-stat-live.expanded {
-grid-column: span 4;
-align-items: flex-start;
+border-color: rgba(100,255,160,.4);
+background: rgba(100,255,160,.08);
 }
+/* Live-paneeli: sama grid-span malli kuin water-panel */
 .sh-stat-live-panel {
-width: 100%; margin-top: 8px;
+display: none;
+grid-column: 1 / -1;
+background: rgba(100,255,160,.05);
+border: 1px solid rgba(100,255,160,.15);
+border-radius: 12px;
+padding: 10px 12px;
+margin-top: -4px;
 }
+.sh-stat-live-panel.open { display: block; }
 .sh-stat-water {
 cursor: pointer;
 border-color: rgba(0,180,255,.2);
@@ -2893,32 +2901,38 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
       return;
     }
 
-    /* Live-havainto klikkaus — laajentaa stat-kortti */
+    /* Live-havainto klikkaus */
     const liveBtn = e.target.closest('[data-uiras-live-btn]');
     if (liveBtn) {
       const panelId  = liveBtn.dataset.livePanel;
       const panel    = document.getElementById(panelId);
       const toggleEl = liveBtn.querySelector('[data-live-toggle]');
       if (!panel) return;
+      if (typeof Haptics !== 'undefined') Haptics.light();
       const isOpen = panel.classList.contains('open');
       if (isOpen) {
         panel.classList.remove('open');
         liveBtn.classList.remove('expanded');
-        if (toggleEl) toggleEl.textContent = '▼ Lisää';
-      } else {
-        panel.classList.add('open');
-        liveBtn.classList.add('expanded');
-        if (toggleEl) toggleEl.textContent = '▲ Sulje';
-        /* Renderöi paneeli jos data saatavilla */
-        const spotRef = State.sheetSpot;
-        if (spotRef && spotRef._currentWx && !panel.dataset.ok) {
-          panel.dataset.ok = '1';
-          panel.innerHTML = _livePanel(spotRef._currentWx);
-        } else if (!panel.dataset.ok) {
-          panel.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ladataan...</div>';
-        }
+        if (toggleEl) toggleEl.textContent = '▼ Historia';
+        return;
       }
-      if (typeof Haptics !== 'undefined') Haptics.light();
+      panel.classList.add('open');
+      liveBtn.classList.add('expanded');
+      if (toggleEl) toggleEl.textContent = '▲ Sulje';
+      if (panel.dataset.ok) return;
+      panel.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan...</div>';
+      /* Hae 24h historia FMI proxylta */
+      const spotRef = State.sheetSpot;
+      if (!spotRef) return;
+      const wx = spotRef._currentWx;
+      const histUrl = 'https://foilwind.vercel.app/api/fmi?history=1'
+        + '&lat=' + spotRef.lat.toFixed(4) + '&lng=' + spotRef.lng.toFixed(4);
+      fetch(histUrl).then(function(r){ return r.json(); }).then(function(data){
+        panel.dataset.ok = '1';
+        _renderLiveHistory(panel, data, wx);
+      }).catch(function(){
+        panel.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
+      });
       return;
     }
 
@@ -3489,12 +3503,12 @@ function _liveStatCard(id, spot) {
 
   return '<div id="' + id + '-live" class="sh-stat sh-stat-live"'
     + ' data-uiras-live-btn data-live-panel="' + id + '-panel">'
-    + '<span class="sh-stat-label">🛰 Havainto</span>'
+    + '<span class="sh-stat-label">📡 Havainto</span>'
     + '<span data-live-val class="sh-stat-value" style="color:rgba(150,255,180,.6)">—</span>'
-    + '<span data-live-sub class="sh-stat-sub">live</span>'
-    + '<span data-live-toggle class="sh-stat-water-toggle">▼ Lisää</span>'
+    + '<span data-live-sub class="sh-stat-sub">— ' + Units.label() + '</span>'
+    + '<span data-live-toggle class="sh-stat-water-toggle">▼ Historia</span>'
   + '</div>'
-  + '<div id="' + id + '-panel" class="sh-stat-water-panel"></div>';
+  + '<div id="' + id + '-panel" class="sh-stat-live-panel"></div>';
 }
 
 /* Placeholder stat-kortit lämpötilalle ja kastepisteelle */
@@ -3539,8 +3553,8 @@ function _renderLive(el, wx) {
   const toggleEl = el.querySelector('[data-live-toggle]');
   if (lblEl && wx.station) lblEl.textContent = '📡 ' + wx.station;
   if (valEl)    { valEl.textContent = Units.fmt(wx.ms); valEl.style.color = col; }
-  if (subEl)    subEl.textContent = dirArrow(wx.dir) + ' ' + Math.round(wx.dir) + '°';
-  if (toggleEl) toggleEl.textContent = el.classList.contains('expanded') ? '▲ Sulje' : '▼ Lisää';
+  if (subEl)    subEl.textContent = dirArrow(wx.dir) + ' ' + Math.round(wx.dir) + '° · ' + Units.label();
+  if (toggleEl) toggleEl.textContent = el.classList.contains('expanded') ? '▲ Sulje' : '▼ Historia';
 
   /* Päivitä lämpötila + kastepiste kortit */
   const tmpEl = document.getElementById(id + '-tmp');
@@ -3554,45 +3568,67 @@ function _renderLive(el, wx) {
     if (dEl) { dEl.textContent = wx.dew.toFixed(1); dEl.style.color = 'rgba(100,200,255,.9)'; }
   }
 
-  /* Päivitä pop-up paneeli jos auki */
-  const panel = document.getElementById(id + '-panel');
-  if (panel && panel.dataset.ok) panel.innerHTML = _livePanel(wx);
+  /* Ei paiviteta paneelia jalkikateen — historia ladataan klikkaamalla */
 }
 
-function _livePanel(wx) {
-  const cc   = ColorRamp.rgb(wx.ms);
-  const col  = 'rgb(' + cc.r + ',' + cc.g + ',' + cc.b + ')';
-  const row  = (lbl, val) => '<div style="display:flex;justify-content:space-between;padding:4px 0;'
-    + 'border-bottom:1px solid rgba(255,255,255,.05);font-family:DM Mono,monospace;font-size:10px">'
-    + '<span style="color:var(--muted)">' + lbl + '</span>'
-    + '<span style="color:var(--text)">' + val + '</span></div>';
-  let html = row('Tuuli', '<span style="color:' + col + '">' + Units.fmt(wx.ms) + ' ' + Units.label() + '</span>'
-    + '  ' + dirArrow(wx.dir) + ' ' + Math.round(wx.dir) + '°');
-  html += row('Puuska', '<span style="color:' + col + '">' + Units.fmt(wx.gst) + ' ' + Units.label() + '</span>');
-  if (wx.wc != null) html += row('Sää', _wxLabel(wx.wc));
-  if (wx.prp != null && wx.prp > 0) html += row('Sade', wx.prp.toFixed(1) + ' mm/h');
-  /* FMI mitattu data */
-  if (wx.fmi && wx.fmi.ws != null) {
-    const f = wx.fmi;
-    const fc = ColorRamp.rgb(f.ws);
-    const fcol = 'rgb(' + fc.r + ',' + fc.g + ',' + fc.b + ')';
-    html += '<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)">'
-      + '<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.3);margin-bottom:4px">'
-        + '📡 MITATTU — ' + f.station + ' · ' + f.time
-      + '</div>';
-    html += row('Tuuli',   '<span style="color:' + fcol + '">' + Units.fmt(f.ws) + ' ' + Units.label() + '</span>'
-      + (f.wd != null ? '  ' + dirArrow(f.wd) + ' ' + Math.round(f.wd) + '°' : ''));
-    if (f.wg != null) html += row('Puuska', '<span style="color:' + fcol + '">' + Units.fmt(f.wg) + ' ' + Units.label() + '</span>');
-    html += '</div>';
+/* Piirtaa 24h FMI historia kaavion */
+function _renderLiveHistory(el, data, wx) {
+  const wsData = data.ws || [];
+  const wgData = data.wg || [];
+  if (!wsData.length) {
+    el.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ei historiadataa</div>';
+    return;
   }
-  /* Päivitysaika + lähde */
-  const updStr = wx.ts ? (()=>{ const d=new Date(wx.ts); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); })() : '—';
-  html += '<div style="margin-top:8px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2);line-height:1.6">'
-    + 'Ennuste: Open-Meteo (NWP-malli)<br>'
-    + (wx.fmi && wx.fmi.ws != null ? 'Havainto: FMI avoin data<br>' : '')
-    + 'Päivitetty: ' + updStr + ' · 10 min cache'
-  + '</div>';
-  return html;
+  const n    = wsData.length;
+  const wsU  = wsData.map(function(p){ return Units.convert(p.v); });
+  const wgU  = wgData.map(function(p){ return Units.convert(p.v); });
+  const times = wsData.map(function(p){ return p.t; });
+  let minV = Math.min.apply(null, wsU.concat(wgU).filter(function(v){ return !isNaN(v); }));
+  let maxV = Math.max.apply(null, wsU.concat(wgU).filter(function(v){ return !isNaN(v); }));
+  if (!isFinite(minV)) minV = 0;
+  if (!isFinite(maxV)) maxV = 10;
+  minV = Math.max(0, minV - 1);
+  maxV = maxV + 1;
+  const W = 300, H = 80, pad = 4, lH = 14, TH = H + lH;
+  function xOf(i){ return pad + i / (n - 1 || 1) * (W - pad * 2); }
+  function yOf(v){ return H - pad - (v - minV) / (maxV - minV || 1) * (H - pad * 2); }
+  var wsPts = wsU.map(function(v,i){ return xOf(i).toFixed(1)+','+yOf(v).toFixed(1); }).join(' ');
+  var wgPts = wgU.length ? wgU.map(function(v,i){ return xOf(i).toFixed(1)+','+yOf(v).toFixed(1); }).join(' ') : '';
+  var xlbls = '';
+  for (var i = 0; i < times.length; i++) {
+    if (times[i] && times[i].slice(3,5) === '00') {
+      xlbls += '<text x="'+xOf(i).toFixed(1)+'" y="'+(TH-1)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.3)" text-anchor="middle">'+times[i].slice(0,2)+'</text>';
+    }
+  }
+  var ylbls = '';
+  for (var yv = Math.ceil(minV); yv <= Math.floor(maxV); yv++) {
+    if (yv <= minV || yv >= maxV) continue;
+    ylbls += '<text x="'+(pad+1)+'" y="'+yOf(yv).toFixed(1)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(100,255,160,.35)" dominant-baseline="middle">'+yv+'</text>';
+  }
+  var nowMarks = '';
+  if (wx && wx.ms != null) {
+    var nx  = xOf(n-1).toFixed(1);
+    var nws = Units.convert(wx.ms);
+    var nwg = wx.gst != null ? Units.convert(wx.gst) : null;
+    nowMarks = '<line x1="'+nx+'" y1="'+pad+'" x2="'+nx+'" y2="'+(H-pad)+'" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="2,2"/>'
+      + '<circle cx="'+nx+'" cy="'+yOf(nws).toFixed(1)+'" r="3" fill="rgba(100,255,160,.95)"/>';
+    if (nwg != null) nowMarks += '<circle cx="'+nx+'" cy="'+yOf(nwg).toFixed(1)+'" r="3" fill="rgba(255,200,100,.95)"/>';
+  }
+  var latWs = wsU.length ? wsU[wsU.length-1] : null;
+  var latWg = wgU.length ? wgU[wgU.length-1] : null;
+  el.innerHTML =
+    '<div style="display:flex;gap:14px;margin-bottom:6px;font-family:DM Mono,monospace;font-size:9px">'
+      +'<span><span style="color:rgba(100,255,160,.8)">&#9632;</span> Tuuli'+(latWs!=null?' '+latWs.toFixed(1)+' '+Units.label():'')+'</span>'
+      +(wgData.length?'<span><span style="color:rgba(255,200,100,.8)">&#9632;</span> Puuska'+(latWg!=null?' '+latWg.toFixed(1)+' '+Units.label():'')+'</span>':'')
+    +'</div>'
+    +'<svg viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block">'
+      +(wgData.length?'<polyline points="'+wgPts+'" fill="none" stroke="rgba(255,200,100,.5)" stroke-width="1.5" stroke-linejoin="round"/>':'')
+      +'<polyline points="'+wsPts+'" fill="none" stroke="rgba(100,255,160,.85)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+      +nowMarks+ylbls+xlbls
+    +'</svg>'
+    +'<div style="margin-top:6px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2)">'
+      +'Lahde: FMI avoin data &middot; '+(data.station||'Harmaja')+' &middot; 24h &middot; 10 min havainnot'
+    +'</div>';
 }
 function _condCard(icon, label, value) {
   return '<div class="sh-cond-card">'
