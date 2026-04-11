@@ -2805,72 +2805,97 @@ const UiRas = {
 /* PKS-rajaus */
 function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spot.lng<=25.5;}
 
-/* Rakenna UiRas-kortti */
+/* ═══════════════════════════════════════════════════════
+   UiRas — event delegation jottei innerHTML tuhoa listeneriä
+   Yksi click-handler sheet-content-tasolla, tunnistaa data-uiras-btn
+   ═══════════════════════════════════════════════════════ */
+
+/* Rekisteröi delegoitu handler kerran */
+(function() {
+  document.addEventListener('click', async function(e) {
+    const btn = e.target.closest('[data-uiras-btn]');
+    if (!btn) return;
+    const stationId = btn.dataset.uirasBtnId;
+    const chartId   = btn.dataset.uirasBtnChart;
+    if (!stationId || !chartId) return;
+
+    const cEl = document.getElementById(chartId);
+    const aEl = btn.querySelector('[data-uiras-arr]');
+    if (!cEl) return;
+
+    /* Toggle */
+    if (cEl.style.display === 'block') {
+      cEl.style.display = 'none';
+      if (aEl) aEl.textContent = '▼';
+      return;
+    }
+    cEl.style.display = 'block';
+    if (aEl) aEl.textContent = '▲';
+    if (cEl.dataset.ok) return; /* jo ladattu */
+
+    cEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan historiaa...</div>';
+    if (typeof Haptics !== 'undefined') Haptics.light();
+
+    try {
+      const pts = await UiRas.history(stationId);
+      if (!pts || !pts.length) throw new Error('tyhjä');
+      cEl.dataset.ok = '1';
+      _uirasChart(cEl, pts, 'all', 1);
+    } catch(e) {
+      cEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
+    }
+  }, { passive: true });
+})();
+
+/* Rakenna UiRas-kortti — event listener on delegoitu, ei häviä innerHTML-päivityksissä */
 function buildUirasPlaceholder(spot) {
   if (!_isPKS(spot)) return '';
   const station = UiRas.nearest(spot.lat, spot.lng);
   if (!station) return '';
-  const id='ur-'+station.id;
 
-  /* Async: hae lämpötila ja päivitä DOM */
+  const cardId  = 'ur-'  + station.id;
+  const chartId = 'urc-' + station.id;
+  const btnId   = 'urb-' + station.id;
+  const dist    = station.km < 1
+    ? Math.round(station.km * 1000) + 'm'
+    : station.km.toFixed(1) + 'km';
+
+  /* Async: päivitä lämpötila kun data saapuu */
   UiRas.loadLatest().then(map => {
-    const el=document.getElementById(id); if(!el) return;
-    const d=map[station.id];
-    const temp=d&&d.temp!=null ? d.temp : null;
-    const time=d&&d.time ? d.time : null;
-    const dist=station.km<1?Math.round(station.km*1000)+'m':station.km.toFixed(1)+'km';
-    const fmtT=t=>{if(!t)return'';const dd=new Date(t);return('0'+dd.getHours()).slice(-2)+':'+('0'+dd.getMinutes()).slice(-2);};
-    const tempStr=temp!=null?temp.toFixed(1):'—';
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    const d       = map[station.id] || {};
+    const temp    = d.temp != null ? d.temp.toFixed(1) : '—';
+    const fmtT    = t => { if(!t) return ''; const dd=new Date(t); return ('0'+dd.getHours()).slice(-2)+':'+('0'+dd.getMinutes()).slice(-2); };
+    const timeStr = fmtT(d.time);
 
-    el.innerHTML=
-      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
-        +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:11px;font-weight:700;color:var(--text)">🏊 '+station.name+'</div>'
-          +'<div style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-top:2px">'+dist+' · '+fmtT(time)+'</div>'
-        +'</div>'
-        +'<div style="text-align:right;flex-shrink:0;margin-left:12px">'
-          +'<div style="font-family:DM Mono,monospace;font-size:24px;font-weight:700;color:#4dd;line-height:1">'+tempStr+'</div>'
-          +'<div style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">°C</div>'
-        +'</div>'
-      +'</div>'
-      +'<button id="'+id+'-btn" style="width:100%;border:none;background:none;'
-        +'border-top:1px solid rgba(0,180,255,.15);padding:8px 0 0;'
-        +'font-family:DM Mono,monospace;font-size:10px;color:rgba(0,207,255,.7);'
-        +'cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;'
-        +'-webkit-user-select:none;user-select:none">'
-        +'<span id="'+id+'-arr">▼</span> Näytä lämpötilahistoria'
-      +'</button>'
-      +'<div id="'+id+'-chart" style="display:none;margin-top:10px"></div>';
-
-    document.getElementById(id+'-btn').addEventListener('click',async()=>{
-      const cEl=document.getElementById(id+'-chart');
-      const aEl=document.getElementById(id+'-arr');
-      if(!cEl||!aEl)return;
-      if(cEl.style.display==='block'){cEl.style.display='none';aEl.textContent='▼';return;}
-      cEl.style.display='block';aEl.textContent='▲';
-      if(cEl.dataset.ok)return;
-      cEl.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ladataan...</div>';
-      Haptics.light();
-      try{
-        const pts=await UiRas.history(station.id);
-        cEl.dataset.ok='1';
-        _uirasChart(cEl,pts,'all',1);
-      }catch(e){
-        cEl.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ei historiadataa</div>';
-      }
-    },{passive:true});
-
-  }).catch(()=>{
-    const el=document.getElementById(id);
-    if(el)el.style.display='none';
+    /* Päivitä vain lämpötila + aika — ei rakenneta koko korttia uudelleen */
+    const tempEl = card.querySelector('[data-uiras-temp]');
+    const metaEl = card.querySelector('[data-uiras-meta]');
+    if (tempEl) tempEl.textContent = temp;
+    if (metaEl) metaEl.textContent = dist + (timeStr ? ' · ' + timeStr : '');
+  }).catch(() => {
+    const card = document.getElementById(cardId);
+    if (card) card.style.display = 'none';
   });
 
-  return '<div id="'+id+'" style="background:rgba(0,180,255,.07);border:1px solid rgba(0,180,255,.18);'
-    +'border-radius:14px;padding:12px 14px;margin-bottom:14px">'
-    +'<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted)">'
-      +'🏊 '+station.name+' · ladataan...'
-    +'</div>'
-  +'</div>';
+  /* Palauta HTML heti — napit käyttävät data-attribuutteja delegaation kautta */
+  return '<div id="' + cardId + '" style="background:rgba(0,180,255,.07);border:1px solid rgba(0,180,255,.18);border-radius:14px;padding:12px 14px;margin-bottom:14px">'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+      + '<div style="flex:1;min-width:0">'
+        + '<div style="font-size:11px;font-weight:700;color:var(--text)">🏊 ' + station.name + '</div>'
+        + '<div data-uiras-meta style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-top:2px">' + dist + ' · ladataan...</div>'
+      + '</div>'
+      + '<div style="text-align:right;flex-shrink:0;margin-left:12px">'
+        + '<div data-uiras-temp style="font-family:DM Mono,monospace;font-size:24px;font-weight:700;color:#4dd;line-height:1">—</div>'
+        + '<div style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">°C</div>'
+      + '</div>'
+    + '</div>'
+    + '<button id="' + btnId + '" data-uiras-btn data-uiras-btn-id="' + station.id + '" data-uiras-btn-chart="' + chartId + '" style="width:100%;border:none;background:none;border-top:1px solid rgba(0,180,255,.15);padding:8px 0 0;font-family:DM Mono,monospace;font-size:10px;color:rgba(0,207,255,.7);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;-webkit-user-select:none;user-select:none">'
+      + '<span data-uiras-arr>▼</span> Näytä lämpötilahistoria'
+    + '</button>'
+    + '<div id="' + chartId + '" style="display:none;margin-top:10px"></div>'
+  + '</div>';
 }
 
 /* SVG-historiakaavio */
