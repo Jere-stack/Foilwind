@@ -579,6 +579,15 @@ color: var(–muted); letter-spacing: 0.3px;
 .sh-stat-live {
 border-color: rgba(100,255,160,.2);
 background: rgba(100,255,160,.04);
+cursor: pointer;
+-webkit-user-select: none; user-select: none;
+}
+.sh-stat-live.expanded {
+grid-column: span 4;
+align-items: flex-start;
+}
+.sh-stat-live-panel {
+width: 100%; margin-top: 8px;
 }
 .sh-stat-water {
 cursor: pointer;
@@ -2880,6 +2889,26 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
       return;
     }
 
+    /* Live-havainto klikkaus — laajentaa stat-kortti */
+    const liveBtn = e.target.closest('.sh-stat-live');
+    if (liveBtn) {
+      const panel = liveBtn.querySelector('.sh-stat-live-panel');
+      const toggle = liveBtn.querySelector('.sh-stat-water-toggle');
+      if (!panel) return;
+      const isOpen = liveBtn.classList.contains('expanded');
+      if (isOpen) {
+        liveBtn.classList.remove('expanded');
+        panel.style.display = 'none';
+        if (toggle) toggle.textContent = '▼ Lisää';
+      } else {
+        liveBtn.classList.add('expanded');
+        panel.style.display = 'block';
+        if (toggle) toggle.textContent = '▲ Sulje';
+      }
+      if (typeof Haptics !== 'undefined') Haptics.light();
+      return;
+    }
+
     /* Vesi-stat klikkaus — avaa/sulkee panel-div koko leveydellä */
     const waterBtn = e.target.closest('[data-uiras-water-btn]');
     if (waterBtn) {
@@ -3409,20 +3438,27 @@ function _liveStatCard(id, spot) {
     if (!el) return;
     const CURRENT_TTL = 10 * 60 * 1000;
     if (spot._currentWx && Date.now() - spot._currentWx.ts < CURRENT_TTL) {
-      _renderLive(el, spot._currentWx.ms, spot._currentWx.dir, spot._currentWx.gst);
+      _renderLive(el, spot._currentWx);
       return;
     }
     const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + spot.lat.toFixed(3)
       + '&longitude=' + spot.lng.toFixed(3)
       + '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
+      + ',temperature_2m,dew_point_2m,weather_code,precipitation'
       + '&wind_speed_unit=ms&timezone=auto';
     fetch(url).then(r => r.json()).then(data => {
       if (!data.current || !el) return;
-      const cMs  = data.current.wind_speed_10m  || 0;
-      const cDir = data.current.wind_direction_10m || 0;
-      const cGst = data.current.wind_gusts_10m  || cMs;
-      spot._currentWx = { ts: Date.now(), ms: cMs, dir: cDir, gst: cGst };
-      _renderLive(el, cMs, cDir, cGst);
+      const cw   = data.current;
+      const cMs  = cw.wind_speed_10m    || 0;
+      const cDir = cw.wind_direction_10m || 0;
+      const cGst = cw.wind_gusts_10m    || cMs;
+      const cTmp = cw.temperature_2m    ?? null;
+      const cDew = cw.dew_point_2m      ?? null;
+      const cWc  = cw.weather_code      ?? null;
+      const cPrp = cw.precipitation     ?? null;
+      spot._currentWx = { ts: Date.now(), ms: cMs, dir: cDir, gst: cGst,
+                          tmp: cTmp, dew: cDew, wc: cWc, prp: cPrp };
+      _renderLive(el, spot._currentWx);
     }).catch(() => {});
   }, 150);
 
@@ -3433,13 +3469,50 @@ function _liveStatCard(id, spot) {
   + '</div>';
 }
 
-function _renderLive(el, cMs, cDir, cGst) {
-  const cc = ColorRamp.rgb(cMs);
+/* Sääkoodi → lyhyt teksti + emoji */
+function _wxLabel(wc) {
+  if (wc == null) return '';
+  if (wc === 0)           return '☀️ Selkeää';
+  if (wc <= 3)            return '🌤 Puolipilv.';
+  if (wc <= 48)           return '☁️ Pilvistä';
+  if (wc <= 57)           return '🌦 Tihkusadetta';
+  if (wc <= 67)           return '🌧 Sadetta';
+  if (wc <= 77)           return '🌨 Lumisadetta';
+  if (wc <= 82)           return '🌦 Raesadetta';
+  if (wc <= 99)           return '⛈ Ukkosmyrsky';
+  return '';
+}
+
+function _renderLive(el, wx) {
+  const cc = ColorRamp.rgb(wx.ms);
+  /* Stat-kortti — kompakti näkymä */
   el.innerHTML = '<span class="sh-stat-label">🛰 Havainto</span>'
     + '<span class="sh-stat-value" style="color:rgb(' + cc.r + ',' + cc.g + ',' + cc.b + ')">'
-      + Units.fmt(cMs)
+      + Units.fmt(wx.ms)
     + '</span>'
-    + '<span class="sh-stat-sub">' + dirArrow(cDir) + ' ' + Math.round(cDir) + '°</span>';
+    + '<span class="sh-stat-sub">' + dirArrow(wx.dir) + ' ' + Math.round(wx.dir) + '°</span>'
+    + '<span class="sh-stat-water-toggle">▼ Lisää</span>'
+    /* Pop-up paneeli */
+    + '<div class="sh-stat-live-panel" style="display:none">'
+      + _livePanel(wx)
+    + '</div>';
+}
+
+function _livePanel(wx) {
+  const cc   = ColorRamp.rgb(wx.ms);
+  const col  = 'rgb(' + cc.r + ',' + cc.g + ',' + cc.b + ')';
+  const row  = (lbl, val) => '<div style="display:flex;justify-content:space-between;padding:4px 0;'
+    + 'border-bottom:1px solid rgba(255,255,255,.05);font-family:DM Mono,monospace;font-size:10px">'
+    + '<span style="color:var(--muted)">' + lbl + '</span>'
+    + '<span style="color:var(--text)">' + val + '</span></div>';
+  let html = row('Tuuli', '<span style="color:' + col + '">' + Units.fmt(wx.ms) + ' ' + Units.label() + '</span>'
+    + ' ' + dirArrow(wx.dir) + ' ' + Math.round(wx.dir) + '°');
+  html += row('Puuska', '<span style="color:' + col + '">' + Units.fmt(wx.gst) + ' ' + Units.label() + '</span>');
+  if (wx.tmp != null) html += row('Lämpötila', wx.tmp.toFixed(1) + ' °C'
+    + (wx.wc != null ? '  ' + _wxLabel(wx.wc) : ''));
+  if (wx.dew != null) html += row('Kastepiste', wx.dew.toFixed(1) + ' °C');
+  if (wx.prp != null && wx.prp > 0) html += row('Sade', wx.prp.toFixed(1) + ' mm/h');
+  return html;
 }
 function _condCard(icon, label, value) {
   return '<div class="sh-cond-card">'
