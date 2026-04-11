@@ -582,12 +582,10 @@ border-color: rgba(0,180,255,.2);
 background: rgba(0,180,255,.05);
 transition: background .15s, border-color .15s;
 -webkit-user-select: none; user-select: none;
-grid-column: span 1;
 }
 .sh-stat-water.expanded {
-grid-column: span 4;
-flex-direction: row; flex-wrap: wrap;
-align-items: center; gap: 8px;
+border-color: rgba(0,207,255,.4);
+background: rgba(0,180,255,.1);
 }
 .sh-stat-water-name {
 font-family: ‘DM Mono’, monospace; font-size: 7px;
@@ -595,16 +593,22 @@ color: rgba(0,207,255,.5); text-align: center;
 white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 max-width: 100%; line-height: 1;
 }
-.sh-stat-water-hint {
+.sh-stat-water-toggle {
 font-family: ‘DM Mono’, monospace; font-size: 7px;
-color: rgba(0,207,255,.35);
+color: rgba(0,207,255,.45); letter-spacing: 0.2px;
+margin-top: 1px;
 }
-.sh-stat-water-chart {
-width: 100%; margin-top: 8px; display: none;
+/* Kaavio avautuu stats-gridin alle omalle rivilleen */
+.sh-stat-water-panel {
+display: none;
+grid-column: 1 / -1;
+background: rgba(0,180,255,.07);
+border: 1px solid rgba(0,207,255,.2);
+border-radius: 12px;
+padding: 10px 12px;
+margin-top: -4px;
 }
-.sh-stat-water.expanded .sh-stat-water-chart {
-display: block;
-}
+.sh-stat-water-panel.open { display: block; }
 
 /* Conditions row */
 .sh-conditions {
@@ -2872,29 +2876,37 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
       return;
     }
 
-    /* Vesi-stat klikkaus — laajentaa kortti C-tyylillä */
+    /* Vesi-stat klikkaus — avaa/sulkee panel-div koko leveydellä */
     const waterBtn = e.target.closest('[data-uiras-water-btn]');
     if (waterBtn) {
       const stationId = waterBtn.dataset.uirasStationId;
-      if (!stationId) return;
+      const panelId   = waterBtn.dataset.uirasPanelId;
+      if (!stationId || !panelId) return;
+      const panel    = document.getElementById(panelId);
+      const toggleEl = waterBtn.querySelector('[data-ws-toggle]');
+      if (!panel) return;
       if (typeof Haptics !== 'undefined') Haptics.medium();
-      const chartEl = waterBtn.querySelector('.sh-stat-water-chart');
-      if (!chartEl) return;
-      const isOpen = waterBtn.classList.contains('expanded');
+
+      const isOpen = panel.classList.contains('open');
       if (isOpen) {
+        panel.classList.remove('open');
         waterBtn.classList.remove('expanded');
+        if (toggleEl) toggleEl.textContent = '▼ Historia';
         return;
       }
+      panel.classList.add('open');
       waterBtn.classList.add('expanded');
-      if (chartEl.dataset.ok) return;
-      chartEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ladataan...</div>';
+      if (toggleEl) toggleEl.textContent = '▲ Sulje';
+      if (panel.dataset.ok) return;
+
+      panel.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">Ladataan...</div>';
       try {
         const pts = await UiRas.history(stationId);
         if (!pts || !pts.length) throw new Error('tyhjä');
-        chartEl.dataset.ok = '1';
-        _uirasChart(chartEl, pts, '30d', 1);
+        panel.dataset.ok = '1';
+        _uirasChart(panel, pts, '30d', 1);
       } catch(err) {
-        chartEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Ei dataa</div>';
+        panel.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Ei dataa</div>';
       }
     }
   }, { passive: true });
@@ -3339,8 +3351,7 @@ function openSheet(spot, hourIdx) {
     /* FMI / live observation */
     + buildFmiCard(fmiId)
 
-    /* UiRas vedenlämpö — PKS-spotit */
-    + buildUirasPlaceholder(spot)
+
 
     /* Navigation buttons */
     + buildNavButtons()
@@ -3365,17 +3376,18 @@ function openSheet(spot, hourIdx) {
 
 /* Laajentuva UiRas-vesi-stat PKS-spoteille (C-vaihtoehto) */
 function _waterStatCard(id, station) {
-  const dist = station.km < 1
-    ? Math.round(station.km * 1000) + 'm'
-    : station.km.toFixed(1) + 'km';
   const shortName = station.name.replace(/uimaranta/gi,'').trim();
-  return '<div id="' + id + '" class="sh-stat sh-stat-water" data-uiras-water-btn data-uiras-station-id="' + station.id + '">'
+  const panelId = id + '-panel';
+  /* Nappi pysyy ylärivissä — panel on erillinen grid-item koko leveydellä */
+  const btn = '<div id="' + id + '" class="sh-stat sh-stat-water" '
+    + 'data-uiras-water-btn data-uiras-station-id="' + station.id + '" data-uiras-panel-id="' + panelId + '">'
     + '<span class="sh-stat-label">🏊 Vesi</span>'
     + '<span data-ws-val class="sh-stat-value" style="color:#4dd">—</span>'
     + '<span class="sh-stat-water-name">' + shortName + '</span>'
-    + '<span class="sh-stat-water-hint">↕</span>'
-    + '<div class="sh-stat-water-chart"></div>'
+    + '<span data-ws-toggle class="sh-stat-water-toggle">▼ Historia</span>'
   + '</div>';
+  const panel = '<div id="' + panelId + '" class="sh-stat-water-panel"></div>';
+  return btn + panel;
 }
 
 function _statCard(label, value, sub, rgb, cls) {
