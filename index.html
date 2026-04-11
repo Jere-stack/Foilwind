@@ -3304,24 +3304,38 @@ function _uirasChart(el,allPts,period,avgWin){ _uirasChartInteractive(el,allPts,
 
 /* Havaintoasema- ja uimavesikarttapisteet */
 function _addObsMarkers(map) {
-  var FC = '#64ffaa';
-  var UC = '#00cfff';
-  var R  = 5;
-  function mkIcon(c) {
+  var FC = '#64ffaa'; /* FMI vihrea */
+  var UC = '#00cfff'; /* UiRas syaani */
+  var _obsMarkers = [];
+
+  function mkIcon(c, zoom) {
+    var z = zoom || 5;
+    var sz = z < 8 ? 6 : z < 10 ? 8 : 10;
+    var op = z < 8 ? 0.5 : z < 10 ? 0.65 : 0.85;
     return L.divIcon({
       className: '',
-      html: '<div style="width:10px;height:10px;border-radius:50%;background:'+c+';opacity:.8;box-shadow:0 0 6px '+c+'88;border:1.5px solid rgba(255,255,255,.3);cursor:pointer"></div>',
-      iconSize:[10,10], iconAnchor:[5,5]
+      html: '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+c+';opacity:'+op+';box-shadow:0 0 '+(sz/2)+'px '+c+'66;border:1px solid rgba(255,255,255,.25);cursor:pointer"></div>',
+      iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]
     });
   }
+
+  function updateIcons() {
+    var z = map.getZoom();
+    _obsMarkers.forEach(function(m){ m.marker.setIcon(mkIcon(m.color, z)); });
+  }
+
   FMI_MAP_STATIONS.forEach(function(st){
-    L.marker([st.lat,st.lng],{icon:mkIcon(FC),zIndexOffset:-100})
+    var m = L.marker([st.lat,st.lng],{icon:mkIcon(FC,map.getZoom()),zIndexOffset:-100})
       .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
+    _obsMarkers.push({marker:m,color:FC});
   });
   UIRAS_STATIONS.forEach(function(st){
-    L.marker([st.lat,st.lng],{icon:mkIcon(UC),zIndexOffset:-100})
+    var m = L.marker([st.lat,st.lng],{icon:mkIcon(UC,map.getZoom()),zIndexOffset:-100})
       .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
+    _obsMarkers.push({marker:m,color:UC});
   });
+
+  map.on('zoomend', updateIcons);
 }
 
 function _openObsSheet(type, station) {
@@ -3329,34 +3343,85 @@ function _openObsSheet(type, station) {
   var sheet = document.getElementById('sheet');
   var sc    = document.getElementById('sheet-content');
   if (!sheet || !sc) return;
-  /* Tallenna spottikortin tila */
   State.sheetSpot = null;
+
+  var FC = '#64ffaa', UC = '#00cfff';
+  var color    = type==='fmi' ? FC : UC;
   var title    = type==='fmi' ? ('📡 '+station.name) : ('🏊 '+station.name);
   var subtitle = type==='fmi' ? 'Ilmatieteenlaitos · tuulihavainnot' : 'UiRas · uimaveden lämpötila';
-  var cid = 'obs-ch-'+(station.place||station.id||Math.random().toString(36).slice(2,6));
+  var valId = 'obs-val-'+Math.random().toString(36).slice(2,6);
+  var subId = 'obs-sub-'+Math.random().toString(36).slice(2,6);
+  var cid   = 'obs-ch-' +Math.random().toString(36).slice(2,6);
+
   sc.innerHTML =
-    '<div style="margin-bottom:12px">'
-      +'<div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:3px">'+title+'</div>'
-      +'<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted)">'+subtitle+'</div>'
+    /* Hero */
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">'
+      +'<div>'
+        +'<div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:3px">'+title+'</div>'
+        +'<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted)">'+subtitle+'</div>'
+      +'</div>'
+      +'<div style="text-align:right">'
+        +'<div id="'+valId+'" style="font-family:DM Mono,monospace;font-size:40px;font-weight:500;line-height:1;color:'+color+';opacity:.35">—</div>'
+        +'<div id="'+subId+'" style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);margin-top:2px">'
+          +(type==='fmi' ? Units.label() : '°C')
+        +'</div>'
+      +'</div>'
     +'</div>'
+    /* Kaavio */
     +'<div id="'+cid+'" class="sh-stat-live-panel open">'
       +'<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan...</div>'
     +'</div>'
     +'<div style="margin-top:10px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2)">'
       +(type==='fmi'?'Lahde: Ilmatieteenlaitos avoin data':'Lahde: UiRas / Forum Virium Helsinki')
     +'</div>';
+
   sheet.classList.add('open');
   document.getElementById('sheet-overlay').classList.add('open');
   var el = document.getElementById(cid);
+
+  function updateHero(val, sub) {
+    var ve = document.getElementById(valId);
+    var se = document.getElementById(subId);
+    if (ve) { ve.textContent = val; ve.style.opacity = '1'; }
+    if (se && sub) se.textContent = sub;
+  }
+
   if (type==='fmi') {
-    fetch('https://foilwind.vercel.app/api/fmi?history=1&place='+station.place)
-      .then(function(r){return r.json();})
-      .then(function(d){ if(el) _renderLiveHistory(el,d,null); })
-      .catch(function(){ if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>'; });
+    /* Hae latest + historia rinnakkain */
+    var latUrl  = 'https://foilwind.vercel.app/api/fmi?place='+station.place;
+    var histUrl = 'https://foilwind.vercel.app/api/fmi?history=1&place='+station.place;
+    Promise.allSettled([
+      fetch(latUrl).then(function(r){return r.json();}),
+      fetch(histUrl).then(function(r){return r.json();})
+    ]).then(function(results){
+      var lat  = results[0].status==='fulfilled' ? results[0].value : null;
+      var hist = results[1].status==='fulfilled' ? results[1].value : null;
+      if (lat && lat.ws != null) {
+        var cc = ColorRamp.rgb(lat.ws);
+        var ve = document.getElementById(valId);
+        if (ve) ve.style.color = 'rgb('+cc.r+','+cc.g+','+cc.b+')';
+        updateHero(Units.fmt(lat.ws), Units.label() + (lat.wd != null ? '  '+dirArrow(lat.wd)+' '+Math.round(lat.wd)+'°' : '') + (lat.time ? '  '+lat.time : ''));
+      }
+      if (el && hist) _renderLiveHistory(el, hist, lat);
+    }).catch(function(){
+      if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+    });
   } else {
-    UiRas.history(station.id)
-      .then(function(pts){ if(el) _uirasChartInteractive(el,pts,station.name,station,station.lat,station.lng); })
-      .catch(function(){ if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>'; });
+    /* Hae UiRas latest + historia rinnakkain */
+    Promise.allSettled([
+      UiRas.loadLatest(),
+      UiRas.history(station.id)
+    ]).then(function(results){
+      var latest = results[0].status==='fulfilled' ? results[0].value : null;
+      var pts    = results[1].status==='fulfilled' ? results[1].value : null;
+      if (latest && latest[station.id] && latest[station.id].temp != null) {
+        updateHero(latest[station.id].temp.toFixed(1), '°C  ' + (latest[station.id].time ? new Date(latest[station.id].time).toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit'}) : ''));
+      }
+      if (el && pts && pts.length) _uirasChartInteractive(el,pts,station.name,station,station.lat,station.lng);
+      else if (el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+    }).catch(function(){
+      if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+    });
   }
 }
 
@@ -3775,9 +3840,15 @@ function openSheet(spot, hourIdx) {
           const v = dewEl.querySelector('.sh-stat-value');
           if (v) { v.textContent = fmi.dew.toFixed(1); v.style.color = 'rgba(100,200,255,.9)'; }
         }
-        /* Päivitä hero puuska */
+        /* Päivitä hero puuska + iso tuuliarvo FMI:sta */
         const gustEl = document.querySelector('.sh-big-gust');
         if (gustEl) gustEl.textContent = 'Puuska ' + Units.fmt(fmi.wg || 0) + ' ' + Units.label();
+        const bigWind = document.querySelector('.sh-big-wind');
+        if (bigWind && fmi.ws != null) {
+          const cc = ColorRamp.rgb(fmi.ws);
+          bigWind.textContent = Units.fmt(fmi.ws);
+          bigWind.style.color = 'rgb('+cc.r+','+cc.g+','+cc.b+')';
+        }
       }).catch(function(){});
     } else {
       /* Käytä cachea — päivitä silti kortit */
