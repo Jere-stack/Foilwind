@@ -577,13 +577,18 @@ font-family: ‘DM Mono’, monospace; font-size: 8px;
 color: var(–muted); letter-spacing: 0.3px;
 }
 .sh-stat-water {
-cursor: pointer; position: relative;
+cursor: pointer;
 border-color: rgba(0,180,255,.2);
 background: rgba(0,180,255,.05);
 transition: background .15s, border-color .15s;
 -webkit-user-select: none; user-select: none;
+grid-column: span 1;
 }
-.sh-stat-water:active { background: rgba(0,180,255,.12); border-color: rgba(0,180,255,.4); }
+.sh-stat-water.expanded {
+grid-column: span 4;
+flex-direction: row; flex-wrap: wrap;
+align-items: center; gap: 8px;
+}
 .sh-stat-water-name {
 font-family: ‘DM Mono’, monospace; font-size: 7px;
 color: rgba(0,207,255,.5); text-align: center;
@@ -592,7 +597,13 @@ max-width: 100%; line-height: 1;
 }
 .sh-stat-water-hint {
 font-family: ‘DM Mono’, monospace; font-size: 7px;
-color: rgba(0,207,255,.35); letter-spacing: 0.2px;
+color: rgba(0,207,255,.35);
+}
+.sh-stat-water-chart {
+width: 100%; margin-top: 8px; display: none;
+}
+.sh-stat-water.expanded .sh-stat-water-chart {
+display: block;
 }
 
 /* Conditions row */
@@ -2861,38 +2872,29 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
       return;
     }
 
-    /* Vesi-stat klikkaus — avaa historia-paneeli sheet-sisällä */
+    /* Vesi-stat klikkaus — laajentaa kortti C-tyylillä */
     const waterBtn = e.target.closest('[data-uiras-water-btn]');
     if (waterBtn) {
       const stationId = waterBtn.dataset.uirasStationId;
       if (!stationId) return;
       if (typeof Haptics !== 'undefined') Haptics.medium();
-
-      /* Hae tai luo historia-paneeli sheet-contentin loppuun */
-      let histPanel = document.getElementById('uiras-hist-panel');
-      if (!histPanel) {
-        histPanel = document.createElement('div');
-        histPanel.id = 'uiras-hist-panel';
-        histPanel.style.cssText = 'margin-top:14px;background:rgba(0,180,255,.07);border:1px solid rgba(0,180,255,.2);border-radius:14px;padding:12px 14px';
-        const sc = document.getElementById('sheet-content');
-        if (sc) sc.appendChild(histPanel);
+      const chartEl = waterBtn.querySelector('.sh-stat-water-chart');
+      if (!chartEl) return;
+      const isOpen = waterBtn.classList.contains('expanded');
+      if (isOpen) {
+        waterBtn.classList.remove('expanded');
+        return;
       }
-
-      /* Scroll paneliin */
-      histPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-      if (histPanel.dataset.stationId === stationId && histPanel.dataset.ok) return;
-      histPanel.dataset.stationId = stationId;
-      delete histPanel.dataset.ok;
-      histPanel.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan historiaa...</div>';
-
+      waterBtn.classList.add('expanded');
+      if (chartEl.dataset.ok) return;
+      chartEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ladataan...</div>';
       try {
         const pts = await UiRas.history(stationId);
         if (!pts || !pts.length) throw new Error('tyhjä');
-        histPanel.dataset.ok = '1';
-        _uirasChart(histPanel, pts, '30d', 1);
+        chartEl.dataset.ok = '1';
+        _uirasChart(chartEl, pts, '30d', 1);
       } catch(err) {
-        histPanel.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Historiadataa ei saatavilla</div>';
+        chartEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Ei dataa</div>';
       }
     }
   }, { passive: true });
@@ -3361,17 +3363,18 @@ function openSheet(spot, hourIdx) {
   }
 }
 
-/* Klikkattava UiRas-vesi-stat PKS-spoteille */
+/* Laajentuva UiRas-vesi-stat PKS-spoteille (C-vaihtoehto) */
 function _waterStatCard(id, station) {
   const dist = station.km < 1
     ? Math.round(station.km * 1000) + 'm'
     : station.km.toFixed(1) + 'km';
-  const shortName = station.name.replace('uimaranta','').replace('Uimaranta','').trim();
+  const shortName = station.name.replace(/uimaranta/gi,'').trim();
   return '<div id="' + id + '" class="sh-stat sh-stat-water" data-uiras-water-btn data-uiras-station-id="' + station.id + '">'
     + '<span class="sh-stat-label">🏊 Vesi</span>'
     + '<span data-ws-val class="sh-stat-value" style="color:#4dd">—</span>'
     + '<span class="sh-stat-water-name">' + shortName + '</span>'
-    + '<span class="sh-stat-water-hint">↗ historia</span>'
+    + '<span class="sh-stat-water-hint">↕</span>'
+    + '<div class="sh-stat-water-chart"></div>'
   + '</div>';
 }
 
