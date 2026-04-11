@@ -3104,73 +3104,127 @@ function buildUirasPlaceholder(spot) {
 }
 
 /* SVG-historiakaavio */
-function _uirasChart(el,allPts,period,avgWin){
-  if(period===undefined)period='all';
-  if(avgWin===undefined)avgWin=1;
-  const pMs={'7d':7*864e5,'30d':30*864e5,'90d':90*864e5};
-  const now=Date.now();
-  let pts=period==='all'?allPts:allPts.filter(p=>new Date(p.t).getTime()>=now-pMs[period]);
-  if(pts.length<5)pts=allPts;
-  if(!pts.length){el.innerHTML='<div style="text-align:center;font-size:10px;color:var(--muted);padding:12px">Ei dataa</div>';return;}
+/* Interaktiivinen UiRas vedenlämpökaavio — tooltip + pystyviiva */
+function _uirasChartInteractive(el, allPts, stationName) {
+  var period = el._period || '7d';
+  var pMs = {'7d':7*864e5,'30d':30*864e5,'90d':90*864e5};
+  var now = Date.now();
+  var pts = period === 'all' ? allPts : allPts.filter(function(p){ return new Date(p.t).getTime() >= now - pMs[period]; });
+  if (pts.length < 5) pts = allPts;
+  if (!pts.length) { el.innerHTML = '<div style="text-align:center;font-size:10px;color:var(--muted);padding:12px">Ei dataa</div>'; return; }
 
-  /* Ohenna max 600 pisteeseen SVG-piirtoa varten */
-  function downsample(data, maxPts) {
-    if (data.length <= maxPts) return data;
-    const step = data.length / maxPts;
-    const out = [];
-    for (let i = 0; i < maxPts; i++) out.push(data[Math.round(i * step)]);
+  /* Ohenna */
+  function ds(data, max) {
+    if (data.length <= max) return data;
+    var step = data.length / max, out = [];
+    for (var i = 0; i < max; i++) out.push(data[Math.round(i * step)]);
     return out;
   }
-  const draw = downsample(pts, 600);
+  var draw = ds(pts, 400);
+  var n = draw.length;
+  var vals = draw.map(function(p){ return p.v; });
+  var times = draw.map(function(p){ return p.t; });
+  var minV = Math.min.apply(null,vals) - 0.3;
+  var maxV = Math.max.apply(null,vals) + 0.3;
 
-  /* Liukuva keskiarvo ohentamattomaan dataan, sitten ohenna */
-  const avgRaw = pts.map((_,i)=>{const sl=pts.slice(Math.max(0,i-avgWin+1),i+1);return sl.reduce((s,x)=>s+x.v,0)/sl.length;});
-  const avgPts2 = pts.map((p,i)=>({t:p.t,v:avgRaw[i]}));
-  const drawAvg = downsample(avgPts2, 600);
+  var W=300,H=80,pad=4,lH=14,TH=H+lH;
+  function xOf(i){ return pad + i/(n-1||1)*(W-pad*2); }
+  function yOf(v){ return H-pad-(v-minV)/(maxV-minV||1)*(H-pad*2); }
+  function iOf(x){ return Math.max(0,Math.min(n-1,Math.round((x-pad)/(W-pad*2)*(n-1)))); }
 
-  /* Käytä loop-pohjaista min/max — ei spread jolla on stack limit */
-  let minV=Infinity, maxV=-Infinity;
-  for(let i=0;i<draw.length;i++){if(draw[i].v<minV)minV=draw[i].v;if(draw[i].v>maxV)maxV=draw[i].v;}
-  minV-=0.5; maxV+=0.5;
+  var linePts = draw.map(function(p,i){ return xOf(i).toFixed(1)+','+yOf(p.v).toFixed(1); }).join(' ');
 
-  const ts=draw.map(p=>new Date(p.t).getTime());
-  const minMs=ts[0],maxMs=ts[ts.length-1];
-  const W=300,H=80,pad=4,lH=14,TH=H+lH;
-  const xOf=m=>pad+(m-minMs)/(maxMs-minMs||1)*(W-pad*2);
-  const yOf=v=>H-pad-(v-minV)/(maxV-minV||1)*(H-pad*2);
-  const raw=draw.map((p,i)=>xOf(ts[i]).toFixed(1)+','+yOf(p.v).toFixed(1)).join(' ');
-  const avgTs=drawAvg.map(p=>new Date(p.t).getTime());
-  const aln=drawAvg.map((p,i)=>xOf(avgTs[i]).toFixed(1)+','+yOf(p.v).toFixed(1)).join(' ');
-
-  let xl='';
-  const stp=pts.length>500?7*864e5:864e5;
-  let t0=new Date(minMs);t0.setHours(0,0,0,0);
-  for(let t=t0.getTime();t<=maxMs;t+=stp){
-    if(t<minMs)continue;
-    const d=new Date(t);
-    xl+=`<text x="${xOf(t).toFixed(1)}" y="${TH-1}" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.3)" text-anchor="middle">${d.getDate()}.${d.getMonth()+1}.</text>`;
+  /* X-akseli */
+  var xl = '';
+  var stp = pts.length > 500 ? 7*864e5 : 864e5;
+  var t0 = new Date(new Date(draw[0].t).getTime()); t0.setHours(0,0,0,0);
+  var ms0 = new Date(draw[0].t).getTime(), ms1 = new Date(draw[n-1].t).getTime();
+  for (var t = t0.getTime(); t <= ms1; t += stp) {
+    if (t < ms0) continue;
+    var fd = new Date(t);
+    var xi = iOf(pad + (t - ms0)/(ms1-ms0||1)*(W-pad*2));
+    xl += '<text x="'+xOf(xi).toFixed(1)+'" y="'+(TH-1)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.3)" text-anchor="middle">'+fd.getDate()+'.'+( fd.getMonth()+1)+'.</text>';
   }
-  let yl='';
-  for(let t=Math.ceil(minV);t<=Math.floor(maxV);t++){
-    if(t<=minV||t>=maxV)continue;
-    yl+=`<text x="${pad+1}" y="${yOf(t).toFixed(1)}" font-family="DM Mono,monospace" font-size="7" fill="rgba(0,200,255,.4)" dominant-baseline="middle">${t}°</text>`;
+
+  /* Y-akseli */
+  var yl = '';
+  for (var tv = Math.ceil(minV); tv <= Math.floor(maxV); tv++) {
+    if (tv <= minV || tv >= maxV) continue;
+    yl += '<text x="'+(pad+1)+'" y="'+yOf(tv).toFixed(1)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(0,200,255,.4)" dominant-baseline="middle">'+tv+'°</text>';
   }
-  const nx=xOf(Math.min(now,maxMs)).toFixed(1);
-  const cnt=pts.length>1000?'~'+(pts.length/1000).toFixed(1)+'k mittausta':pts.length+' mittausta';
-  const pbtn=(p,lbl)=>`<button data-period="${p}" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 8px;border-radius:8px;border:1px solid rgba(0,180,255,${p===period?.4:.2});background:${p===period?'rgba(0,207,255,.15)':'none'};color:${p===period?'var(--accent)':'rgba(0,207,255,.6)'};cursor:pointer">${lbl}</button>`;
-  const abtn=(w)=>`<button data-avg="${w}" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 8px;border-radius:8px;border:1px solid rgba(0,180,255,${w===avgWin?.4:.2});background:${w===avgWin?'rgba(0,207,255,.15)':'none'};color:${w===avgWin?'var(--accent)':'rgba(0,207,255,.6)'};cursor:pointer">MA${w}</button>`;
-  el.innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'
-    +pbtn('7d','7 vrk')+pbtn('30d','30 vrk')+pbtn('90d','90 vrk')+pbtn('all','Kaikki')
-    +[1,6,12].map(abtn).join('')+'</div>'
-    +'<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2);margin-bottom:4px">'+cnt+'</div>'
-    +`<svg viewBox="0 0 ${W} ${TH}" style="width:100%;display:block">`
-      +`<polyline points="${raw}" fill="none" stroke="rgba(0,180,255,.25)" stroke-width="1" stroke-linejoin="round"/>`
-      +`<polyline points="${aln}" fill="none" stroke="rgba(0,220,255,.9)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
-      +`<line x1="${nx}" y1="${pad}" x2="${nx}" y2="${H}" stroke="rgba(255,255,255,.4)" stroke-width="1" stroke-dasharray="2,2"/>`
-      +yl+xl+`</svg>`;
-  el.querySelectorAll('[data-period]').forEach(b=>b.addEventListener('click',()=>_uirasChart(el,allPts,b.dataset.period,avgWin),{passive:true}));
-  el.querySelectorAll('[data-avg]').forEach(b=>b.addEventListener('click',()=>_uirasChart(el,allPts,period,parseInt(b.dataset.avg)),{passive:true}));
+
+  var svgId = 'uw-' + Math.random().toString(36).slice(2,7);
+  var pbtn = function(p,lbl){ var a=p===period; return '<button data-up="'+p+'" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 8px;border-radius:8px;border:1px solid rgba(0,180,255,'+(a?.4:.2)+');background:'+(a?'rgba(0,207,255,.15)':'none')+';color:'+(a?'var(--accent)':'rgba(0,207,255,.6)')+';cursor:pointer">'+lbl+'</button>'; };
+
+  el.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+      +'<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.5)">🏊 '+(stationName||'Vedenlämpö')+'</span>'
+      +'<div style="display:flex;gap:5px">'
+        +pbtn('7d','7 vrk')+pbtn('30d','30 vrk')+pbtn('all','Kaikki')
+      +'</div>'
+    +'</div>'
+    +'<div style="position:relative">'
+      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(8,12,26,.95);border:1px solid rgba(0,207,255,.25);border-radius:8px;padding:6px 10px;font-family:DM Mono,monospace;font-size:9px;pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5);z-index:100"></div>'
+      +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block;touch-action:none">'
+        +'<polyline points="'+linePts+'" fill="none" stroke="rgba(0,220,255,.85)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+        +'<line id="'+svgId+'-vl" x1="-1" y1="'+pad+'" x2="-1" y2="'+(H-pad)+'" stroke="rgba(255,255,255,.5)" stroke-width="1" stroke-dasharray="3,2" pointer-events="none"/>'
+        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="3.5" fill="rgba(0,220,255,.95)" stroke="rgba(0,0,0,.3)" stroke-width="1" pointer-events="none"/>'
+        +'<rect id="'+svgId+'-hit" x="'+pad+'" y="'+pad+'" width="'+(W-pad*2)+'" height="'+(H-pad*2)+'" fill="transparent" style="cursor:crosshair"/>'
+        +yl+xl
+      +'</svg>'
+    +'</div>'
+    +'<div style="margin-top:6px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2)">UiRas / FVH &middot; '+(stationName||'')+'</div>';
+
+  /* Period napit */
+  el.querySelectorAll('[data-up]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      el._period = btn.dataset.up;
+      _uirasChartInteractive(el, allPts, stationName);
+    }, { passive: true });
+  });
+
+  /* Tooltip */
+  var svg  = document.getElementById(svgId);
+  var hit  = document.getElementById(svgId+'-hit');
+  var vl   = document.getElementById(svgId+'-vl');
+  var dot  = document.getElementById(svgId+'-dot');
+  var tip  = document.getElementById(svgId+'-tip');
+  if (!hit) return;
+
+  function svgXpx(cx) {
+    var r = svg.getBoundingClientRect();
+    return (cx - r.left) / r.width * W;
+  }
+  function showTip(cx) {
+    var sx = svgXpx(cx);
+    var idx = iOf(sx);
+    var x = xOf(idx), y = yOf(draw[idx].v);
+    vl.setAttribute('x1',x.toFixed(1)); vl.setAttribute('x2',x.toFixed(1));
+    dot.setAttribute('cx',x.toFixed(1)); dot.setAttribute('cy',y.toFixed(1));
+    var t = times[idx] || '';
+    var d = new Date(draw[idx].t);
+    var dstr = d.getDate()+'.'+(d.getMonth()+1)+'. '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+    tip.innerHTML = '<div style="color:rgba(255,255,255,.4);margin-bottom:3px">'+dstr+'</div>'
+      +'<div style="color:rgba(0,220,255,.9)">'+draw[idx].v.toFixed(1)+' °C</div>';
+    var r = svg.getBoundingClientRect(), relX = cx - r.left, tipW = 100;
+    tip.style.left = (relX > r.width/2 ? relX - tipW - 8 : relX + 8) + 'px';
+    tip.style.top = '4px';
+    tip.style.display = 'block';
+  }
+  function hideTip() {
+    tip.style.display='none';
+    vl.setAttribute('x1','-1'); vl.setAttribute('x2','-1');
+    dot.setAttribute('cx','-1'); dot.setAttribute('cy','-1');
+  }
+  hit.addEventListener('mousemove',  function(e){ showTip(e.clientX); }, { passive: true });
+  hit.addEventListener('mouseleave', hideTip, { passive: true });
+  hit.addEventListener('touchstart', function(e){ if(e.touches[0]) showTip(e.touches[0].clientX); }, { passive: true });
+  hit.addEventListener('touchmove',  function(e){ e.preventDefault(); if(e.touches[0]) showTip(e.touches[0].clientX); }, { passive: false });
+  hit.addEventListener('touchend',   function(){ setTimeout(hideTip,1500); }, { passive: true });
 }
+
+/* Vanha _uirasChart — pidetaan vanhoille kutsupaikoille */
+function _uirasChart(el,allPts,period,avgWin){ _uirasChartInteractive(el,allPts,'Vedenlämpö'); }
 
 
 function openSheet(spot, hourIdx) {
@@ -3477,10 +3531,10 @@ function openSheet(spot, hourIdx) {
       + _dewStatCard(fmiId + '-dew')
     + '</div>'
 
-    /* Rivi 2: Vesi + FMI kaavio (vakio näkyvissä) */
+    /* Rivi 2: Vesi stat (pelkkä arvo, kaavio alla) */
     + '<div class="sh-stats">'
       + (_uirasStation
-          ? _waterStatCard(_waterStatId, _uirasStation)
+          ? _waterStatSimple(_waterStatId, _uirasStation)
           : _statCard('Vesi', waterTemp, '', null))
     + '</div>'
 
@@ -3489,13 +3543,18 @@ function openSheet(spot, hourIdx) {
       + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">📡 Ladataan havaintodataa...</div>'
     + '</div>'
 
+    /* UiRas vedenlämpö — aina näkyvissä */
+    + (_uirasStation
+        ? '<div id="uiras-always-' + _waterStatId + '" class="sh-stat-live-panel open" style="margin-bottom:14px;border-color:rgba(0,180,255,.2);background:rgba(0,180,255,.05)">'
+            + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">🏊 Ladataan vedenlämpöhistoriaa...</div>'
+          + '</div>'
+        : '')
 
+    /* 24h ennuste */
+    + build24hChart()
 
     /* Wind rose */
     + buildWindRoseSVG(h, idx)
-
-    /* 24h SVG line chart */
-    + build24hChart()
 
 
 
@@ -3524,17 +3583,38 @@ function openSheet(spot, hourIdx) {
     });
   })();
 
-  /* Päivitä UiRas vesi-stat async */
+  /* Päivitä UiRas vesi-stat + lataa historia */
   if (_uirasStation) {
-    UiRas.loadLatest().then(map => {
+    const uirasHistEl = document.getElementById('uiras-always-' + _waterStatId);
+    UiRas.loadLatest().then(function(map) {
+      /* Päivitä stat arvo */
       const el = document.getElementById(_waterStatId);
-      if (!el) return;
-      const d = map[_uirasStation.id];
-      const temp = d && d.temp != null ? d.temp.toFixed(1) + '°C' : '—';
-      const valEl = el.querySelector('[data-ws-val]');
-      if (valEl) valEl.textContent = temp;
-    }).catch(() => {});
+      if (el) {
+        const d = map[_uirasStation.id];
+        const temp = d && d.temp != null ? d.temp.toFixed(1) + '°C' : '—';
+        const valEl = el.querySelector('[data-ws-val]');
+        if (valEl) valEl.textContent = temp;
+      }
+      /* Lataa historia */
+      if (!uirasHistEl) return;
+      return UiRas.history(_uirasStation.id);
+    }).then(function(pts) {
+      if (!pts || !uirasHistEl) return;
+      _uirasChartInteractive(uirasHistEl, pts, _uirasStation.name);
+    }).catch(function() {
+      if (uirasHistEl) uirasHistEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Vedenlämpödata ei saatavilla</div>';
+    });
   }
+}
+
+/* Yksinkertainen vesi-stat — pelkkä arvo, ei nappia */
+function _waterStatSimple(id, station) {
+  const shortName = station.name.replace(/uimaranta/gi,'').trim();
+  return '<div id="' + id + '" class="sh-stat" style="border-color:rgba(0,180,255,.2);background:rgba(0,180,255,.05)">'
+    + '<span class="sh-stat-label">🏊 Vesi</span>'
+    + '<span data-ws-val class="sh-stat-value" style="color:#4dd">—</span>'
+    + '<span class="sh-stat-sub" style="color:rgba(0,207,255,.4)">' + shortName + '</span>'
+  + '</div>';
 }
 
 /* Laajentuva UiRas-vesi-stat PKS-spoteille (C-vaihtoehto) */
