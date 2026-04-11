@@ -64,7 +64,7 @@ function fetchYear(year, targetId) {
           header.forEach(function(h, i) {
             var hl = h.toLowerCase();
             if (hl === 'time' || hl === 'timestamp') timeIdx = i;
-            if (hl === 'dev_id' || hl === 'device_id' || hl === 'devid' || hl === 'id') devIdx = i;
+            if (hl === "dev_id" || hl === "dev-id" || hl === "device_id" || hl === "devid" || hl === "id") devIdx = i;
             if (hl === 'temp_water' || hl === 'water_temperature' || hl === 'temperature') tempIdx = i;
           });
 
