@@ -4,32 +4,30 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UiRas Debug</title>
+<title>UiRas Raw Debug</title>
 <style>
 body{font-family:monospace;background:#111;color:#0cf;padding:16px;font-size:12px}
 button{display:block;width:100%;padding:14px;margin:8px 0;background:#0cf2;border:1px solid #0cf;color:#0cf;border-radius:10px;font-size:14px;cursor:pointer}
-#out{background:#0002;padding:12px;border-radius:8px;margin-top:12px;white-space:pre-wrap;word-break:break-all;color:#aef;min-height:60px}
+#out{background:#0002;padding:12px;border-radius:8px;margin-top:12px;white-space:pre-wrap;word-break:break-all;color:#aef}
 </style>
 </head>
 <body>
-<h3 style="color:#fff;margin:0 0 12px">UiRas Historia Debug</h3>
-<button onclick="run()">Testaa historia (bri3.fvh.io)</button>
+<h3 style="color:#fff;margin:0 0 8px">UiRas Raw Debug</h3>
+<button onclick="run()">Näytä raaka JSON</button>
 <div id="out">Paina nappia...</div>
 <script>
-const HIST_URL = 'https://bri3.fvh.io/opendata/uiras/70B3D57050001AB9.geojson';
 async function run(){
   const out=document.getElementById('out');
-  out.textContent='Haetaan historiaa Pikkukoskelta...\n';
+  out.textContent='Haetaan...\n';
   try{
-    const r=await fetch(HIST_URL);
+    const r=await fetch('https://bri3.fvh.io/opendata/uiras/70B3D57050001AB9.geojson');
     out.textContent+='Status: '+r.status+'\n';
-    const gj=await r.json();
-    const f=gj.features||[];
-    out.textContent+='Features: '+f.length+'\n\n';
-    if(f.length>0){
-      out.textContent+='Feature[0]:\n'+JSON.stringify(f[0],null,2)+'\n\n';
-      out.textContent+='Feature[last]:\n'+JSON.stringify(f[f.length-1],null,2)+'\n';
-    }
+    const txt=await r.text();
+    out.textContent+='Pituus: '+txt.length+' merkkiä\n\n';
+    // Näytä ensimmäiset 2000 merkkiä
+    out.textContent+='RAW (alku):\n'+txt.slice(0,2000)+'\n\n...';
+    // Näytä myös loppu
+    out.textContent+='\nRAW (loppu):\n'+txt.slice(-500);
   }catch(e){
     out.textContent+='VIRHE: '+e.message+'\n';
   }
