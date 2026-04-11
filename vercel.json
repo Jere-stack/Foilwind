@@ -1,5 +1,11 @@
 {
+  "functions": {
+    "api/uiras.js": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
+    { "source": "/api/uiras", "destination": "/api/uiras.js" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
