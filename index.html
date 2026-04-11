@@ -3581,23 +3581,23 @@ function openSheet(spot, hourIdx) {
       + _dewStatCard(fmiId + '-dew')
     + '</div>'
 
-    /* FMI historia-kaavio — aina näkyvissä */
+    /* 24h tuuliennuste — heti stat-rivin jälkeen */
+    + build24hChart()
+
+    /* Wind rose — heti 24h ennusteen jälkeen */
+    + buildWindRoseSVG(h, idx)
+
+    /* FMI historia-kaavio */
     + '<div id="' + fmiId + '-hist" class="sh-stat-live-panel open" style="margin-bottom:14px">'
       + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">📡 Ladataan havaintodataa...</div>'
     + '</div>'
 
-    /* 24h tuuliennuste — heti havaintodatan jälkeen */
-    + build24hChart()
-
-    /* UiRas vedenlämpö — aina näkyvissä */
+    /* UiRas vedenlämpö */
     + (_uirasStation
         ? '<div id="uiras-always-' + _waterStatId + '" class="sh-stat-live-panel open" style="margin-bottom:14px;border-color:rgba(0,180,255,.2);background:rgba(0,180,255,.05)">'
             + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">🏊 Ladataan vedenlämpöä...</div>'
           + '</div>'
         : '')
-
-    /* Wind rose */
-    + buildWindRoseSVG(h, idx)
 
 
 
@@ -3611,12 +3611,50 @@ function openSheet(spot, hourIdx) {
   document.getElementById('sheet-overlay').classList.add('open');
   Haptics.medium();
 
-  /* Lataa FMI historia-kaavio heti */
+  /* Lataa FMI latest + historia — 2 kutsua, ei Open-Meteo -kutsuja */
   (function() {
-    const histEl = document.getElementById(fmiId + '-hist');
+    const histEl   = document.getElementById(fmiId + '-hist');
+    const fmiLat   = spot.lat.toFixed(4), fmiLng = spot.lng.toFixed(4);
+    const latestUrl = 'https://foilwind.vercel.app/api/fmi?lat=' + fmiLat + '&lng=' + fmiLng;
+    const histUrl   = 'https://foilwind.vercel.app/api/fmi?history=1&lat=' + fmiLat + '&lng=' + fmiLng;
+    const CURRENT_TTL = 10 * 60 * 1000;
+
+    /* Latest — vain jos cache vanhentunut */
+    if (!spot._currentWx || Date.now() - spot._currentWx.ts > CURRENT_TTL) {
+      fetch(latestUrl).then(function(r){ return r.json(); }).then(function(fmi){
+        if (fmi.error) return;
+        spot._currentWx = {
+          ts: Date.now(),
+          ms: fmi.ws || 0, dir: fmi.wd || 0, gst: fmi.wg || fmi.ws || 0,
+          tmp: fmi.tmp, dew: fmi.dew,
+          station: fmi.station, obsTime: fmi.time
+        };
+        /* Päivitä lämpötila ja kastepiste stat-kortit */
+        const tmpEl = document.getElementById(fmiId + '-tmp');
+        const dewEl = document.getElementById(fmiId + '-dew');
+        if (tmpEl && fmi.tmp != null) {
+          const v = tmpEl.querySelector('.sh-stat-value');
+          if (v) { v.textContent = fmi.tmp.toFixed(1); v.style.color = 'rgba(255,200,100,.9)'; }
+        }
+        if (dewEl && fmi.dew != null) {
+          const v = dewEl.querySelector('.sh-stat-value');
+          if (v) { v.textContent = fmi.dew.toFixed(1); v.style.color = 'rgba(100,200,255,.9)'; }
+        }
+        /* Päivitä hero puuska */
+        const gustEl = document.querySelector('.sh-big-gust');
+        if (gustEl) gustEl.textContent = 'Puuska ' + Units.fmt(fmi.wg || 0) + ' ' + Units.label();
+      }).catch(function(){});
+    } else {
+      /* Käytä cachea — päivitä silti kortit */
+      const wx = spot._currentWx;
+      const tmpEl = document.getElementById(fmiId + '-tmp');
+      const dewEl = document.getElementById(fmiId + '-dew');
+      if (tmpEl && wx.tmp != null) { const v=tmpEl.querySelector('.sh-stat-value'); if(v){v.textContent=wx.tmp.toFixed(1);v.style.color='rgba(255,200,100,.9)';} }
+      if (dewEl && wx.dew != null) { const v=dewEl.querySelector('.sh-stat-value'); if(v){v.textContent=wx.dew.toFixed(1);v.style.color='rgba(100,200,255,.9)';} }
+    }
+
+    /* Historia */
     if (!histEl) return;
-    const histUrl = 'https://foilwind.vercel.app/api/fmi?history=1'
-      + '&lat=' + spot.lat.toFixed(4) + '&lng=' + spot.lng.toFixed(4);
     fetch(histUrl).then(function(r){ return r.json(); }).then(function(data){
       if (!histEl) return;
       histEl.dataset.ok = '1';
