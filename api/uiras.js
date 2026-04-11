@@ -1,52 +1,40 @@
 /**
 
-- UiRas Historia Proxy — Vercel Serverless Function
-- 
+- UiRas Historia Proxy — Vercel Serverless Function (CommonJS)
 - Käyttö: GET /api/uiras?id=70B3D57050001AB9
-- 
-- Hakee 2025 + 2026 CSV.gz-tiedostot iot.fvh.fi:stä,
-- suodattaa yhden aseman rivit ja palauttaa kevyen JSON-taulukon.
-- 
-- Tiedosto sijainti: api/uiras.js (projektin juuressa)
   */
 
-import zlib from ‘zlib’;
-import { pipeline } from ‘stream/promises’;
-import { Readable } from ‘stream’;
+const zlib = require(‘zlib’);
+const https = require(‘https’);
 
 const BASE = ‘https://iot.fvh.fi/opendata/uiras/’;
 const YEARS = [2025, 2026];
-const CACHE_SECONDS = 3600; // 1h cache Vercel CDN:ssä
 
-export default async function handler(req, res) {
-// CORS — sallii FoilSpotin tehdä kutsuja
+module.exports = async function handler(req, res) {
 res.setHeader(‘Access-Control-Allow-Origin’, ‘*’);
 res.setHeader(‘Access-Control-Allow-Methods’, ‘GET’);
-res.setHeader(‘Cache-Control’, `public, s-maxage=${CACHE_SECONDS}, stale-while-revalidate=300`);
+res.setHeader(‘Cache-Control’, ‘public, s-maxage=3600, stale-while-revalidate=300’);
 
-const id = req.query.id;
+const id = (req.query.id || ‘’).trim();
 if (!id || !/^[A-F0-9]{16}$/i.test(id)) {
-return res.status(400).json({ error: ‘Puuttuva tai virheellinen id-parametri’ });
+return res.status(400).json({ error: ‘Puuttuva tai virheellinen id’ });
 }
 
 try {
-// Hae molemmat vuodet rinnakkain
 const results = await Promise.allSettled(
-YEARS.map(year => fetchAndParseYear(year, id))
+YEARS.map(year => fetchYear(year, id))
 );
 
 ```
-// Yhdistä onnistuneet tulokset
 let allPoints = [];
 results.forEach((r, i) => {
   if (r.status === 'fulfilled') {
     allPoints = allPoints.concat(r.value);
   } else {
-    console.warn(`Vuosi ${YEARS[i]} epäonnistui:`, r.reason?.message);
+    console.warn('Vuosi ' + YEARS[i] + ' epaonnistui:', r.reason && r.reason.message);
   }
 });
 
-// Järjestä aikajärjestykseen ja poista duplikaatit
 allPoints.sort((a, b) => a.t < b.t ? -1 : 1);
 const seen = new Set();
 allPoints = allPoints.filter(p => {
@@ -55,7 +43,6 @@ allPoints = allPoints.filter(p => {
   return true;
 });
 
-res.setHeader('Content-Type', 'application/json');
 return res.status(200).json({
   id,
   count: allPoints.length,
@@ -65,69 +52,64 @@ return res.status(200).json({
 ```
 
 } catch (err) {
-console.error(‘UiRas proxy virhe:’, err);
+console.error(‘Proxy virhe:’, err.message);
 return res.status(500).json({ error: err.message });
 }
-}
+};
 
-/**
-
-- Hakee yhden vuoden CSV.gz-tiedoston ja parsii sen.
-- CSV-rakenne: time,dev_id,batt,temp_in,temp_water
-  */
-  async function fetchAndParseYear(year, targetId) {
-  const url = `${BASE}uiras-all-${year}.csv.gz`;
-  const response = await fetch(url, {
-  headers: { ‘Accept-Encoding’: ‘identity’ } // haetaan gz sellaisenaan
-  });
-
-if (!response.ok) throw new Error(`HTTP ${response.status} vuodelle ${year}`);
-
-// Pura gzip Node.js:n zlib:llä
-const buffer = Buffer.from(await response.arrayBuffer());
-const csvText = await gunzipBuffer(buffer);
-
-// Parsii CSV rivi kerrallaan — ei ladota kaikkea muistiin kerralla
-const lines = csvText.split(’\n’);
-const header = lines[0].split(’,’).map(h => h.trim().replace(/”/g, ‘’));
-
-const timeIdx    = header.indexOf(‘time’);
-const devIdIdx   = header.indexOf(‘dev_id’);
-const tempWIdx   = header.indexOf(‘temp_water’);
-
-if (timeIdx < 0 || devIdIdx < 0 || tempWIdx < 0) {
-throw new Error(`CSV-otsikot puuttuu vuodelta ${year}: ${header.join(',')}`);
-}
-
-const points = [];
-for (let i = 1; i < lines.length; i++) {
-const line = lines[i];
-if (!line.trim()) continue;
-
-```
-const cols = line.split(',');
-const devId = (cols[devIdIdx] || '').trim().replace(/"/g, '');
-if (devId !== targetId) continue;
-
-const t = (cols[timeIdx] || '').trim().replace(/"/g, '');
-const v = parseFloat((cols[tempWIdx] || '').trim());
-
-if (t && !isNaN(v)) {
-  points.push({ t, v });
-}
-```
-
-}
-
-return points;
-}
-
-/** Pura gzip-buffer Promise-muotoon */
-function gunzipBuffer(buffer) {
+function fetchYear(year, targetId) {
 return new Promise((resolve, reject) => {
-zlib.gunzip(buffer, (err, result) => {
-if (err) reject(err);
-else resolve(result.toString(‘utf-8’));
-});
+const url = BASE + ‘uiras-all-’ + year + ‘.csv.gz’;
+
+```
+https.get(url, function(response) {
+  if (response.statusCode !== 200) {
+    return reject(new Error('HTTP ' + response.statusCode + ' vuodelle ' + year));
+  }
+
+  const chunks = [];
+  response.on('data', function(chunk) { chunks.push(chunk); });
+  response.on('error', reject);
+  response.on('end', function() {
+    const buffer = Buffer.concat(chunks);
+    zlib.gunzip(buffer, function(err, result) {
+      if (err) return reject(new Error('Gzip virhe: ' + err.message));
+
+      try {
+        const csv = result.toString('utf-8');
+        const lines = csv.split('\n');
+        const header = lines[0].split(',').map(function(h) {
+          return h.trim().replace(/"/g, '');
+        });
+
+        const timeIdx = header.indexOf('time');
+        const devIdx  = header.indexOf('dev_id');
+        const tempIdx = header.indexOf('temp_water');
+
+        if (timeIdx < 0 || devIdx < 0 || tempIdx < 0) {
+          return reject(new Error('CSV-otsikot puuttuu: ' + header.join(',')));
+        }
+
+        const points = [];
+        for (var i = 1; i < lines.length; i++) {
+          var line = lines[i];
+          if (!line.trim()) continue;
+          var cols = line.split(',');
+          var devId = (cols[devIdx] || '').trim().replace(/"/g, '');
+          if (devId !== targetId) continue;
+          var t = (cols[timeIdx] || '').trim().replace(/"/g, '');
+          var v = parseFloat((cols[tempIdx] || '').trim());
+          if (t && !isNaN(v)) points.push({ t: t, v: v });
+        }
+
+        resolve(points);
+      } catch (parseErr) {
+        reject(new Error('Parsinta epaonnistui: ' + parseErr.message));
+      }
+    });
+  });
+}).on('error', reject);
+```
+
 });
 }
