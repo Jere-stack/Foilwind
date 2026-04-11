@@ -3456,14 +3456,23 @@ function _liveStatCard(id, spot) {
       _renderLive(el, spot._currentWx);
       return;
     }
-    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + spot.lat.toFixed(3)
+    /* Hae Open-Meteo (ennuste) + FMI (mitattu) rinnakkain */
+    const omUrl = 'https://api.open-meteo.com/v1/forecast?latitude=' + spot.lat.toFixed(3)
       + '&longitude=' + spot.lng.toFixed(3)
       + '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
       + ',temperature_2m,dew_point_2m,weather_code,precipitation'
       + '&wind_speed_unit=ms&timezone=auto';
-    fetch(url).then(r => r.json()).then(data => {
-      if (!data.current || !el) return;
-      const cw   = data.current;
+    const fmiUrl = 'https://foilwind.vercel.app/api/fmi?lat=' + spot.lat.toFixed(4)
+      + '&lng=' + spot.lng.toFixed(4);
+
+    Promise.allSettled([
+      fetch(omUrl).then(r => r.json()),
+      fetch(fmiUrl).then(r => r.json()),
+    ]).then(([omR, fmiR]) => {
+      if (!el) return;
+      const om  = omR.status === 'fulfilled' ? omR.value : null;
+      const fmi = fmiR.status === 'fulfilled' && !fmiR.value.error ? fmiR.value : null;
+      const cw  = om && om.current ? om.current : {};
       const cMs  = cw.wind_speed_10m    || 0;
       const cDir = cw.wind_direction_10m || 0;
       const cGst = cw.wind_gusts_10m    || cMs;
@@ -3472,9 +3481,9 @@ function _liveStatCard(id, spot) {
       const cWc  = cw.weather_code      ?? null;
       const cPrp = cw.precipitation     ?? null;
       spot._currentWx = { ts: Date.now(), ms: cMs, dir: cDir, gst: cGst,
-                          tmp: cTmp, dew: cDew, wc: cWc, prp: cPrp };
+                          tmp: cTmp, dew: cDew, wc: cWc, prp: cPrp, fmi: fmi };
       _renderLive(el, spot._currentWx);
-    }).catch(() => {});
+    });
   }, 150);
 
   return '<div id="' + id + '-live" class="sh-stat sh-stat-live"'
@@ -3559,10 +3568,25 @@ function _livePanel(wx) {
   html += row('Puuska', '<span style="color:' + col + '">' + Units.fmt(wx.gst) + ' ' + Units.label() + '</span>');
   if (wx.wc != null) html += row('Sää', _wxLabel(wx.wc));
   if (wx.prp != null && wx.prp > 0) html += row('Sade', wx.prp.toFixed(1) + ' mm/h');
+  /* FMI mitattu data */
+  if (wx.fmi && wx.fmi.ws != null) {
+    const f = wx.fmi;
+    const fc = ColorRamp.rgb(f.ws);
+    const fcol = 'rgb(' + fc.r + ',' + fc.g + ',' + fc.b + ')';
+    html += '<div style="margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08)">'
+      + '<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.3);margin-bottom:4px">'
+        + '📡 MITATTU — ' + f.station + ' · ' + f.time
+      + '</div>';
+    html += row('Tuuli',   '<span style="color:' + fcol + '">' + Units.fmt(f.ws) + ' ' + Units.label() + '</span>'
+      + (f.wd != null ? '  ' + dirArrow(f.wd) + ' ' + Math.round(f.wd) + '°' : ''));
+    if (f.wg != null) html += row('Puuska', '<span style="color:' + fcol + '">' + Units.fmt(f.wg) + ' ' + Units.label() + '</span>');
+    html += '</div>';
+  }
   /* Päivitysaika + lähde */
   const updStr = wx.ts ? (()=>{ const d=new Date(wx.ts); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); })() : '—';
   html += '<div style="margin-top:8px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2);line-height:1.6">'
-    + 'Lähde: Open-Meteo (ERA5 + NWP)<br>'
+    + 'Ennuste: Open-Meteo (NWP-malli)<br>'
+    + (wx.fmi && wx.fmi.ws != null ? 'Havainto: FMI avoin data<br>' : '')
     + 'Päivitetty: ' + updStr + ' · 10 min cache'
   + '</div>';
   return html;
