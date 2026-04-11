@@ -1,94 +1,21 @@
 const https = require(‘https’);
 
-/* FMI stations most relevant for foilers in Helsinki area */
-const STATIONS = {
-harmaja:   { id: ‘100539’, name: ‘Harmaja’,        lat: 60.1053, lng: 24.9754 },
-kaisaniemi:{ id: ‘100971’, name: ‘Kaisaniemi’,     lat: 60.1752, lng: 24.9445 },
-kumpula:   { id: ‘101004’, name: ‘Kumpula’,        lat: 60.2039, lng: 24.9608 },
-vuosaari:  { id: ‘151028’, name: ‘Vuosaari satama’,lat: 60.2087, lng: 25.1966 },
-};
+const STATIONS = [
+{ key: ‘harmaja’,    id: ‘100539’, name: ‘Harmaja’,         lat: 60.1053, lng: 24.9754 },
+{ key: ‘kaisaniemi’, id: ‘100971’, name: ‘Kaisaniemi’,      lat: 60.1752, lng: 24.9445 },
+{ key: ‘kumpula’,    id: ‘101004’, name: ‘Kumpula’,         lat: 60.2039, lng: 24.9608 },
+{ key: ‘vuosaari’,   id: ‘151028’, name: ‘Vuosaari satama’, lat: 60.2087, lng: 25.1966 },
+];
 
-/* Nearest station for spot by coordinates */
 function nearest(lat, lng) {
-var best = null, bd = Infinity;
-Object.values(STATIONS).forEach(function(s) {
-var d = Math.pow(s.lat - lat, 2) + Math.pow(s.lng - lng, 2);
+var best = STATIONS[0], bd = Infinity;
+STATIONS.forEach(function(s) {
+var d = (s.lat - lat) * (s.lat - lat) + (s.lng - lng) * (s.lng - lng);
 if (d < bd) { bd = d; best = s; }
 });
-return best || STATIONS.harmaja;
+return best;
 }
 
-/* Fetch FMI WFS XML and parse wind */
-function fetchFmi(fmisid) {
-return new Promise(function(resolve, reject) {
-var url = ‘https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0’
-+ ‘&request=getFeature’
-+ ‘&storedquery_id=fmi::observations::weather::timevaluepair’
-+ ‘&fmisid=’ + fmisid
-+ ‘&parameters=WindSpeedMS,WindDirection,WindGust’
-+ ‘&timestep=10’
-+ ‘&starttime=’ + new Date(Date.now() - 30 * 60000).toISOString().slice(0, 16) + ‘Z’;
-
-```
-https.get(url, function(res) {
-  if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
-  var body = '';
-  res.on('data', function(c) { body += c; });
-  res.on('error', reject);
-  res.on('end', function() { resolve(body); });
-}).on('error', reject);
-```
-
-});
-}
-
-/* Parse XML timevaluepair ? {ws, wd, wg, time} */
-function parseXml(xml) {
-/* Collect all (time, value) pairs per parameter */
-var blocks = xml.split(’<wml2:MeasurementTimeseries’);
-var params = {};
-
-blocks.slice(1).forEach(function(block) {
-/* Parameter name */
-var nameMatch = block.match(/gml:id=“obs-obs-1-1-([^”]+)”/);
-var param = nameMatch ? nameMatch[1].toLowerCase() : null;
-if (!param) return;
-
-```
-/* Last (newest) value */
-var points = block.split('<wml2:MeasurementTVP>');
-var last = points[points.length - 1];
-if (!last) return;
-
-var tMatch = last.match(/<wml2:time>([^<]+)<\/wml2:time>/);
-var vMatch = last.match(/<wml2:value>([^<]+)<\/wml2:value>/);
-if (tMatch && vMatch && vMatch[1] !== 'NaN') {
-  params[param] = { t: tMatch[1], v: parseFloat(vMatch[1]) };
-}
-```
-
-});
-
-/* Keys may be windspeedms / windgust / winddirection */
-var ws = (params[‘windspeedms’] || params[‘ws’] || {}).v;
-var wd = (params[‘winddirection’] || params[‘wd’] || {}).v;
-var wg = (params[‘windgust’] || params[‘wg’] || {}).v;
-var t  = (params[‘windspeedms’] || params[‘ws’] || {}).t;
-
-if (ws == null) return null;
-
-/* Time HH:MM in Finnish timezone */
-var timeStr = ‘’;
-if (t) {
-var d = new Date(t);
-d.setHours(d.getHours() + (isDst(d) ? 3 : 2));
-timeStr = (‘0’ + d.getHours()).slice(-2) + ‘:’ + (‘0’ + d.getMinutes()).slice(-2);
-}
-
-return { ws: ws, wd: wd != null ? wd : null, wg: wg != null ? wg : null, time: timeStr };
-}
-
-/* Simple DST check for Finland */
 function isDst(d) {
 var mar = new Date(d.getFullYear(), 2, 31);
 mar.setDate(31 - mar.getDay());
@@ -97,37 +24,102 @@ oct.setDate(31 - oct.getDay());
 return d >= mar && d < oct;
 }
 
-/* Vercel serverless handler */
+function toLocalTime(isoStr) {
+if (!isoStr) return ‘’;
+var d = new Date(isoStr);
+var offset = isDst(d) ? 3 : 2;
+d = new Date(d.getTime() + offset * 3600000);
+return (‘0’ + d.getUTCHours()).slice(-2) + ‘:’ + (‘0’ + d.getUTCMinutes()).slice(-2);
+}
+
+function fetchXml(fmisid) {
+return new Promise(function(resolve, reject) {
+var start = new Date(Date.now() - 60 * 60000).toISOString().replace(/.\d+Z$/, ‘Z’);
+var url = ‘https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0’
++ ‘&request=getFeature’
++ ‘&storedquery_id=fmi::observations::weather::timevaluepair’
++ ‘&fmisid=’ + fmisid
++ ‘&parameters=WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint’
++ ‘&timestep=10’
++ ‘&starttime=’ + start;
+https.get(url, function(res) {
+var body = ‘’;
+res.on(‘data’, function(c) { body += c; });
+res.on(‘error’, reject);
+res.on(‘end’, function() { resolve(body); });
+}).on(‘error’, reject);
+});
+}
+
+function parseLatest(xml) {
+/* Extract all parameter blocks */
+var result = {};
+/* Match each MeasurementTimeseries block */
+var re = /<wml2:MeasurementTimeseries[^>]*gml:id=”[^”]*-([a-zA-Z]+)”[^>]*>([\s\S]*?)</wml2:MeasurementTimeseries>/g;
+var m;
+while ((m = re.exec(xml)) !== null) {
+var param = m[1].toLowerCase();
+var block = m[2];
+/* Find all time-value pairs */
+var pairs = [];
+var tvRe = /<wml2:time>([^<]+)</wml2:time>\s*<wml2:value>([^<]+)</wml2:value>/g;
+var tv;
+while ((tv = tvRe.exec(block)) !== null) {
+var v = parseFloat(tv[2]);
+if (!isNaN(v) && tv[2] !== ‘NaN’) {
+pairs.push({ t: tv[1], v: v });
+}
+}
+/* Take last valid value */
+if (pairs.length > 0) {
+result[param] = pairs[pairs.length - 1];
+}
+}
+return result;
+}
+
 module.exports = async function handler(req, res) {
-res.setHeader(‘Access-Control-Allow-Origin’, ’*’);
+res.setHeader(‘Access-Control-Allow-Origin’, ‘*’);
 res.setHeader(‘Cache-Control’, ‘public, s-maxage=300, stale-while-revalidate=60’);
 
 var lat = parseFloat(req.query.lat);
 var lng = parseFloat(req.query.lng);
-var stationKey = req.query.station;
-
-var station;
-if (stationKey && STATIONS[stationKey]) {
-station = STATIONS[stationKey];
-} else if (!isNaN(lat) && !isNaN(lng)) {
-station = nearest(lat, lng);
-} else {
-station = STATIONS.harmaja;
-}
+var station = (!isNaN(lat) && !isNaN(lng)) ? nearest(lat, lng) : STATIONS[0];
 
 try {
-var xml = await fetchFmi(station.id);
-var data = parseXml(xml);
-if (!data) return res.status(200).json({ station: station.name, error: ‘no data’ });
+var xml = await fetchXml(station.id);
+var data = parseLatest(xml);
 
 ```
+/* Log param keys for debugging */
+var keys = Object.keys(data);
+
+/* Find wind speed -- key may vary */
+var wsEntry = data['windspeedms'] || data['ws'] || data['windspeed'] || null;
+var wdEntry = data['winddirection'] || data['wd'] || null;
+var wgEntry = data['windgust'] || data['wg'] || data['maximumwindspeed'] || null;
+var tEntry  = data['temperature'] || data['t2m'] || data['airtemperature'] || null;
+var dpEntry = data['dewpoint'] || data['dp'] || data['dewpointtemperature'] || null;
+
+if (!wsEntry) {
+  return res.status(200).json({
+    station: station.name,
+    fmisid: station.id,
+    debug_keys: keys,
+    error: 'no wind data -- check debug_keys'
+  });
+}
+
 return res.status(200).json({
   station: station.name,
   fmisid:  station.id,
-  ws:      data.ws,
-  wd:      data.wd,
-  wg:      data.wg,
-  time:    data.time,
+  ws:      wsEntry.v,
+  wd:      wdEntry ? wdEntry.v : null,
+  wg:      wgEntry ? wgEntry.v : null,
+  tmp:     tEntry  ? tEntry.v  : null,
+  dew:     dpEntry ? dpEntry.v : null,
+  time:    toLocalTime(wsEntry.t),
+  raw_time: wsEntry.t,
 });
 ```
 
