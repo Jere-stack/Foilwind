@@ -620,6 +620,8 @@ padding: 10px 12px;
 margin-top: -4px;
 }
 .sh-stat-live-panel.open { display: block; }
+/* Vakionäkymä historiakaaviolle — aina auki */
+.sh-hist-always { display: block; }
 
 /* Asemavalitsin dropdown */
 .fmi-station-trigger {
@@ -3452,19 +3454,7 @@ function openSheet(spot, hourIdx) {
         + '<div>'
           + '<div class="sh-big-wind" style="color:' + colorStr + '">' + Units.fmt(ms) + '</div>'
           + '<span class="sh-big-unit">' + Units.label() + '</span>'
-          + '<div class="sh-big-gust" id="hero-gust">Puuska ' + Units.fmt(gst) + ' ' + Units.label() + '</div>'
-        + '</div>'
-        + '<div class="sh-hero-tags">'
-          + '<div class="sh-hero-tag" style="color:' + (trend.cls === 'trend-up' ? 'rgba(255,160,80,.9)' : trend.cls === 'trend-dn' ? 'rgba(80,180,255,.9)' : 'rgba(255,255,255,.5)') + ';border-color:' + (trend.cls === 'trend-up' ? 'rgba(255,160,80,.25)' : trend.cls === 'trend-dn' ? 'rgba(80,180,255,.25)' : 'rgba(255,255,255,.1)') + '">'
-            + trend.arrow + ' ' + trend.label + ' <span style="opacity:.5">3h</span>'
-          + '</div>'
-          + '<div class="sh-hero-tag" style="color:' + (gi.cls === 'gust-ok' ? 'rgba(100,255,160,.9)' : gi.cls === 'gust-warn' ? 'rgba(255,200,80,.9)' : 'rgba(255,100,80,.9)') + ';border-color:' + (gi.cls === 'gust-ok' ? 'rgba(100,255,160,.2)' : gi.cls === 'gust-warn' ? 'rgba(255,200,80,.2)' : 'rgba(255,100,80,.2)') + '">'
-            + '〜 ' + gi.label
-          + '</div>'
-          + '<div class="sh-hero-live" id="hero-fmi-' + fmiId + '">'
-            + '<span class="sh-hero-live-lbl">📡 Havainto</span>'
-            + '<span class="sh-hero-live-val" style="color:rgba(100,255,160,.4)">— ' + Units.label() + '</span>'
-          + '</div>'
+          + '<div class="sh-big-gust">Puuska ' + Units.fmt(gst) + ' ' + Units.label() + '</div>'
         + '</div>'
       + '</div>'
       + '</div>'
@@ -3479,14 +3469,24 @@ function openSheet(spot, hourIdx) {
       + badge.text
     + '</div>'
 
-    /* Rivi 1: Lämpötila · Kastepiste · Havainto · Vesi */
+    /* Rivi 1: Trendi · Puuskaisuus · Lämpötila · Kastepiste */
     + '<div class="sh-stats" id="sh-stats-live">'
+      + _trendStatCard(trend)
+      + _gustStatCard(gi)
       + _tempStatCard(fmiId + '-tmp')
       + _dewStatCard(fmiId + '-dew')
-      + _liveStatCard(fmiId, spot)
+    + '</div>'
+
+    /* Rivi 2: Vesi + FMI kaavio (vakio näkyvissä) */
+    + '<div class="sh-stats">'
       + (_uirasStation
           ? _waterStatCard(_waterStatId, _uirasStation)
           : _statCard('Vesi', waterTemp, '', null))
+    + '</div>'
+
+    /* FMI historia-kaavio — aina näkyvissä */
+    + '<div id="' + fmiId + '-hist" class="sh-stat-live-panel open" style="margin-bottom:14px">'
+      + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">📡 Ladataan havaintodataa...</div>'
     + '</div>'
 
 
@@ -3508,6 +3508,21 @@ function openSheet(spot, hourIdx) {
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet-overlay').classList.add('open');
   Haptics.medium();
+
+  /* Lataa FMI historia-kaavio heti */
+  (function() {
+    const histEl = document.getElementById(fmiId + '-hist');
+    if (!histEl) return;
+    const histUrl = 'https://foilwind.vercel.app/api/fmi?history=1'
+      + '&lat=' + spot.lat.toFixed(4) + '&lng=' + spot.lng.toFixed(4);
+    fetch(histUrl).then(function(r){ return r.json(); }).then(function(data){
+      if (!histEl) return;
+      histEl.dataset.ok = '1';
+      _renderLiveHistory(histEl, data, spot._currentWx || null);
+    }).catch(function(){
+      if (histEl) histEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Havaintodata ei saatavilla</div>';
+    });
+  })();
 
   /* Päivitä UiRas vesi-stat async */
   if (_uirasStation) {
@@ -3536,6 +3551,30 @@ function _waterStatCard(id, station) {
   + '</div>';
   const panel = '<div id="' + panelId + '" class="sh-stat-water-panel"></div>';
   return btn + panel;
+}
+
+/* Trendi-stat-kortti */
+function _trendStatCard(trend) {
+  const col = trend.cls === 'trend-up' ? 'rgba(255,160,80,.9)'
+             : trend.cls === 'trend-dn' ? 'rgba(80,180,255,.9)'
+             : 'rgba(255,255,255,.5)';
+  return '<div class="sh-stat">'
+    + '<span class="sh-stat-label">Trendi</span>'
+    + '<span class="sh-stat-value" style="color:' + col + '">' + trend.arrow + ' ' + trend.label + '</span>'
+    + '<span class="sh-stat-sub">3h</span>'
+  + '</div>';
+}
+
+/* Puuskaisuus-stat-kortti */
+function _gustStatCard(gi) {
+  const col = gi.cls === 'gust-ok'   ? 'rgba(100,255,160,.9)'
+             : gi.cls === 'gust-warn' ? 'rgba(255,200,80,.9)'
+             : 'rgba(255,100,80,.9)';
+  return '<div class="sh-stat">'
+    + '<span class="sh-stat-label">Puuskaisuus</span>'
+    + '<span class="sh-stat-value" style="color:' + col + ';font-size:13px">' + gi.label + '</span>'
+    + '<span class="sh-stat-sub">〜</span>'
+  + '</div>';
 }
 
 function _statCard(label, value, sub, rgb, cls) {
@@ -3643,14 +3682,7 @@ function _renderLive(el, wx) {
   if (valEl)    { valEl.textContent = Units.fmt(wx.ms); valEl.style.color = col; }
   if (subEl)    subEl.textContent = dirArrow(wx.dir) + ' ' + Math.round(wx.dir) + '° · ' + Units.label();
   if (toggleEl) toggleEl.textContent = el.classList.contains('expanded') ? '▲ Sulje' : '▼ Historia';
-  /* Päivitä hero-live boksit */
-  const heroFmi = document.getElementById('hero-fmi-' + id);
-  if (heroFmi) {
-    const hv = heroFmi.querySelector('.sh-hero-live-val');
-    const hl = heroFmi.querySelector('.sh-hero-live-lbl');
-    if (hv) { hv.textContent = Units.fmt(wx.ms) + ' ' + Units.label(); hv.style.color = col; }
-    if (hl && wx.station) hl.textContent = '📡 ' + wx.station + (wx.obsTime ? ' · ' + wx.obsTime : '');
-  }
+
 
   /* Päivitä lämpötila + kastepiste kortit */
   const tmpEl = document.getElementById(id + '-tmp');
@@ -3693,11 +3725,11 @@ function _fmiDropdown(panelEl, stations, selected, onSelect) {
   trigger.className = 'fmi-station-trigger';
   function updateTrigger(st) {
     trigger.innerHTML =
-      '<span>📡 Asema:</span>'
+      '<span style="color:rgba(255,255,255,.3)">Asema</span>'
       + '<span class="fmi-station-trigger-name">' + st.name + '</span>'
       + (st.tag ? '<span class="fmi-dropdown-item-tag">' + st.tag + '</span>' : '')
       + '<span class="fmi-station-trigger-dist">' + st.km.toFixed(1) + ' km</span>'
-      + '<span class="fmi-station-trigger-arrow">▾</span>';
+      + '<svg width="10" height="10" viewBox="0 0 10 10" style="flex-shrink:0;margin-left:auto"><polyline points="2,3 5,7 8,3" fill="none" stroke="rgba(100,255,160,.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   }
   updateTrigger(selected);
 
