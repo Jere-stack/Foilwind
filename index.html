@@ -3720,80 +3720,194 @@ function _renderLiveHistory(el, data, wx) {
     el.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ei historiadataa</div>';
     return;
   }
-  const n    = wsData.length;
-  const wsU  = wsData.map(function(p){ return Units.convert(p.v); });
-  const wgU  = wgData.map(function(p){ return Units.convert(p.v); });
-  const times = wsData.map(function(p){ return p.t; });
-  let minV = Math.min.apply(null, wsU.concat(wgU).filter(function(v){ return !isNaN(v); }));
-  let maxV = Math.max.apply(null, wsU.concat(wgU).filter(function(v){ return !isNaN(v); }));
+
+  /* Oletuksena 12h — napin kautta vaihdetaan 24h:ksi */
+  var hours = el._fmiHours || 12;
+  var cutIdx = Math.max(0, wsData.length - Math.round(wsData.length * hours / 24));
+  var wsSlice = wsData.slice(cutIdx);
+  var wgSlice = wgData.length ? wgData.slice(cutIdx) : [];
+
+  const n    = wsSlice.length;
+  const wsU  = wsSlice.map(function(p){ return Units.convert(p.v); });
+  const wgU  = wgSlice.map(function(p){ return Units.convert(p.v); });
+  const times = wsSlice.map(function(p){ return p.t; });
+
+  var minV = Math.min.apply(null, wsU.concat(wgU).filter(function(v){ return !isNaN(v); }));
+  var maxV = Math.max.apply(null, wsU.concat(wgU).filter(function(v){ return !isNaN(v); }));
   if (!isFinite(minV)) minV = 0;
   if (!isFinite(maxV)) maxV = 10;
   minV = Math.max(0, minV - 1);
   maxV = maxV + 1;
+
   const W = 300, H = 80, pad = 4, lH = 14, TH = H + lH;
-  function xOf(i){ return pad + i / (n - 1 || 1) * (W - pad * 2); }
-  function yOf(v){ return H - pad - (v - minV) / (maxV - minV || 1) * (H - pad * 2); }
+  function xOf(i){ return pad + i / (n-1||1) * (W-pad*2); }
+  function yOf(v){ return H - pad - (v-minV)/(maxV-minV||1) * (H-pad*2); }
+  function iOf(x){ return Math.round((x-pad)/(W-pad*2)*(n-1)); } /* x px → indeksi */
+
   var wsPts = wsU.map(function(v,i){ return xOf(i).toFixed(1)+','+yOf(v).toFixed(1); }).join(' ');
   var wgPts = wgU.length ? wgU.map(function(v,i){ return xOf(i).toFixed(1)+','+yOf(v).toFixed(1); }).join(' ') : '';
+
+  /* X-akseli tunnit */
   var xlbls = '';
   for (var i = 0; i < times.length; i++) {
     if (times[i] && times[i].slice(3,5) === '00') {
       xlbls += '<text x="'+xOf(i).toFixed(1)+'" y="'+(TH-1)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.3)" text-anchor="middle">'+times[i].slice(0,2)+'</text>';
     }
   }
+
+  /* Y-akseli */
   var ylbls = '';
   for (var yv = Math.ceil(minV); yv <= Math.floor(maxV); yv++) {
     if (yv <= minV || yv >= maxV) continue;
     ylbls += '<text x="'+(pad+1)+'" y="'+yOf(yv).toFixed(1)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(100,255,160,.35)" dominant-baseline="middle">'+yv+'</text>';
   }
+
+  /* Nykyhetki-merkki */
   var nowMarks = '';
   if (wx && wx.ms != null) {
-    var nx  = xOf(n-1).toFixed(1);
+    var nx = xOf(n-1).toFixed(1);
     var nws = Units.convert(wx.ms);
     var nwg = wx.gst != null ? Units.convert(wx.gst) : null;
-    nowMarks = '<line x1="'+nx+'" y1="'+pad+'" x2="'+nx+'" y2="'+(H-pad)+'" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="2,2"/>'
-      + '<circle cx="'+nx+'" cy="'+yOf(nws).toFixed(1)+'" r="3" fill="rgba(100,255,160,.95)"/>';
+    nowMarks = '<line x1="'+nx+'" y1="'+pad+'" x2="'+nx+'" y2="'+(H-pad)+'" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-dasharray="2,2"/>'
+      +'<circle cx="'+nx+'" cy="'+yOf(nws).toFixed(1)+'" r="3" fill="rgba(100,255,160,.95)"/>';
     if (nwg != null) nowMarks += '<circle cx="'+nx+'" cy="'+yOf(nwg).toFixed(1)+'" r="3" fill="rgba(255,200,100,.95)"/>';
   }
+
   var latWs = wsU.length ? wsU[wsU.length-1] : null;
   var latWg = wgU.length ? wgU[wgU.length-1] : null;
-  /* SVG + legenda HTML */
-  var chartHtml =
-    '<div style="display:flex;gap:14px;margin-bottom:6px;font-family:DM Mono,monospace;font-size:9px">'
-      +'<span><span style="color:rgba(100,255,160,.8)">&#9632;</span> Tuuli'+(latWs!=null?' '+latWs.toFixed(1)+' '+Units.label():'')+'</span>'
-      +(wgData.length?'<span><span style="color:rgba(255,200,100,.8)">&#9632;</span> Puuska'+(latWg!=null?' '+latWg.toFixed(1)+' '+Units.label():'')+'</span>':'')
-    +'</div>'
-    +'<svg viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block">'
-      +(wgData.length?'<polyline points="'+wgPts+'" fill="none" stroke="rgba(255,200,100,.5)" stroke-width="1.5" stroke-linejoin="round"/>':'')
-      +'<polyline points="'+wsPts+'" fill="none" stroke="rgba(100,255,160,.85)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
-      +nowMarks+ylbls+xlbls
-    +'</svg>'
-    +'<div id="fmi-hist-source" style="margin-top:6px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2)">'
-      +'Lahde: FMI avoin data &middot; '+(data.station||'Harmaja')+' &middot; 24h &middot; 10 min havainnot'
+  var svgId = 'fmi-svg-' + Math.random().toString(36).slice(2,7);
+
+  /* 12h/24h napit */
+  var periodBtns =
+    '<div style="display:flex;gap:6px;margin-bottom:8px;justify-content:flex-end">'
+      +['12h','24h'].map(function(p){
+        var active = (p==='12h'&&hours===12)||(p==='24h'&&hours===24);
+        return '<button data-fmi-period="'+p+'" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 9px;border-radius:7px;border:1px solid rgba(100,255,160,'+(active?.45:.2)+');background:'+(active?'rgba(100,255,160,.12)':'none')+';color:'+(active?'rgba(100,255,160,.9)':'rgba(100,255,160,.4)')+';cursor:pointer">'+p+'</button>';
+      }).join('')
     +'</div>';
 
-  el.innerHTML = chartHtml;
+  /* Legenda */
+  var legend =
+    '<div style="display:flex;gap:14px;margin-bottom:6px;font-family:DM Mono,monospace;font-size:9px">'
+      +'<span><span style="color:rgba(100,255,160,.8)">&#9632;</span> Tuuli'+(latWs!=null?' '+latWs.toFixed(1)+' '+Units.label():'')+'</span>'
+      +(wgSlice.length?'<span><span style="color:rgba(255,200,100,.8)">&#9632;</span> Puuska'+(latWg!=null?' '+latWg.toFixed(1)+' '+Units.label():'')+'</span>':'')
+    +'</div>';
 
-  /* Lisaa dropdown jos spottitieto saatavilla */
+  /* Tooltip elementit SVG:ssä */
+  var tooltip =
+    '<line id="'+svgId+'-vline" x1="-1" y1="'+pad+'" x2="-1" y2="'+(H-pad)+'" stroke="rgba(255,255,255,.5)" stroke-width="1" stroke-dasharray="3,2" pointer-events="none"/>'
+    +'<circle id="'+svgId+'-dot-ws" cx="-1" cy="-1" r="3.5" fill="rgba(100,255,160,.95)" stroke="rgba(0,0,0,.3)" stroke-width="1" pointer-events="none"/>'
+    +(wgSlice.length?'<circle id="'+svgId+'-dot-wg" cx="-1" cy="-1" r="3.5" fill="rgba(255,200,100,.95)" stroke="rgba(0,0,0,.3)" stroke-width="1" pointer-events="none"/>':'')
+    /* Hit area — transparent overlay */
+    +'<rect id="'+svgId+'-hit" x="'+pad+'" y="'+pad+'" width="'+(W-pad*2)+'" height="'+(H-pad*2)+'" fill="transparent" style="cursor:crosshair"/>';
+
+  /* Tooltip-popup div */
+  var tooltipDiv =
+    '<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(8,12,26,.95);border:1px solid rgba(100,255,160,.25);border-radius:8px;padding:6px 10px;font-family:DM Mono,monospace;font-size:9px;pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5);z-index:100"></div>';
+
+  el.innerHTML =
+    periodBtns + legend
+    +'<div style="position:relative">'
+      +tooltipDiv
+      +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block;touch-action:none">'
+        +(wgSlice.length?'<polyline points="'+wgPts+'" fill="none" stroke="rgba(255,200,100,.45)" stroke-width="1.5" stroke-linejoin="round"/>':'')
+        +'<polyline points="'+wsPts+'" fill="none" stroke="rgba(100,255,160,.85)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
+        +nowMarks+ylbls+xlbls+tooltip
+      +'</svg>'
+    +'</div>'
+    +'<div style="margin-top:6px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2)">'
+      +'FMI avoin data &middot; '+(data.station||'Harmaja')+' &middot; '+hours+'h &middot; 10 min havainnot'
+    +'</div>';
+
+  /* Lisää dropdown */
   const spotRef = State.sheetSpot;
   if (spotRef) {
     const stations = _fmiStationsSorted(spotRef.lat, spotRef.lng);
     const curPlace = data.place || 'harmaja';
-    const selected = stations.find(function(s){ return s.place === curPlace; }) || stations[0];
+    const selected = stations.find(function(s){ return s.place===curPlace; }) || stations[0];
     const dropdown = _fmiDropdown(el, stations, selected, function(st) {
-      /* Vaihda asemaa: hae uusi historia */
-      var srcEl = document.getElementById('fmi-hist-source');
-      el.insertAdjacentHTML('afterbegin', '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:10px">Ladataan '+st.name+'...</div>');
-      const histUrl = 'https://foilwind.vercel.app/api/fmi?history=1&place=' + st.place;
-      fetch(histUrl).then(function(r){ return r.json(); }).then(function(newData){
-        el.dataset.ok = '1';
-        _renderLiveHistory(el, Object.assign({}, newData, { place: st.place }), wx);
-      }).catch(function(){
-        el.firstChild && el.firstChild.remove();
-      });
+      el.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:10px">Ladataan '+st.name+'...</div>';
+      fetch('https://foilwind.vercel.app/api/fmi?history=1&place='+st.place)
+        .then(function(r){ return r.json(); })
+        .then(function(nd){ el._fmiHours=hours; delete el.dataset.ok; el.dataset.ok='1'; _renderLiveHistory(el,Object.assign({},nd,{place:st.place}),wx); })
+        .catch(function(){ el.innerHTML='<div style="text-align:center;padding:10px;color:rgba(255,100,100,.7);font-family:DM Mono,monospace;font-size:10px">Virhe</div>'; });
     });
     el.insertBefore(dropdown, el.firstChild);
   }
+
+  /* Period napit */
+  el.querySelectorAll('[data-fmi-period]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      el._fmiHours = parseInt(btn.dataset.fmiPeriod);
+      _renderLiveHistory(el, data, wx);
+    }, { passive: true });
+  });
+
+  /* SVG interaktiivinen tooltip */
+  var svg = document.getElementById(svgId);
+  var hit = document.getElementById(svgId+'-hit');
+  var vline = document.getElementById(svgId+'-vline');
+  var dotWs = document.getElementById(svgId+'-dot-ws');
+  var dotWg = document.getElementById(svgId+'-dot-wg');
+  var tip   = document.getElementById(svgId+'-tip');
+  if (!svg || !hit) return;
+
+  function svgX(clientX) {
+    var rect = svg.getBoundingClientRect();
+    return (clientX - rect.left) / rect.width * W;
+  }
+
+  function showTooltip(clientX, clientY) {
+    var sx = svgX(clientX);
+    var idx = Math.max(0, Math.min(n-1, iOf(sx)));
+    var cx  = xOf(idx);
+    var wsV = wsU[idx];
+    var wgV = wgU.length > idx ? wgU[idx] : null;
+
+    /* Pystyviiva */
+    vline.setAttribute('x1', cx.toFixed(1));
+    vline.setAttribute('x2', cx.toFixed(1));
+
+    /* Pisteet viivalla */
+    dotWs.setAttribute('cx', cx.toFixed(1));
+    dotWs.setAttribute('cy', yOf(wsV).toFixed(1));
+    if (dotWg && wgV != null) {
+      dotWg.setAttribute('cx', cx.toFixed(1));
+      dotWg.setAttribute('cy', yOf(wgV).toFixed(1));
+    }
+
+    /* Tooltip teksti */
+    var t = times[idx] || '';
+    tip.innerHTML =
+      '<div style="color:rgba(255,255,255,.4);margin-bottom:3px">'+t+'</div>'
+      +'<div style="color:rgba(100,255,160,.9)">Tuuli: '+wsV.toFixed(1)+' '+Units.label()+'</div>'
+      +(wgV!=null?'<div style="color:rgba(255,200,100,.9)">Puuska: '+wgV.toFixed(1)+' '+Units.label()+'</div>':'');
+
+    /* Tooltip sijainti — pysyy SVG:n sisällä */
+    var rect = svg.getBoundingClientRect();
+    var relX = clientX - rect.left;
+    var tipW = 120;
+    var tipLeft = relX > rect.width/2 ? relX - tipW - 8 : relX + 8;
+    tip.style.left = tipLeft + 'px';
+    tip.style.top  = '4px';
+    tip.style.display = 'block';
+  }
+
+  function hideTooltip() {
+    tip.style.display = 'none';
+    vline.setAttribute('x1','-1'); vline.setAttribute('x2','-1');
+    dotWs.setAttribute('cx','-1'); dotWs.setAttribute('cy','-1');
+    if (dotWg) { dotWg.setAttribute('cx','-1'); dotWg.setAttribute('cy','-1'); }
+  }
+
+  /* Mouse events */
+  hit.addEventListener('mousemove', function(e){ showTooltip(e.clientX, e.clientY); }, { passive: true });
+  hit.addEventListener('mouseleave', hideTooltip, { passive: true });
+
+  /* Touch events */
+  hit.addEventListener('touchstart', function(e){ if(e.touches[0]) showTooltip(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+  hit.addEventListener('touchmove',  function(e){ e.preventDefault(); if(e.touches[0]) showTooltip(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+  hit.addEventListener('touchend', function(){ setTimeout(hideTooltip, 1500); }, { passive: true });
 }
 function _condCard(icon, label, value) {
   return '<div class="sh-cond-card">'
