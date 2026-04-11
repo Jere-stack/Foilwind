@@ -3105,7 +3105,7 @@ function buildUirasPlaceholder(spot) {
 
 /* SVG-historiakaavio */
 /* Interaktiivinen UiRas vedenlämpökaavio — tooltip + pystyviiva */
-function _uirasChartInteractive(el, allPts, stationName) {
+function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, spotLng) {
   var period = el._period || '7d';
   var pMs = {'7d':7*864e5,'30d':30*864e5,'90d':90*864e5};
   var now = Date.now();
@@ -3158,7 +3158,7 @@ function _uirasChartInteractive(el, allPts, stationName) {
 
   el.innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-      +'<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.6)">🌡 Uimaveden lämpötila &middot; '+(stationName||'')+'</span>'
+      +'<div id="'+svgId+'-dd"></div>'
       +'<div style="display:flex;gap:5px">'
         +pbtn('7d','7 vrk')+pbtn('30d','30 vrk')+pbtn('all','Kaikki')
       +'</div>'
@@ -3182,6 +3182,71 @@ function _uirasChartInteractive(el, allPts, stationName) {
       _uirasChartInteractive(el, allPts, stationName);
     }, { passive: true });
   });
+
+  /* Asemavalitsin dropdown */
+  var ddEl = document.getElementById(svgId+'-dd');
+  if (ddEl && uirasStation && spotLat != null) {
+    /* Laske kaikki asemat jarjestyksessa */
+    function uiKm(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
+    var sorted = UIRAS_STATIONS.map(function(s){ return Object.assign({},s,{km:uiKm(spotLat,spotLng,s.lat,s.lng)}); })
+      .filter(function(s){ return s.km <= 20; })
+      .sort(function(a,b){ return a.km-b.km; })
+      .slice(0,6);
+
+    /* Trigger */
+    var tr = document.createElement('button');
+    tr.style.cssText = 'display:flex;align-items:center;gap:5px;background:none;border:none;font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.6);cursor:pointer;padding:0;-webkit-user-select:none;user-select:none';
+    function setTr(st) {
+      tr.innerHTML = '<span style="color:rgba(255,255,255,.3)">Asema</span>'
+        +'<span style="color:rgba(0,207,255,.85);font-weight:700">'+st.name+'</span>'
+        +'<span style="color:rgba(255,255,255,.25)">'+st.km.toFixed(1)+'km</span>'
+        +'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="2,3 5,7 8,3" fill="none" stroke="rgba(0,207,255,.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+    var curSt = sorted.find(function(s){ return s.id===uirasStation.id; }) || sorted[0];
+    setTr(curSt);
+
+    /* Menu */
+    var menu = document.createElement('div');
+    menu.style.cssText = 'display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:180px;background:rgba(12,18,36,.98);border:1px solid rgba(0,180,255,.2);border-radius:12px;overflow:hidden;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.6);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)';
+    sorted.forEach(function(st) {
+      var item = document.createElement('div');
+      item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;font-family:DM Mono,monospace;font-size:10px;border-bottom:1px solid rgba(255,255,255,.04);-webkit-user-select:none;user-select:none'+(st.id===curSt.id?';background:rgba(0,180,255,.08)':'');
+      item.innerHTML = '<span style="color:rgba(255,255,255,.85);font-weight:700">'+st.name+'</span>'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<span style="color:rgba(255,255,255,.3);font-size:9px">'+st.km.toFixed(1)+'km</span>'
+          +(st.id===curSt.id?'<span style="color:rgba(0,207,255,.8)">✓</span>':'')
+        +'</div>';
+      item.addEventListener('click', function(e){
+        e.stopPropagation();
+        menu.style.display='none';
+        if (st.id===curSt.id) return;
+        curSt=st; setTr(st);
+        el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ladataan '+st.name+'...</div>';
+        UiRas.history(st.id).then(function(pts){
+          el._period = period;
+          _uirasChartInteractive(el, pts, st.name, st, spotLat, spotLng);
+        }).catch(function(){
+          el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Ei dataa</div>';
+        });
+      }, {passive:true});
+      menu.appendChild(item);
+    });
+    tr.addEventListener('click', function(e){
+      e.stopPropagation();
+      var open = menu.style.display==='block';
+      document.querySelectorAll('.uiras-menu-open').forEach(function(m){ m.style.display='none'; m.classList.remove('uiras-menu-open'); });
+      if (!open) { menu.style.display='block'; menu.classList.add('uiras-menu-open'); if(typeof Haptics!=='undefined')Haptics.light(); }
+    }, {passive:true});
+    document.addEventListener('click', function(){ menu.style.display='none'; }, {once:true,passive:true});
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;display:inline-block';
+    wrap.appendChild(tr);
+    wrap.appendChild(menu);
+    ddEl.appendChild(wrap);
+  } else if (ddEl) {
+    ddEl.innerHTML = '<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.5)">🌡 '+( stationName||'Vedenlämpö')+'</span>';
+  }
 
   /* Tooltip */
   var svg  = document.getElementById(svgId);
@@ -3224,7 +3289,7 @@ function _uirasChartInteractive(el, allPts, stationName) {
 }
 
 /* Vanha _uirasChart — pidetaan vanhoille kutsupaikoille */
-function _uirasChart(el,allPts,period,avgWin){ _uirasChartInteractive(el,allPts,'Vedenlämpö'); }
+function _uirasChart(el,allPts,period,avgWin){ _uirasChartInteractive(el,allPts,'Vedenlämpö',null,null,null); }
 
 
 function openSheet(spot, hourIdx) {
@@ -3683,7 +3748,7 @@ function openSheet(spot, hourIdx) {
       return UiRas.history(_uirasStation.id);
     }).then(function(pts) {
       if (!pts || !uirasHistEl) return;
-      _uirasChartInteractive(uirasHistEl, pts, _uirasStation.name);
+      _uirasChartInteractive(uirasHistEl, pts, _uirasStation.name, _uirasStation, spot.lat, spot.lng);
     }).catch(function() {
       if (uirasHistEl) uirasHistEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Vedenlämpödata ei saatavilla</div>';
     });
