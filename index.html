@@ -2773,9 +2773,14 @@ const UiRas = {
     const gj = await r.json();
     const map = {};
     (gj.features||[]).forEach(f => {
-      const p=f.properties||{};
-      const id=p.dev_id||p.sensor_id||p.id;
-      if (id) map[id]={temp:p.water_temperature??p.temperature??null, time:p.time||p.timestamp||null};
+      const p = f.properties||{};
+      const m = p.measurement||{};
+      /* ID on feature.id tai properties.dev_id */
+      const id = f.id || p.dev_id || p.id;
+      /* Lämpötila on measurement.temp_water */
+      const temp = m.temp_water ?? m.water_temperature ?? m.temperature ?? null;
+      const time = m.time || p.time || null;
+      if (id) map[id] = { temp, time };
     });
     this._latestCache=map; this._latestTs=Date.now();
     return map;
@@ -2788,10 +2793,14 @@ const UiRas = {
     const r=await fetch(this.BASE+id+'.geojson');
     if (!r.ok) throw new Error('HTTP '+r.status);
     const gj=await r.json();
-    const pts=(gj.features||[]).map(f=>({
-      t:f.properties.time||f.properties.timestamp,
-      v:f.properties.water_temperature??f.properties.temperature
-    })).filter(p=>p.t&&p.v!=null).sort((a,b)=>a.t<b.t?-1:1);
+    const pts=(gj.features||[]).map(f=>{
+      const p=f.properties||{};
+      const m=p.measurement||{};
+      return {
+        t: m.time || p.time || p.timestamp,
+        v: m.temp_water ?? m.water_temperature ?? m.temperature ?? null
+      };
+    }).filter(p=>p.t&&p.v!=null).sort((a,b)=>a.t<b.t?-1:1);
     window[key]={ts:Date.now(),d:pts};
     return pts;
   }
