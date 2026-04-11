@@ -633,6 +633,10 @@ border: 1px solid rgba(255,255,255,.07);
 border-radius: 12px; padding: 10px 12px;
 display: flex; align-items: center; gap: 8px;
 }
+/* Puuskaisuus rivillä 2 — span 2 (vie loput 2 saraketta) */
+.sh-stats .sh-cond-card {
+grid-column: span 2;
+}
 .sh-cond-icon { font-size: 18px; flex-shrink: 0; }
 .sh-cond-info {}
 .sh-cond-label {
@@ -2890,20 +2894,29 @@ function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spo
     }
 
     /* Live-havainto klikkaus — laajentaa stat-kortti */
-    const liveBtn = e.target.closest('.sh-stat-live');
+    const liveBtn = e.target.closest('[data-uiras-live-btn]');
     if (liveBtn) {
-      const panel = liveBtn.querySelector('.sh-stat-live-panel');
-      const toggle = liveBtn.querySelector('.sh-stat-water-toggle');
+      const panelId  = liveBtn.dataset.livePanel;
+      const panel    = document.getElementById(panelId);
+      const toggleEl = liveBtn.querySelector('[data-live-toggle]');
       if (!panel) return;
-      const isOpen = liveBtn.classList.contains('expanded');
+      const isOpen = panel.classList.contains('open');
       if (isOpen) {
+        panel.classList.remove('open');
         liveBtn.classList.remove('expanded');
-        panel.style.display = 'none';
-        if (toggle) toggle.textContent = '▼ Lisää';
+        if (toggleEl) toggleEl.textContent = '▼ Lisää';
       } else {
+        panel.classList.add('open');
         liveBtn.classList.add('expanded');
-        panel.style.display = 'block';
-        if (toggle) toggle.textContent = '▲ Sulje';
+        if (toggleEl) toggleEl.textContent = '▲ Sulje';
+        /* Renderöi paneeli jos data saatavilla */
+        const spotRef = State.sheetSpot;
+        if (spotRef && spotRef._currentWx && !panel.dataset.ok) {
+          panel.dataset.ok = '1';
+          panel.innerHTML = _livePanel(spotRef._currentWx);
+        } else if (!panel.dataset.ok) {
+          panel.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ladataan...</div>';
+        }
       }
       if (typeof Haptics !== 'undefined') Haptics.light();
       return;
@@ -3359,18 +3372,20 @@ function openSheet(spot, hourIdx) {
       + badge.text
     + '</div>'
 
-    /* 4 stats: Puuska · Trendi · Havainto · Vesi */
-    + '<div class="sh-stats">'
-      + _statCard('Puuska', Units.fmt(gst), Units.label(), ColorRamp.rgb(gst))
-      + _statCard('Trendi', trend.arrow + ' ' + trend.label, '3h', null, trend.cls)
+    /* Rivi 1: Lämpötila · Kastepiste · Havainto · Vesi */
+    + '<div class="sh-stats" id="sh-stats-live">'
+      + _tempStatCard(fmiId + '-tmp')
+      + _dewStatCard(fmiId + '-dew')
       + _liveStatCard(fmiId, spot)
       + (_uirasStation
           ? _waterStatCard(_waterStatId, _uirasStation)
           : _statCard('Vesi', waterTemp, '', null))
     + '</div>'
 
-    /* 1 condition card — vain puuskaisuus */
-    + '<div class="sh-conditions">'
+    /* Rivi 2: Puuska · Trendi + puuskaisuusindeksi */
+    + '<div class="sh-stats">'
+      + _statCard('Puuska', Units.fmt(gst), Units.label(), ColorRamp.rgb(gst))
+      + _statCard('Trendi', trend.arrow + ' ' + trend.label, '3h', null, trend.cls)
       + _condCard('🌊', 'Puuskaisuus', '<span class="' + gi.cls + '">' + gi.label + '</span>')
     + '</div>'
 
@@ -3462,10 +3477,29 @@ function _liveStatCard(id, spot) {
     }).catch(() => {});
   }, 150);
 
-  return '<div id="' + id + '-live" class="sh-stat sh-stat-live">'
+  return '<div id="' + id + '-live" class="sh-stat sh-stat-live"'
+    + ' data-uiras-live-btn data-live-panel="' + id + '-panel">'
     + '<span class="sh-stat-label">🛰 Havainto</span>'
-    + '<span class="sh-stat-value" style="color:rgba(150,255,180,.6)">—</span>'
-    + '<span class="sh-stat-sub">live</span>'
+    + '<span data-live-val class="sh-stat-value" style="color:rgba(150,255,180,.6)">—</span>'
+    + '<span data-live-sub class="sh-stat-sub">live</span>'
+    + '<span data-live-toggle class="sh-stat-water-toggle">▼ Lisää</span>'
+  + '</div>'
+  + '<div id="' + id + '-panel" class="sh-stat-water-panel"></div>';
+}
+
+/* Placeholder stat-kortit lämpötilalle ja kastepisteelle */
+function _tempStatCard(id) {
+  return '<div id="' + id + '" class="sh-stat">'
+    + '<span class="sh-stat-label">🌡 Lämpötila</span>'
+    + '<span class="sh-stat-value" style="color:rgba(255,200,100,.6)">—</span>'
+    + '<span class="sh-stat-sub">°C</span>'
+  + '</div>';
+}
+function _dewStatCard(id) {
+  return '<div id="' + id + '" class="sh-stat">'
+    + '<span class="sh-stat-label">💧 Kastepiste</span>'
+    + '<span class="sh-stat-value" style="color:rgba(100,200,255,.6)">—</span>'
+    + '<span class="sh-stat-sub">°C</span>'
   + '</div>';
 }
 
@@ -3484,18 +3518,33 @@ function _wxLabel(wc) {
 }
 
 function _renderLive(el, wx) {
-  const cc = ColorRamp.rgb(wx.ms);
-  /* Stat-kortti — kompakti näkymä */
-  el.innerHTML = '<span class="sh-stat-label">🛰 Havainto</span>'
-    + '<span class="sh-stat-value" style="color:rgb(' + cc.r + ',' + cc.g + ',' + cc.b + ')">'
-      + Units.fmt(wx.ms)
-    + '</span>'
-    + '<span class="sh-stat-sub">' + dirArrow(wx.dir) + ' ' + Math.round(wx.dir) + '°</span>'
-    + '<span class="sh-stat-water-toggle">▼ Lisää</span>'
-    /* Pop-up paneeli */
-    + '<div class="sh-stat-live-panel" style="display:none">'
-      + _livePanel(wx)
-    + '</div>';
+  const cc  = ColorRamp.rgb(wx.ms);
+  const col = 'rgb(' + cc.r + ',' + cc.g + ',' + cc.b + ')';
+  const id  = el.id.replace('-live','');
+
+  /* Päivitä kompakti stat-kortti */
+  const valEl    = el.querySelector('[data-live-val]');
+  const subEl    = el.querySelector('[data-live-sub]');
+  const toggleEl = el.querySelector('[data-live-toggle]');
+  if (valEl)    { valEl.textContent = Units.fmt(wx.ms); valEl.style.color = col; }
+  if (subEl)    subEl.textContent = dirArrow(wx.dir) + ' ' + Math.round(wx.dir) + '°';
+  if (toggleEl) toggleEl.textContent = el.classList.contains('expanded') ? '▲ Sulje' : '▼ Lisää';
+
+  /* Päivitä lämpötila + kastepiste kortit */
+  const tmpEl = document.getElementById(id + '-tmp');
+  const dewEl = document.getElementById(id + '-dew');
+  if (tmpEl && wx.tmp != null) {
+    const tEl = tmpEl.querySelector('.sh-stat-value');
+    if (tEl) { tEl.textContent = wx.tmp.toFixed(1); tEl.style.color = 'rgba(255,200,100,.9)'; }
+  }
+  if (dewEl && wx.dew != null) {
+    const dEl = dewEl.querySelector('.sh-stat-value');
+    if (dEl) { dEl.textContent = wx.dew.toFixed(1); dEl.style.color = 'rgba(100,200,255,.9)'; }
+  }
+
+  /* Päivitä pop-up paneeli jos auki */
+  const panel = document.getElementById(id + '-panel');
+  if (panel && panel.dataset.ok) panel.innerHTML = _livePanel(wx);
 }
 
 function _livePanel(wx) {
@@ -3506,12 +3555,16 @@ function _livePanel(wx) {
     + '<span style="color:var(--muted)">' + lbl + '</span>'
     + '<span style="color:var(--text)">' + val + '</span></div>';
   let html = row('Tuuli', '<span style="color:' + col + '">' + Units.fmt(wx.ms) + ' ' + Units.label() + '</span>'
-    + ' ' + dirArrow(wx.dir) + ' ' + Math.round(wx.dir) + '°');
+    + '  ' + dirArrow(wx.dir) + ' ' + Math.round(wx.dir) + '°');
   html += row('Puuska', '<span style="color:' + col + '">' + Units.fmt(wx.gst) + ' ' + Units.label() + '</span>');
-  if (wx.tmp != null) html += row('Lämpötila', wx.tmp.toFixed(1) + ' °C'
-    + (wx.wc != null ? '  ' + _wxLabel(wx.wc) : ''));
-  if (wx.dew != null) html += row('Kastepiste', wx.dew.toFixed(1) + ' °C');
+  if (wx.wc != null) html += row('Sää', _wxLabel(wx.wc));
   if (wx.prp != null && wx.prp > 0) html += row('Sade', wx.prp.toFixed(1) + ' mm/h');
+  /* Päivitysaika + lähde */
+  const updStr = wx.ts ? (()=>{ const d=new Date(wx.ts); return ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2); })() : '—';
+  html += '<div style="margin-top:8px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2);line-height:1.6">'
+    + 'Lähde: Open-Meteo (ERA5 + NWP)<br>'
+    + 'Päivitetty: ' + updStr + ' · 10 min cache'
+  + '</div>';
   return html;
 }
 function _condCard(icon, label, value) {
