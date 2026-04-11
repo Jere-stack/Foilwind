@@ -597,6 +597,61 @@ padding: 10px 12px;
 margin-top: -4px;
 }
 .sh-stat-live-panel.open { display: block; }
+
+/* Asemavalitsin dropdown */
+.fmi-station-trigger {
+display: flex; align-items: center; gap: 6px;
+font-family: ‘DM Mono’, monospace; font-size: 9px;
+color: rgba(100,255,160,.6); cursor: pointer;
+background: none; border: none; padding: 0;
+margin-bottom: 10px; -webkit-user-select: none; user-select: none;
+width: 100%;
+}
+.fmi-station-trigger-name {
+font-weight: 700; color: rgba(100,255,160,.85);
+}
+.fmi-station-trigger-dist { color: rgba(255,255,255,.3); }
+.fmi-station-trigger-arrow {
+margin-left: auto; color: rgba(100,255,160,.4);
+transition: transform .2s;
+}
+.fmi-station-trigger.open .fmi-station-trigger-arrow { transform: rotate(180deg); }
+
+.fmi-dropdown {
+position: relative; margin-bottom: 10px;
+}
+.fmi-dropdown-menu {
+display: none;
+position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+background: rgba(12,18,36,.98);
+border: 1px solid rgba(100,255,160,.2);
+border-radius: 12px;
+overflow: hidden;
+z-index: 200;
+box-shadow: 0 8px 32px rgba(0,0,0,.6);
+-webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+}
+.fmi-dropdown-menu.open { display: block; }
+.fmi-dropdown-item {
+display: flex; align-items: center; justify-content: space-between;
+padding: 10px 14px; cursor: pointer;
+font-family: ‘DM Mono’, monospace; font-size: 10px;
+border-bottom: 1px solid rgba(255,255,255,.04);
+transition: background .12s;
+-webkit-user-select: none; user-select: none;
+}
+.fmi-dropdown-item:last-child { border-bottom: none; }
+.fmi-dropdown-item:active { background: rgba(100,255,160,.1); }
+.fmi-dropdown-item.selected { background: rgba(100,255,160,.08); }
+.fmi-dropdown-item-left { display: flex; flex-direction: column; gap: 2px; }
+.fmi-dropdown-item-name { color: rgba(255,255,255,.85); font-weight: 700; }
+.fmi-dropdown-item-tag {
+font-size: 8px; color: rgba(100,255,160,.5);
+background: rgba(100,255,160,.08); border-radius: 4px;
+padding: 1px 5px; align-self: flex-start;
+}
+.fmi-dropdown-item-dist { color: rgba(255,255,255,.3); font-size: 9px; }
+.fmi-dropdown-item-check { color: rgba(100,255,160,.8); font-size: 12px; }
 .sh-stat-water {
 cursor: pointer;
 border-color: rgba(0,180,255,.2);
@@ -3572,6 +3627,92 @@ function _renderLive(el, wx) {
 }
 
 /* Piirtaa 24h FMI historia kaavion */
+/* Laskee ja palauttaa kaikki FMI-asemat jarjestettyna etaisyyden mukaan */
+function _fmiStationsSorted(spotLat, spotLng) {
+  const ALL = [
+    { place: 'harmaja',    name: 'Harmaja',         lat: 60.1053, lng: 24.9754, tag: 'Avomeri' },
+    { place: 'kaisaniemi', name: 'Kaisaniemi',      lat: 60.1752, lng: 24.9445, tag: null },
+    { place: 'kumpula',    name: 'Kumpula',         lat: 60.2039, lng: 24.9608, tag: null },
+    { place: 'vuosaari',   name: 'Vuosaari satama', lat: 60.2087, lng: 25.1966, tag: null },
+  ];
+  function km(a,b,c,d){
+    const R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;
+    return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));
+  }
+  return ALL.map(function(s){ return Object.assign({}, s, { km: km(spotLat, spotLng, s.lat, s.lng) }); })
+    .sort(function(a,b){ return a.km - b.km; });
+}
+
+/* Rakentaa dropdown-triggerin + menun */
+function _fmiDropdown(panelEl, stations, selected, onSelect) {
+  const wrap = document.createElement('div');
+  wrap.className = 'fmi-dropdown';
+
+  const trigger = document.createElement('button');
+  trigger.className = 'fmi-station-trigger';
+  function updateTrigger(st) {
+    trigger.innerHTML =
+      '<span>📡 Asema:</span>'
+      + '<span class="fmi-station-trigger-name">' + st.name + '</span>'
+      + (st.tag ? '<span class="fmi-dropdown-item-tag">' + st.tag + '</span>' : '')
+      + '<span class="fmi-station-trigger-dist">' + st.km.toFixed(1) + ' km</span>'
+      + '<span class="fmi-station-trigger-arrow">▾</span>';
+  }
+  updateTrigger(selected);
+
+  const menu = document.createElement('div');
+  menu.className = 'fmi-dropdown-menu';
+
+  stations.forEach(function(st) {
+    const item = document.createElement('div');
+    item.className = 'fmi-dropdown-item' + (st.place === selected.place ? ' selected' : '');
+    item.innerHTML =
+      '<div class="fmi-dropdown-item-left">'
+        + '<span class="fmi-dropdown-item-name">' + st.name + '</span>'
+        + (st.tag ? '<span class="fmi-dropdown-item-tag">' + st.tag + '</span>' : '')
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:10px">'
+        + '<span class="fmi-dropdown-item-dist">' + st.km.toFixed(1) + ' km</span>'
+        + (st.place === selected.place ? '<span class="fmi-dropdown-item-check">✓</span>' : '')
+      + '</div>';
+
+    item.addEventListener('click', function(e) {
+      e.stopPropagation();
+      menu.classList.remove('open');
+      trigger.classList.remove('open');
+      menu.querySelectorAll('.fmi-dropdown-item').forEach(function(i){ i.classList.remove('selected'); i.querySelector('.fmi-dropdown-item-check') && i.querySelector('.fmi-dropdown-item-check').remove(); });
+      item.classList.add('selected');
+      item.querySelector('.fmi-dropdown-item-dist').insertAdjacentHTML('afterend','<span class="fmi-dropdown-item-check">✓</span>');
+      updateTrigger(st);
+      onSelect(st);
+    }, { passive: true });
+    menu.appendChild(item);
+  });
+
+  trigger.addEventListener('click', function(e) {
+    e.stopPropagation();
+    const isOpen = menu.classList.contains('open');
+    /* Sulje muut avoimet dropdownit */
+    document.querySelectorAll('.fmi-dropdown-menu.open').forEach(function(m){ m.classList.remove('open'); });
+    document.querySelectorAll('.fmi-station-trigger.open').forEach(function(t){ t.classList.remove('open'); });
+    if (!isOpen) {
+      menu.classList.add('open');
+      trigger.classList.add('open');
+      if (typeof Haptics !== 'undefined') Haptics.light();
+    }
+  }, { passive: true });
+
+  /* Sulje klikkaamalla muualle */
+  document.addEventListener('click', function() {
+    menu.classList.remove('open');
+    trigger.classList.remove('open');
+  }, { once: true, passive: true });
+
+  wrap.appendChild(trigger);
+  wrap.appendChild(menu);
+  return wrap;
+}
+
 function _renderLiveHistory(el, data, wx) {
   const wsData = data.ws || [];
   const wgData = data.wg || [];
@@ -3616,7 +3757,8 @@ function _renderLiveHistory(el, data, wx) {
   }
   var latWs = wsU.length ? wsU[wsU.length-1] : null;
   var latWg = wgU.length ? wgU[wgU.length-1] : null;
-  el.innerHTML =
+  /* SVG + legenda HTML */
+  var chartHtml =
     '<div style="display:flex;gap:14px;margin-bottom:6px;font-family:DM Mono,monospace;font-size:9px">'
       +'<span><span style="color:rgba(100,255,160,.8)">&#9632;</span> Tuuli'+(latWs!=null?' '+latWs.toFixed(1)+' '+Units.label():'')+'</span>'
       +(wgData.length?'<span><span style="color:rgba(255,200,100,.8)">&#9632;</span> Puuska'+(latWg!=null?' '+latWg.toFixed(1)+' '+Units.label():'')+'</span>':'')
@@ -3626,9 +3768,32 @@ function _renderLiveHistory(el, data, wx) {
       +'<polyline points="'+wsPts+'" fill="none" stroke="rgba(100,255,160,.85)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
       +nowMarks+ylbls+xlbls
     +'</svg>'
-    +'<div style="margin-top:6px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2)">'
+    +'<div id="fmi-hist-source" style="margin-top:6px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2)">'
       +'Lahde: FMI avoin data &middot; '+(data.station||'Harmaja')+' &middot; 24h &middot; 10 min havainnot'
     +'</div>';
+
+  el.innerHTML = chartHtml;
+
+  /* Lisaa dropdown jos spottitieto saatavilla */
+  const spotRef = State.sheetSpot;
+  if (spotRef) {
+    const stations = _fmiStationsSorted(spotRef.lat, spotRef.lng);
+    const curPlace = data.place || 'harmaja';
+    const selected = stations.find(function(s){ return s.place === curPlace; }) || stations[0];
+    const dropdown = _fmiDropdown(el, stations, selected, function(st) {
+      /* Vaihda asemaa: hae uusi historia */
+      var srcEl = document.getElementById('fmi-hist-source');
+      el.insertAdjacentHTML('afterbegin', '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:10px">Ladataan '+st.name+'...</div>');
+      const histUrl = 'https://foilwind.vercel.app/api/fmi?history=1&place=' + st.place;
+      fetch(histUrl).then(function(r){ return r.json(); }).then(function(newData){
+        el.dataset.ok = '1';
+        _renderLiveHistory(el, Object.assign({}, newData, { place: st.place }), wx);
+      }).catch(function(){
+        el.firstChild && el.firstChild.remove();
+      });
+    });
+    el.insertBefore(dropdown, el.firstChild);
+  }
 }
 function _condCard(icon, label, value) {
   return '<div class="sh-cond-card">'
