@@ -1995,6 +1995,7 @@ function initMap() {
   map.options.doubleTapDragZoom = L.Browser.touch;
   map.options.doubleTapDragZoomOptions = { reverse: false, sensitivity: 120 };
   State.map = map;
+  _addObsMarkers(map);
 
 
   /* drag-zoom: handled by Leaflet.DoubleTapDragZoom plugin */
@@ -2885,6 +2886,14 @@ const UIRAS_STATIONS = [
   { name: 'Iso Huopalahti',    lat: 60.2050, lng: 24.8760, id: '70B3D5705001148E' },
 ];
 
+const FMI_MAP_STATIONS = [
+  { place:'harmaja',       name:'Harmaja',          lat:60.10512, lng:24.97539, tag:'Avomeri' },
+  { place:'kaisaniemi',    name:'Kaisaniemi',        lat:60.17523, lng:24.94459, tag:null },
+  { place:'kumpula',       name:'Kumpula',           lat:60.20307, lng:24.96131, tag:null },
+  { place:'vuosaari',      name:'Vuosaari satama',   lat:60.20900, lng:25.19660, tag:null },
+  { place:'malmi',         name:'Malmi lentokenttä', lat:60.25299, lng:25.04549, tag:null },
+];
+
 const UiRas = {
   BASE_LATEST:  'https://iot.fvh.fi/opendata/uiras/',
   PROXY:        'https://foilwind.vercel.app/api/uiras',
@@ -3291,6 +3300,65 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
 /* Vanha _uirasChart — pidetaan vanhoille kutsupaikoille */
 function _uirasChart(el,allPts,period,avgWin){ _uirasChartInteractive(el,allPts,'Vedenlämpö',null,null,null); }
 
+
+
+/* Havaintoasema- ja uimavesikarttapisteet */
+function _addObsMarkers(map) {
+  var FC = '#64ffaa';
+  var UC = '#00cfff';
+  var R  = 5;
+  function mkIcon(c) {
+    return L.divIcon({
+      className: '',
+      html: '<div style="width:10px;height:10px;border-radius:50%;background:'+c+';opacity:.8;box-shadow:0 0 6px '+c+'88;border:1.5px solid rgba(255,255,255,.3);cursor:pointer"></div>',
+      iconSize:[10,10], iconAnchor:[5,5]
+    });
+  }
+  FMI_MAP_STATIONS.forEach(function(st){
+    L.marker([st.lat,st.lng],{icon:mkIcon(FC),zIndexOffset:-100})
+      .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
+  });
+  UIRAS_STATIONS.forEach(function(st){
+    L.marker([st.lat,st.lng],{icon:mkIcon(UC),zIndexOffset:-100})
+      .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
+  });
+}
+
+function _openObsSheet(type, station) {
+  if (typeof Haptics !== 'undefined') Haptics.medium();
+  var sheet = document.getElementById('sheet');
+  var sc    = document.getElementById('sheet-content');
+  if (!sheet || !sc) return;
+  /* Tallenna spottikortin tila */
+  State.sheetSpot = null;
+  var title    = type==='fmi' ? ('📡 '+station.name) : ('🏊 '+station.name);
+  var subtitle = type==='fmi' ? 'Ilmatieteenlaitos · tuulihavainnot' : 'UiRas · uimaveden lämpötila';
+  var cid = 'obs-ch-'+(station.place||station.id||Math.random().toString(36).slice(2,6));
+  sc.innerHTML =
+    '<div style="margin-bottom:12px">'
+      +'<div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:3px">'+title+'</div>'
+      +'<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted)">'+subtitle+'</div>'
+    +'</div>'
+    +'<div id="'+cid+'" class="sh-stat-live-panel open">'
+      +'<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan...</div>'
+    +'</div>'
+    +'<div style="margin-top:10px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2)">'
+      +(type==='fmi'?'Lahde: Ilmatieteenlaitos avoin data':'Lahde: UiRas / Forum Virium Helsinki')
+    +'</div>';
+  sheet.classList.add('open');
+  document.getElementById('sheet-overlay').classList.add('open');
+  var el = document.getElementById(cid);
+  if (type==='fmi') {
+    fetch('https://foilwind.vercel.app/api/fmi?history=1&place='+station.place)
+      .then(function(r){return r.json();})
+      .then(function(d){ if(el) _renderLiveHistory(el,d,null); })
+      .catch(function(){ if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>'; });
+  } else {
+    UiRas.history(station.id)
+      .then(function(pts){ if(el) _uirasChartInteractive(el,pts,station.name,station,station.lat,station.lng); })
+      .catch(function(){ if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>'; });
+  }
+}
 
 function openSheet(spot, hourIdx) {
   if (!spot.wx || !spot.wx.hourly) return;
