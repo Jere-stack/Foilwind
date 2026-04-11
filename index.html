@@ -146,23 +146,27 @@ fetch(BASE + s.id + ‘.geojson’)
 // DEBUG — näytä raaka rakenne konsolissa
 if (gj.features && gj.features.length > 0) {
 const f0 = gj.features[0];
+const fL = gj.features[gj.features.length-1];
 console.log(’=== HISTORIA DEBUG ===’);
 console.log(‘Total features:’, gj.features.length);
-console.log(‘Feature[0] keys:’, Object.keys(f0));
-console.log(‘Feature[0].properties:’, JSON.stringify(f0.properties));
-if (f0.properties && f0.properties.measurement)
-console.log(‘measurement keys:’, Object.keys(f0.properties.measurement));
+console.log(‘Feature[0] RAW:’, JSON.stringify(f0));
+console.log(‘Feature[last] RAW:’, JSON.stringify(fL));
 }
 
 ```
   curHistory = (gj.features||[]).map(f => {
     const p = f.properties||{};
     const m = p.measurement||{};
-    return {
-      t: m.time || p.time || p.timestamp,
-      v: m.temp_water ?? m.water_temperature ?? m.temperature
-      ?? p.temp_water ?? p.water_temperature ?? p.temperature ?? null
-    };
+    // Kokeile kaikki mahdolliset kenttänimet
+    const t = m.time || p.time || p.timestamp || f.id || null;
+    const v = m.temp_water ?? m.water_temperature ?? m.temperature
+           ?? p.temp_water ?? p.water_temperature ?? p.temperature
+           ?? p.value ?? p.val ?? null;
+    if (!t || v==null) {
+      // Debug: näytä miksi filtteröitiin pois
+      console.log('SKIP feature — t:', t, 'v:', v, 'props:', JSON.stringify(p));
+    }
+    return { t, v };
   }).filter(x => x.t && x.v!=null).sort((a,b) => a.t<b.t?-1:1);
 
   console.log('Historia:', curHistory.length, 'pistettä');
