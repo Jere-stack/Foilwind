@@ -3158,7 +3158,7 @@ function _uirasChartInteractive(el, allPts, stationName) {
 
   el.innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-      +'<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.5)">🏊 '+(stationName||'Vedenlämpö')+'</span>'
+      +'<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.6)">🌡 Uimaveden lämpötila &middot; '+(stationName||'')+'</span>'
       +'<div style="display:flex;gap:5px">'
         +pbtn('7d','7 vrk')+pbtn('30d','30 vrk')+pbtn('all','Kaikki')
       +'</div>'
@@ -3388,32 +3388,82 @@ function openSheet(spot, hourIdx) {
     const nowLine = `<line x1="${nowX}" y1="${pad}" x2="${nowX}" y2="${H-pad+4}" stroke="rgba(255,255,255,.85)" stroke-width="1.5" stroke-dasharray="2,2"/>`;
     const nowLabel = `<text x="${nowX}" y="${pad+6}" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.7)" text-anchor="middle">NYT</text>`;
 
-    return '<div class="sh-24h-section">'
+    const svgId24 = 'fc-' + Math.random().toString(36).slice(2,6);
+
+    const svgContent = `<svg id="${svgId24}" class="sh-24h-svg" viewBox="0 0 ${W} ${TH}" preserveAspectRatio="none" style="touch-action:none">`
+      + `<defs>`
+        + `<linearGradient id="fcg" x1="0%" y1="0%" x2="100%" y2="0%">${gradStops}</linearGradient>`
+        + `<linearGradient id="fag" x1="0%" y1="0%" x2="0%" y2="100%">`
+          + `<stop offset="0%" stop-color="rgba(0,207,255,.2)"/><stop offset="100%" stop-color="rgba(0,207,255,.0)"/>`
+        + `</linearGradient>`
+      + `</defs>`
+      + `<path d="${pastArea}" fill="rgba(255,255,255,.04)"/>`
+      + `<path d="${futureArea}" fill="url(#fag)"/>`
+      + (pastPts ? `<polyline points="${pastPts}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>` : '')
+      + `<polyline points="${futurePts}" fill="none" stroke="url(#fcg)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
+      + ticks + labels + nowLine + nowLabel
+      /* Tooltip elementit */
+      + `<line id="${svgId24}-vl" x1="-1" y1="${pad}" x2="-1" y2="${H-pad}" stroke="rgba(255,255,255,.55)" stroke-width="1" stroke-dasharray="3,2" pointer-events="none"/>`
+      + `<circle id="${svgId24}-dot" cx="-1" cy="-1" r="3.5" fill="white" stroke="rgba(0,0,0,.3)" stroke-width="1" pointer-events="none"/>`
+      + `<rect id="${svgId24}-hit" x="${pad}" y="${pad}" width="${W-pad*2}" height="${H-pad*2}" fill="transparent" style="cursor:crosshair"/>`
+    + `</svg>`;
+
+    const section = '<div class="sh-24h-section">'
       + '<div class="sh-24h-header">'
         + '<span class="sh-24h-title">24h ennuste</span>'
         + (peakMs > 0 ? '<span class="sh-24h-peak">↑ ' + Units.fmt(peakMs) + ' ' + Units.label() + ' klo ' + peakH + '</span>' : '')
       + '</div>'
-      + `<svg class="sh-24h-svg" viewBox="0 0 ${W} ${TH}" preserveAspectRatio="none">`
-        + `<defs>`
-          + `<linearGradient id="fcg" x1="0%" y1="0%" x2="100%" y2="0%">${gradStops}</linearGradient>`
-          + `<linearGradient id="fag" x1="0%" y1="0%" x2="0%" y2="100%">`
-            + `<stop offset="0%" stop-color="rgba(0,207,255,.2)"/><stop offset="100%" stop-color="rgba(0,207,255,.0)"/>`
-          + `</linearGradient>`
-        + `</defs>`
-        /* Past area — harmaa */
-        + `<path d="${pastArea}" fill="rgba(255,255,255,.04)"/>`
-        /* Future area */
-        + `<path d="${futureArea}" fill="url(#fag)"/>`
-        /* Past line — harmaa */
-        + (pastPts ? `<polyline points="${pastPts}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>` : '')
-        /* Future line — värillisenä */
-        + `<polyline points="${futurePts}" fill="none" stroke="url(#fcg)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
-        /* Ticks + labels */
-        + ticks + labels
-        /* Now marker */
-        + nowLine + nowLabel
-      + `</svg>`
+      + '<div style="position:relative">'
+        + '<div id="' + svgId24 + '-tip" style="display:none;position:absolute;background:rgba(8,12,26,.95);border:1px solid rgba(0,207,255,.25);border-radius:8px;padding:6px 10px;font-family:DM Mono,monospace;font-size:9px;pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5);z-index:100"></div>'
+        + svgContent
+      + '</div>'
     + '</div>';
+
+    /* Attach tooltip events after render */
+    setTimeout(function() {
+      const svg24 = document.getElementById(svgId24);
+      const hit24 = document.getElementById(svgId24 + '-hit');
+      const vl24  = document.getElementById(svgId24 + '-vl');
+      const dot24 = document.getElementById(svgId24 + '-dot');
+      const tip24 = document.getElementById(svgId24 + '-tip');
+      if (!hit24) return;
+
+      function px2i(cx) {
+        var r = svg24.getBoundingClientRect();
+        var sx = (cx - r.left) / r.width * W;
+        return Math.max(0, Math.min(vals.length-1, Math.round((sx-pad)/(W-pad*2)*(vals.length-1))));
+      }
+      function show24(cx) {
+        var i = px2i(cx);
+        var x = xOf(i), y = yOf(vals[i]);
+        var cc = ColorRamp.rgb(vals[i]);
+        var col = 'rgb(' + cc.r + ',' + cc.g + ',' + cc.b + ')';
+        vl24.setAttribute('x1', x.toFixed(1)); vl24.setAttribute('x2', x.toFixed(1));
+        dot24.setAttribute('cx', x.toFixed(1)); dot24.setAttribute('cy', y.toFixed(1));
+        dot24.setAttribute('fill', col);
+        var hr = times[i] ? new Date(times[i]).getHours() : i;
+        var isPast = i < nowSlot;
+        tip24.innerHTML =
+          '<div style="color:rgba(255,255,255,.4);margin-bottom:2px">' + ('0'+hr).slice(-2) + ':00' + (isPast ? ' · mennyt' : '') + '</div>'
+          + '<div style="color:' + col + '">' + Units.fmt(vals[i]) + ' ' + Units.label() + '</div>';
+        var r2 = svg24.getBoundingClientRect(), relX = cx - r2.left, tipW = 100;
+        tip24.style.left = (relX > r2.width/2 ? relX - tipW - 8 : relX + 8) + 'px';
+        tip24.style.top  = '4px';
+        tip24.style.display = 'block';
+      }
+      function hide24() {
+        tip24.style.display = 'none';
+        vl24.setAttribute('x1','-1'); vl24.setAttribute('x2','-1');
+        dot24.setAttribute('cx','-1'); dot24.setAttribute('cy','-1');
+      }
+      hit24.addEventListener('mousemove',  function(e){ show24(e.clientX); }, { passive: true });
+      hit24.addEventListener('mouseleave', hide24, { passive: true });
+      hit24.addEventListener('touchstart', function(e){ if(e.touches[0]) show24(e.touches[0].clientX); }, { passive: true });
+      hit24.addEventListener('touchmove',  function(e){ e.preventDefault(); if(e.touches[0]) show24(e.touches[0].clientX); }, { passive: false });
+      hit24.addEventListener('touchend',   function(){ setTimeout(hide24, 1500); }, { passive: true });
+    }, 50);
+
+    return section;
   }
 
   /* ── FMI NEAREST STATION ─────────────────────────────────────── */
@@ -3531,27 +3581,20 @@ function openSheet(spot, hourIdx) {
       + _dewStatCard(fmiId + '-dew')
     + '</div>'
 
-    /* Rivi 2: Vesi stat (pelkkä arvo, kaavio alla) */
-    + '<div class="sh-stats">'
-      + (_uirasStation
-          ? _waterStatSimple(_waterStatId, _uirasStation)
-          : _statCard('Vesi', waterTemp, '', null))
-    + '</div>'
-
     /* FMI historia-kaavio — aina näkyvissä */
     + '<div id="' + fmiId + '-hist" class="sh-stat-live-panel open" style="margin-bottom:14px">'
       + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">📡 Ladataan havaintodataa...</div>'
     + '</div>'
 
+    /* 24h tuuliennuste — heti havaintodatan jälkeen */
+    + build24hChart()
+
     /* UiRas vedenlämpö — aina näkyvissä */
     + (_uirasStation
         ? '<div id="uiras-always-' + _waterStatId + '" class="sh-stat-live-panel open" style="margin-bottom:14px;border-color:rgba(0,180,255,.2);background:rgba(0,180,255,.05)">'
-            + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">🏊 Ladataan vedenlämpöhistoriaa...</div>'
+            + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">🏊 Ladataan vedenlämpöä...</div>'
           + '</div>'
         : '')
-
-    /* 24h ennuste */
-    + build24hChart()
 
     /* Wind rose */
     + buildWindRoseSVG(h, idx)
