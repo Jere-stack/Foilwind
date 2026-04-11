@@ -1,10 +1,10 @@
 const https = require('https');
 
 const STATIONS = [
-  { id: '100539', name: 'Harmaja',         lat: 60.1053, lng: 24.9754 },
-  { id: '100971', name: 'Kaisaniemi',      lat: 60.1752, lng: 24.9445 },
-  { id: '101004', name: 'Kumpula',         lat: 60.2039, lng: 24.9608 },
-  { id: '151028', name: 'Vuosaari satama', lat: 60.2087, lng: 25.1966 },
+  { place: 'harmaja',    name: 'Harmaja',         lat: 60.1053, lng: 24.9754 },
+  { place: 'kaisaniemi', name: 'Kaisaniemi',      lat: 60.1752, lng: 24.9445 },
+  { place: 'kumpula',    name: 'Kumpula',         lat: 60.2039, lng: 24.9608 },
+  { place: 'vuosaari',   name: 'Vuosaari satama', lat: 60.2087, lng: 25.1966 },
 ];
 
 function nearest(lat, lng) {
@@ -32,16 +32,15 @@ function toFiTime(iso) {
   return ('0' + d.getUTCHours()).slice(-2) + ':' + ('0' + d.getUTCMinutes()).slice(-2);
 }
 
-function fetchXml(fmisid) {
+function fetchFmi(place, params, starttime) {
   return new Promise(function(resolve, reject) {
-    var start = new Date(Date.now() - 60 * 60000).toISOString().replace(/\.\d+Z$/, 'Z');
     var url = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0'
       + '&request=getFeature'
       + '&storedquery_id=fmi::observations::weather::timevaluepair'
-      + '&fmisid=' + fmisid
-      + '&parameters=WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint'
+      + '&place=' + place
+      + '&parameters=' + params
       + '&timestep=10'
-      + '&starttime=' + start;
+      + '&starttime=' + starttime;
     https.get(url, function(res) {
       var body = '';
       res.on('data', function(c) { body += c; });
@@ -51,7 +50,7 @@ function fetchXml(fmisid) {
   });
 }
 
-function parseXml(xml) {
+function parseLatest(xml) {
   var result = {};
   var re = /gml:id="[^"]*-([a-zA-Z]+)"[\s\S]*?(<wml2:point[\s\S]*?<\/wml2:MeasurementTimeseries>)/g;
   var m;
@@ -70,36 +69,73 @@ function parseXml(xml) {
   return result;
 }
 
+function parseHistory(xml) {
+  var series = {};
+  var re = /gml:id="[^"]*-([a-zA-Z]+)"[\s\S]*?(<wml2:point[\s\S]*?<\/wml2:MeasurementTimeseries>)/g;
+  var m;
+  while ((m = re.exec(xml)) !== null) {
+    var param = m[1].toLowerCase();
+    var block = m[2];
+    var points = [];
+    var tvRe = /<wml2:time>([^<]+)<\/wml2:time>\s*<wml2:value>([^<]+)<\/wml2:value>/g;
+    var tv;
+    while ((tv = tvRe.exec(block)) !== null) {
+      var v = parseFloat(tv[2]);
+      if (!isNaN(v)) points.push({ t: tv[1], v: v });
+    }
+    series[param] = points;
+  }
+  return series;
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
 
   var lat = parseFloat(req.query.lat);
   var lng = parseFloat(req.query.lng);
   var station = (!isNaN(lat) && !isNaN(lng)) ? nearest(lat, lng) : STATIONS[0];
+  var isHistory = req.query.history === '1';
 
+  if (isHistory) {
+    res.setHeader('Cache-Control', 'public, s-maxage=600, stale-while-revalidate=120');
+    var start = new Date(Date.now() - 24 * 3600000).toISOString().slice(0, 16) + 'Z';
+    try {
+      var xml = await fetchFmi(station.place, 'WindSpeedMS,WindGust', start);
+      var series = parseHistory(xml);
+      var ws = series['windspeedms'] || [];
+      var wg = series['windgust'] || [];
+      return res.status(200).json({
+        station: station.name,
+        ws: ws.map(function(p) { return { t: toFiTime(p.t), v: p.v }; }),
+        wg: wg.map(function(p) { return { t: toFiTime(p.t), v: p.v }; }),
+      });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+
+  /* Latest observation */
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
+  var start60 = new Date(Date.now() - 60 * 60000).toISOString().slice(0, 16) + 'Z';
   try {
-    var xml = await fetchXml(station.id);
-    var d = parseXml(xml);
-    var keys = Object.keys(d);
-    var ws = d['windspeedms'] || d['ws'] || null;
-    var wd = d['winddirection'] || d['wd'] || null;
-    var wg = d['windgust'] || d['wg'] || null;
-    var t  = d['temperature'] || null;
-    var dp = d['dewpoint'] || null;
-
+    var xml2 = await fetchFmi(station.place, 'WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint', start60);
+    var d = parseLatest(xml2);
+    var ws2 = d['windspeedms'] || null;
+    var wd  = d['winddirection'] || null;
+    var wg2 = d['windgust'] || null;
+    var t   = d['temperature'] || null;
+    var dp  = d['dewpoint'] || null;
     return res.status(200).json({
-      station:   station.name,
-      fmisid:    station.id,
-      ws:        ws  ? ws.v  : null,
-      wd:        wd  ? wd.v  : null,
-      wg:        wg  ? wg.v  : null,
-      tmp:       t   ? t.v   : null,
-      dew:       dp  ? dp.v  : null,
-      time:      ws  ? toFiTime(ws.t) : null,
-      debug_keys: keys,
+      station:  station.name,
+      place:    station.place,
+      ws:       ws2 ? ws2.v : null,
+      wd:       wd  ? wd.v  : null,
+      wg:       wg2 ? wg2.v : null,
+      tmp:      t   ? t.v   : null,
+      dew:      dp  ? dp.v  : null,
+      time:     ws2 ? toFiTime(ws2.t) : null,
     });
   } catch (err) {
-    return res.status(500).json({ station: station.name, error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 };
