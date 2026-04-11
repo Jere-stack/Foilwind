@@ -1,10 +1,10 @@
 const https = require(‘https’);
 
 const STATIONS = [
-{ key: ‘harmaja’,    id: ‘100539’, name: ‘Harmaja’,         lat: 60.1053, lng: 24.9754 },
-{ key: ‘kaisaniemi’, id: ‘100971’, name: ‘Kaisaniemi’,      lat: 60.1752, lng: 24.9445 },
-{ key: ‘kumpula’,    id: ‘101004’, name: ‘Kumpula’,         lat: 60.2039, lng: 24.9608 },
-{ key: ‘vuosaari’,   id: ‘151028’, name: ‘Vuosaari satama’, lat: 60.2087, lng: 25.1966 },
+{ id: ‘100539’, name: ‘Harmaja’,         lat: 60.1053, lng: 24.9754 },
+{ id: ‘100971’, name: ‘Kaisaniemi’,      lat: 60.1752, lng: 24.9445 },
+{ id: ‘101004’, name: ‘Kumpula’,         lat: 60.2039, lng: 24.9608 },
+{ id: ‘151028’, name: ‘Vuosaari satama’, lat: 60.2087, lng: 25.1966 },
 ];
 
 function nearest(lat, lng) {
@@ -24,11 +24,11 @@ oct.setDate(31 - oct.getDay());
 return d >= mar && d < oct;
 }
 
-function toLocalTime(isoStr) {
-if (!isoStr) return ‘’;
-var d = new Date(isoStr);
-var offset = isDst(d) ? 3 : 2;
-d = new Date(d.getTime() + offset * 3600000);
+function toFiTime(iso) {
+if (!iso) return ‘’;
+var d = new Date(iso);
+var off = isDst(d) ? 3 : 2;
+d = new Date(d.getTime() + off * 3600000);
 return (‘0’ + d.getUTCHours()).slice(-2) + ‘:’ + (‘0’ + d.getUTCMinutes()).slice(-2);
 }
 
@@ -51,29 +51,21 @@ res.on(‘end’, function() { resolve(body); });
 });
 }
 
-function parseLatest(xml) {
-/* Extract all parameter blocks */
+function parseXml(xml) {
 var result = {};
-/* Match each MeasurementTimeseries block */
-var re = /<wml2:MeasurementTimeseries[^>]*gml:id=”[^”]*-([a-zA-Z]+)”[^>]*>([\s\S]*?)</wml2:MeasurementTimeseries>/g;
+var re = /gml:id=”[^”]*-([a-zA-Z]+)”[\s\S]*?(<wml2:point[\s\S]*?</wml2:MeasurementTimeseries>)/g;
 var m;
 while ((m = re.exec(xml)) !== null) {
 var param = m[1].toLowerCase();
 var block = m[2];
-/* Find all time-value pairs */
 var pairs = [];
 var tvRe = /<wml2:time>([^<]+)</wml2:time>\s*<wml2:value>([^<]+)</wml2:value>/g;
 var tv;
 while ((tv = tvRe.exec(block)) !== null) {
 var v = parseFloat(tv[2]);
-if (!isNaN(v) && tv[2] !== ‘NaN’) {
-pairs.push({ t: tv[1], v: v });
+if (!isNaN(v)) pairs.push({ t: tv[1], v: v });
 }
-}
-/* Take last valid value */
-if (pairs.length > 0) {
-result[param] = pairs[pairs.length - 1];
-}
+if (pairs.length > 0) result[param] = pairs[pairs.length - 1];
 }
 return result;
 }
@@ -88,38 +80,25 @@ var station = (!isNaN(lat) && !isNaN(lng)) ? nearest(lat, lng) : STATIONS[0];
 
 try {
 var xml = await fetchXml(station.id);
-var data = parseLatest(xml);
+var d = parseXml(xml);
+var keys = Object.keys(d);
+var ws = d[‘windspeedms’] || d[‘ws’] || null;
+var wd = d[‘winddirection’] || d[‘wd’] || null;
+var wg = d[‘windgust’] || d[‘wg’] || null;
+var t  = d[‘temperature’] || null;
+var dp = d[‘dewpoint’] || null;
 
 ```
-/* Log param keys for debugging */
-var keys = Object.keys(data);
-
-/* Find wind speed -- key may vary */
-var wsEntry = data['windspeedms'] || data['ws'] || data['windspeed'] || null;
-var wdEntry = data['winddirection'] || data['wd'] || null;
-var wgEntry = data['windgust'] || data['wg'] || data['maximumwindspeed'] || null;
-var tEntry  = data['temperature'] || data['t2m'] || data['airtemperature'] || null;
-var dpEntry = data['dewpoint'] || data['dp'] || data['dewpointtemperature'] || null;
-
-if (!wsEntry) {
-  return res.status(200).json({
-    station: station.name,
-    fmisid: station.id,
-    debug_keys: keys,
-    error: 'no wind data -- check debug_keys'
-  });
-}
-
 return res.status(200).json({
-  station: station.name,
-  fmisid:  station.id,
-  ws:      wsEntry.v,
-  wd:      wdEntry ? wdEntry.v : null,
-  wg:      wgEntry ? wgEntry.v : null,
-  tmp:     tEntry  ? tEntry.v  : null,
-  dew:     dpEntry ? dpEntry.v : null,
-  time:    toLocalTime(wsEntry.t),
-  raw_time: wsEntry.t,
+  station:   station.name,
+  fmisid:    station.id,
+  ws:        ws  ? ws.v  : null,
+  wd:        wd  ? wd.v  : null,
+  wg:        wg  ? wg.v  : null,
+  tmp:       t   ? t.v   : null,
+  dew:       dp  ? dp.v  : null,
+  time:      ws  ? toFiTime(ws.t) : null,
+  debug_keys: keys,
 });
 ```
 
