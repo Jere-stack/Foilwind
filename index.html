@@ -4,239 +4,127 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UiRas Testi</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<title>UiRas Debug</title>
 <style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: system-ui, sans-serif; background: #0a0e1a; color: #fff; height: 100vh; display: flex; flex-direction: column; }
-#header { padding: 10px 16px; background: rgba(0,207,255,.08); border-bottom: 1px solid rgba(0,207,255,.2); }
-#header h1 { font-size: 15px; color: #0cf; }
-#status { font-size: 10px; color: rgba(255,255,255,.45); margin-top: 3px; font-family: monospace; word-break: break-all; }
-#map { flex: 1; }
-#panel {
-  position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
-  background: rgba(10,14,26,.97); border-top: 1px solid rgba(0,207,255,.2);
-  border-radius: 16px 16px 0 0; padding: 16px 16px 32px;
-  transform: translateY(100%); transition: transform .3s ease;
-  max-height: 72vh; overflow-y: auto;
-}
-#panel.open { transform: translateY(0); }
-#panel-close { float: right; background: none; border: none; color: #0cf; font-size: 20px; cursor: pointer; }
-#panel-name { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
-#panel-temp { font-size: 52px; font-weight: 700; color: #4dd; font-family: monospace; line-height: 1.1; }
-#panel-meta { font-size: 10px; color: rgba(255,255,255,.35); font-family: monospace; margin: 4px 0 14px; }
-#chart-controls { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-.chip { font-family: monospace; font-size: 10px; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(0,180,255,.3); background: none; color: rgba(0,207,255,.6); cursor: pointer; }
-.chip.active { background: rgba(0,207,255,.18); color: #0cf; border-color: rgba(0,207,255,.5); }
-#chart-svg { width: 100%; display: block; }
-#loading-hist { font-family: monospace; font-size: 10px; color: rgba(255,255,255,.35); padding: 12px 0; }
-.leaflet-container { background: #0a0e1a; }
+body { font-family: monospace; background: #0a0e1a; color: #0cf; padding: 16px; font-size: 12px; }
+h2 { color: #fff; margin: 12px 0 6px; font-size: 14px; }
+pre { background: rgba(255,255,255,.05); padding: 10px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; color: #aef; margin-bottom: 12px; }
+.ok { color: #4f8; } .err { color: #f44; } .warn { color: #fa4; }
+button { background: rgba(0,207,255,.15); border: 1px solid #0cf; color: #0cf; padding: 10px 18px; border-radius: 10px; font-size: 13px; margin: 6px 4px; cursor: pointer; }
 </style>
 </head>
 <body>
-<div id="header">
-  <h1>🏊 UiRas — Vedenlämpötilat PKS</h1>
-  <div id="status">Ladataan...</div>
-</div>
-<div id="map"></div>
-<div id="panel">
-  <button id="panel-close" onclick="closePanel()">✕</button>
-  <div id="panel-name"></div>
-  <div id="panel-temp"></div>
-  <div id="panel-meta"></div>
-  <div id="chart-controls"></div>
-  <div id="loading-hist" style="display:none">Ladataan historiaa...</div>
-  <svg id="chart-svg" viewBox="0 0 300 94"></svg>
-</div>
+<h2>UiRas API Debug</h2>
+<div id="out">Paina nappia aloittaaksesi...</div>
+
+<button onclick="testLatest()">1. Testaa latest.geojson</button>
+<button onclick="testHistory()">2. Testaa historia</button>
+<button id="hist-btn" style="display:none" onclick="testHistoryId()">3. Hae historia ID:llä</button>
+
 <script>
 const BASE = 'https://iot.fvh.fi/opendata/uiras/';
+let firstId = null;
 
-/* Oikeat kenttänimet: temp_water, time ovat measurement-objektissa */
-function getTemp(props) {
-const m = props.measurement || {};
-return m.temp_water ?? m.water_temperature ?? m.temperature
-?? props.temp_water ?? props.water_temperature ?? props.temperature ?? null;
+function log(html) {
+  document.getElementById('out').innerHTML += html + '<br>';
 }
-function getTime(props) {
-const m = props.measurement || {};
-return m.time || props.time || props.timestamp || null;
-}
-function getId(feature) {
-return feature.id || (feature.properties||{}).dev_id || null;
-}
+function clear() { document.getElementById('out').innerHTML = ''; }
 
-const map = L.map(‘map’, { center:[60.18,24.93], zoom:11 });
-L.tileLayer(‘https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png’,
-{ subdomains:‘abcd’, maxZoom:19, attribution:‘© OSM © CARTO’ }).addTo(map);
+async function testLatest() {
+  clear();
+  log('<span class="ok">Haetaan latest.geojson...</span>');
+  try {
+    const r = await fetch(BASE + 'uiras_latest.geojson');
+    log('HTTP status: ' + r.status);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const gj = await r.json();
+    const feats = gj.features || [];
+    log('<span class="ok">✅ Saatiin ' + feats.length + ' featurea</span>');
 
-async function init() {
-setStatus(‘Haetaan dataa…’);
-try {
-const r = await fetch(BASE + ‘uiras_latest.geojson’);
-if (!r.ok) throw new Error(’HTTP ’ + r.status);
-const gj = await r.json();
-const features = gj.features || [];
+    if (feats.length > 0) {
+      const f = feats[0];
+      firstId = f.id || (f.properties && f.properties.dev_id) || null;
+      log('<h2>Feature[0] rakenne:</h2>');
+      log('<pre>id: ' + JSON.stringify(f.id) + '\ngeometry.coordinates: ' + JSON.stringify(f.geometry && f.geometry.coordinates) + '\nproperties keys: ' + JSON.stringify(Object.keys(f.properties||{})) + '\nproperties: ' + JSON.stringify(f.properties, null, 2) + '</pre>');
 
 ```
-const byId = {};
-features.forEach(f => {
-  const id   = getId(f);
-  const p    = f.properties || {};
-  const temp = getTemp(p);
-  const time = getTime(p);
-  const coords = f.geometry && f.geometry.coordinates;
-  if (id && coords) {
-    byId[id] = { id, temp, time, name: p.name||'?', lat: coords[1], lng: coords[0] };
+  // Näytä myös 3. feature jos löytyy
+  if (feats.length > 2) {
+    const f2 = feats[2];
+    log('<h2>Feature[2]:</h2>');
+    log('<pre>' + JSON.stringify(f2.properties, null, 2) + '</pre>');
   }
-});
 
-const found = Object.values(byId).filter(s => s.temp != null).length;
-setStatus(`${features.length} asemaa · ${found} lämpötilaa · klikkaa pistettä`);
-
-Object.values(byId).forEach(s => {
-  const temp  = s.temp != null ? s.temp.toFixed(1) : '?';
-  const color = temp === '?' ? '#444' : tempColor(parseFloat(temp));
-  const icon  = L.divIcon({
-    className: '',
-    html: `<div style="width:46px;height:46px;border-radius:50%;
-      background:${color}18;border:2.5px solid ${color};
-      display:flex;align-items:center;justify-content:center;
-      font-family:monospace;font-size:10px;font-weight:700;color:${color};
-      cursor:pointer;box-shadow:0 0 10px ${color}44">${temp}°</div>`,
-    iconSize:[46,46], iconAnchor:[23,23]
-  });
-  L.marker([s.lat, s.lng], { icon }).on('click', () => openPanel(s)).addTo(map);
-});
+  if (firstId) {
+    log('<span class="ok">ID löytyi: ' + firstId + '</span>');
+    document.getElementById('hist-btn').style.display = 'inline-block';
+    document.getElementById('hist-btn').textContent = '3. Hae historia: ' + firstId;
+  } else {
+    log('<span class="err">❌ ID ei löytynyt featuresta</span>');
+  }
+}
 ```
 
 } catch(e) {
-setStatus(’Virhe: ’ + e.message);
-console.error(e);
+log(’<span class="err">❌ Virhe: ’ + e.message + ‘</span>’);
 }
 }
 
-function tempColor(t) {
-if (t <  5) return ‘#88ddff’;
-if (t < 10) return ‘#44aaff’;
-if (t < 15) return ‘#44ff88’;
-if (t < 20) return ‘#ffcc44’;
-if (t < 25) return ‘#ff8844’;
-return ‘#ff4444’;
+async function testHistory() {
+if (!firstId) { log(’<span class="warn">Aja ensin kohta 1</span>’); return; }
+await testHistoryId();
 }
 
-let curHistory=null, curPeriod=‘7d’, curAvg=1;
-
-function openPanel(s) {
-document.getElementById(‘panel-name’).textContent = ‘🏊 ’ + s.name;
-document.getElementById(‘panel-temp’).textContent = s.temp!=null ? s.temp.toFixed(1)+’ °C’ : ‘— °C’;
-document.getElementById(‘panel-temp’).style.color = s.temp!=null ? tempColor(s.temp) : ‘#666’;
-const fmtT = t => { if(!t) return ‘’; const d=new Date(t);
-return d.toLocaleDateString(‘fi-FI’)+’ ‘+(‘0’+d.getHours()).slice(-2)+’:’+(‘0’+d.getMinutes()).slice(-2); };
-document.getElementById(‘panel-meta’).textContent = fmtT(s.time) + ’ · ’ + s.id;
-document.getElementById(‘panel’).classList.add(‘open’);
-document.getElementById(‘chart-controls’).innerHTML = ‘’;
-document.getElementById(‘chart-svg’).innerHTML = ‘’;
-document.getElementById(‘loading-hist’).style.display = ‘block’;
-curHistory = null;
-
-fetch(BASE + s.id + ‘.geojson’)
-.then(r => { if(!r.ok) throw new Error(‘HTTP ‘+r.status); return r.json(); })
-.then(gj => {
-// DEBUG — näytä raaka rakenne konsolissa
-if (gj.features && gj.features.length > 0) {
-const f0 = gj.features[0];
-const fL = gj.features[gj.features.length-1];
-console.log(’=== HISTORIA DEBUG ===’);
-console.log(‘Total features:’, gj.features.length);
-console.log(‘Feature[0] RAW:’, JSON.stringify(f0));
-console.log(‘Feature[last] RAW:’, JSON.stringify(fL));
-}
+async function testHistoryId() {
+if (!firstId) { log(’<span class="warn">Aja ensin kohta 1</span>’); return; }
+clear();
+log(’<span class="ok">Haetaan historia: ’ + firstId + ‘.geojson</span>’);
+try {
+const r = await fetch(BASE + firstId + ‘.geojson’);
+log(‘HTTP status: ’ + r.status);
+if (!r.ok) throw new Error(‘HTTP ’ + r.status);
+const gj = await r.json();
+const feats = gj.features || [];
+log(’<span class="ok">✅ Saatiin ’ + feats.length + ’ featurea</span>’);
 
 ```
-  curHistory = (gj.features||[]).map(f => {
-    const p = f.properties||{};
-    const m = p.measurement||{};
-    // Kokeile kaikki mahdolliset kenttänimet
-    const t = m.time || p.time || p.timestamp || f.id || null;
-    const v = m.temp_water ?? m.water_temperature ?? m.temperature
-           ?? p.temp_water ?? p.water_temperature ?? p.temperature
-           ?? p.value ?? p.val ?? null;
-    if (!t || v==null) {
-      // Debug: näytä miksi filtteröitiin pois
-      console.log('SKIP feature — t:', t, 'v:', v, 'props:', JSON.stringify(p));
-    }
-    return { t, v };
-  }).filter(x => x.t && x.v!=null).sort((a,b) => a.t<b.t?-1:1);
+if (feats.length > 0) {
+  const f0 = feats[0];
+  const fL = feats[feats.length - 1];
+  log('<h2>Historia Feature[0] TÄYSIN RAW:</h2>');
+  log('<pre>' + JSON.stringify(f0, null, 2) + '</pre>');
+  log('<h2>Historia Feature[last]:</h2>');
+  log('<pre>' + JSON.stringify(fL, null, 2) + '</pre>');
 
-  console.log('Historia:', curHistory.length, 'pistettä');
-  if (curHistory.length) console.log('Esim:', curHistory[curHistory.length-1]);
-
-  document.getElementById('loading-hist').style.display = 'none';
-  renderControls(); renderChart();
-})
-.catch(e => {
-  document.getElementById('loading-hist').textContent = 'Historiadataa ei saatavilla: '+e.message;
-});
+  // Kokeile eri kenttäyhdistelmiä
+  log('<h2>Kenttätestit Feature[0]:</h2>');
+  const p = f0.properties || {};
+  const m = p.measurement || {};
+  const tests = [
+    ['f.id', f0.id],
+    ['p.time', p.time],
+    ['p.timestamp', p.timestamp],
+    ['m.time', m.time],
+    ['p.temp_water', p.temp_water],
+    ['m.temp_water', m.temp_water],
+    ['p.water_temperature', p.water_temperature],
+    ['m.water_temperature', m.water_temperature],
+    ['p.temperature', p.temperature],
+    ['m.temperature', m.temperature],
+    ['p.value', p.value],
+  ];
+  let tbl = '<pre>';
+  tests.forEach(([k,v]) => {
+    tbl += (v != null ? '✅' : '❌') + ' ' + k + ': ' + JSON.stringify(v) + '\n';
+  });
+  log(tbl + '</pre>');
+}
 ```
 
+} catch(e) {
+log(’<span class="err">❌ Virhe: ’ + e.message + ‘</span>’);
 }
-
-function closePanel() { document.getElementById(‘panel’).classList.remove(‘open’); }
-
-function renderControls() {
-document.getElementById(‘chart-controls’).innerHTML =
-[‘7d’,‘30d’,‘90d’].map(p=>`<button class="chip ${p===curPeriod?'active':''}" onclick="selP('${p}')">${p==='7d'?'7 vrk':p==='30d'?'30 vrk':'90 vrk'}</button>`).join(’’)
-+[1,6,12].map(w=>`<button class="chip ${w===curAvg?'active':''}" onclick="selA(${w})">MA${w}</button>`).join(’’);
 }
-function selP(p){curPeriod=p;renderControls();renderChart();}
-function selA(w){curAvg=w;renderControls();renderChart();}
-
-function renderChart() {
-const svg = document.getElementById(‘chart-svg’);
-if (!curHistory||!curHistory.length){
-svg.innerHTML=`<text x="150" y="47" font-family="monospace" font-size="11" fill="rgba(255,255,255,.3)" text-anchor="middle">Ei dataa</text>`;
-return;
-}
-const pMs={‘7d’:7*864e5,‘30d’:30*864e5,‘90d’:90*864e5};
-const now=Date.now(), ms=pMs[curPeriod]||7*864e5;
-let pts=curHistory.filter(p=>new Date(p.t).getTime()>=now-ms);
-if(pts.length<3) pts=curHistory;
-
-const vs=pts.map(p=>p.v), ts=pts.map(p=>new Date(p.t).getTime());
-const minV=Math.min(…vs)-.3, maxV=Math.max(…vs)+.3;
-const minMs=ts[0], maxMs=ts[ts.length-1];
-const W=300,H=78,pad=6,lH=16,TH=H+lH;
-svg.setAttribute(‘viewBox’,`0 0 ${W} ${TH}`);
-const xOf=m=>pad+(m-minMs)/(maxMs-minMs||1)*(W-pad*2);
-const yOf=v=>H-pad-(v-minV)/(maxV-minV||1)*(H-pad*2);
-const avg=pts.map((*,i)=>{const sl=pts.slice(Math.max(0,i-curAvg+1),i+1);return sl.reduce((s,x)=>s+x.v,0)/sl.length;});
-const rawPts=pts.map((p,i)=>`${xOf(ts[i]).toFixed(1)},${yOf(p.v).toFixed(1)}`).join(’ ’);
-const avgPts=pts.map((*,i)=>`${xOf(ts[i]).toFixed(1)},${yOf(avg[i]).toFixed(1)}`).join(’ ‘);
-let xl=’’;
-const stp=pts.length>400?7*864e5:864e5;
-let t0=new Date(minMs);t0.setHours(0,0,0,0);
-for(let t=t0.getTime();t<=maxMs;t+=stp){
-if(t<minMs)continue;
-const d=new Date(t);
-xl+=`<text x="${xOf(t).toFixed(1)}" y="${TH-1}" font-family="monospace" font-size="7" fill="rgba(255,255,255,.3)" text-anchor="middle">${d.getDate()}.${d.getMonth()+1}.</text>`;
-}
-let yl=’’;
-for(let t=Math.ceil(minV);t<=Math.floor(maxV);t++){
-if(t<=minV||t>=maxV)continue;
-yl+=`<text x="${pad}" y="${yOf(t).toFixed(1)}" font-family="monospace" font-size="7" fill="rgba(0,200,255,.4)" dominant-baseline="middle">${t}°</text>`;
-}
-const nowX=xOf(Math.min(now,maxMs)).toFixed(1);
-const col=tempColor(avg[avg.length-1]);
-svg.innerHTML=
-`<polyline points="${rawPts}" fill="none" stroke="rgba(0,180,255,.2)" stroke-width="1" stroke-linejoin="round"/>`
-+`<polyline points="${avgPts}" fill="none" stroke="${col}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`
-+`<line x1="${nowX}" y1="${pad}" x2="${nowX}" y2="${H}" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="2,2"/>`
-+yl+xl;
-}
-
-function setStatus(msg){document.getElementById(‘status’).textContent=msg;}
-init();
 </script>
 
 </body>
