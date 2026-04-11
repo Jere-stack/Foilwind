@@ -576,6 +576,10 @@ line-height: 1; letter-spacing: -0.5px;
 font-family: ‘DM Mono’, monospace; font-size: 8px;
 color: var(–muted); letter-spacing: 0.3px;
 }
+.sh-stat-live {
+border-color: rgba(100,255,160,.2);
+background: rgba(100,255,160,.04);
+}
 .sh-stat-water {
 cursor: pointer;
 border-color: rgba(0,180,255,.2);
@@ -3326,20 +3330,19 @@ function openSheet(spot, hourIdx) {
       + badge.text
     + '</div>'
 
-    /* 4 stats */
+    /* 4 stats: Puuska · Trendi · Havainto · Vesi */
     + '<div class="sh-stats">'
       + _statCard('Puuska', Units.fmt(gst), Units.label(), ColorRamp.rgb(gst))
-      + _statCard('Suunta', Math.round(dir) + '°', dirArrow(dir), null)
       + _statCard('Trendi', trend.arrow + ' ' + trend.label, '3h', null, trend.cls)
+      + _liveStatCard(fmiId, spot)
       + (_uirasStation
           ? _waterStatCard(_waterStatId, _uirasStation)
           : _statCard('Vesi', waterTemp, '', null))
     + '</div>'
 
-    /* 2 condition cards */
+    /* 1 condition card — vain puuskaisuus */
     + '<div class="sh-conditions">'
       + _condCard('🌊', 'Puuskaisuus', '<span class="' + gi.cls + '">' + gi.label + '</span>')
-      + _condCard('🧭', 'Tuulen suunta', dirArrow(dir) + ' ' + Math.round(dir) + '° · ' + _cardinalFi(dir))
     + '</div>'
 
     /* Wind rose */
@@ -3348,8 +3351,7 @@ function openSheet(spot, hourIdx) {
     /* 24h SVG line chart */
     + build24hChart()
 
-    /* FMI / live observation */
-    + buildFmiCard(fmiId)
+
 
 
 
@@ -3397,6 +3399,47 @@ function _statCard(label, value, sub, rgb, cls) {
     + '<span class="sh-stat-value ' + (cls||'') + '" style="' + color + '">' + value + '</span>'
     + '<span class="sh-stat-sub">' + sub + '</span>'
     + '</div>';
+}
+
+/* Live-havainto stat-korttina — async päivitys */
+function _liveStatCard(id, spot) {
+  /* Async haku */
+  setTimeout(() => {
+    const el = document.getElementById(id + '-live');
+    if (!el) return;
+    const CURRENT_TTL = 10 * 60 * 1000;
+    if (spot._currentWx && Date.now() - spot._currentWx.ts < CURRENT_TTL) {
+      _renderLive(el, spot._currentWx.ms, spot._currentWx.dir, spot._currentWx.gst);
+      return;
+    }
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + spot.lat.toFixed(3)
+      + '&longitude=' + spot.lng.toFixed(3)
+      + '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
+      + '&wind_speed_unit=ms&timezone=auto';
+    fetch(url).then(r => r.json()).then(data => {
+      if (!data.current || !el) return;
+      const cMs  = data.current.wind_speed_10m  || 0;
+      const cDir = data.current.wind_direction_10m || 0;
+      const cGst = data.current.wind_gusts_10m  || cMs;
+      spot._currentWx = { ts: Date.now(), ms: cMs, dir: cDir, gst: cGst };
+      _renderLive(el, cMs, cDir, cGst);
+    }).catch(() => {});
+  }, 150);
+
+  return '<div id="' + id + '-live" class="sh-stat sh-stat-live">'
+    + '<span class="sh-stat-label">🛰 Havainto</span>'
+    + '<span class="sh-stat-value" style="color:rgba(150,255,180,.6)">—</span>'
+    + '<span class="sh-stat-sub">live</span>'
+  + '</div>';
+}
+
+function _renderLive(el, cMs, cDir, cGst) {
+  const cc = ColorRamp.rgb(cMs);
+  el.innerHTML = '<span class="sh-stat-label">🛰 Havainto</span>'
+    + '<span class="sh-stat-value" style="color:rgb(' + cc.r + ',' + cc.g + ',' + cc.b + ')">'
+      + Units.fmt(cMs)
+    + '</span>'
+    + '<span class="sh-stat-sub">' + dirArrow(cDir) + ' ' + Math.round(cDir) + '°</span>';
 }
 function _condCard(icon, label, value) {
   return '<div class="sh-cond-card">'
