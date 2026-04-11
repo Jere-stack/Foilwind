@@ -2907,15 +2907,36 @@ function _uirasChart(el,allPts,period,avgWin){
   let pts=period==='all'?allPts:allPts.filter(p=>new Date(p.t).getTime()>=now-pMs[period]);
   if(pts.length<5)pts=allPts;
   if(!pts.length){el.innerHTML='<div style="text-align:center;font-size:10px;color:var(--muted);padding:12px">Ei dataa</div>';return;}
-  const vs=pts.map(p=>p.v),ts=pts.map(p=>new Date(p.t).getTime());
-  const minV=Math.min(...vs)-.5,maxV=Math.max(...vs)+.5;
+
+  /* Ohenna max 600 pisteeseen SVG-piirtoa varten */
+  function downsample(data, maxPts) {
+    if (data.length <= maxPts) return data;
+    const step = data.length / maxPts;
+    const out = [];
+    for (let i = 0; i < maxPts; i++) out.push(data[Math.round(i * step)]);
+    return out;
+  }
+  const draw = downsample(pts, 600);
+
+  /* Liukuva keskiarvo ohentamattomaan dataan, sitten ohenna */
+  const avgRaw = pts.map((_,i)=>{const sl=pts.slice(Math.max(0,i-avgWin+1),i+1);return sl.reduce((s,x)=>s+x.v,0)/sl.length;});
+  const avgPts2 = pts.map((p,i)=>({t:p.t,v:avgRaw[i]}));
+  const drawAvg = downsample(avgPts2, 600);
+
+  /* Käytä loop-pohjaista min/max — ei spread jolla on stack limit */
+  let minV=Infinity, maxV=-Infinity;
+  for(let i=0;i<draw.length;i++){if(draw[i].v<minV)minV=draw[i].v;if(draw[i].v>maxV)maxV=draw[i].v;}
+  minV-=0.5; maxV+=0.5;
+
+  const ts=draw.map(p=>new Date(p.t).getTime());
   const minMs=ts[0],maxMs=ts[ts.length-1];
   const W=300,H=80,pad=4,lH=14,TH=H+lH;
   const xOf=m=>pad+(m-minMs)/(maxMs-minMs||1)*(W-pad*2);
   const yOf=v=>H-pad-(v-minV)/(maxV-minV||1)*(H-pad*2);
-  const avg=pts.map((_,i)=>{const sl=pts.slice(Math.max(0,i-avgWin+1),i+1);return sl.reduce((s,x)=>s+x.v,0)/sl.length;});
-  const raw=pts.map((p,i)=>xOf(ts[i]).toFixed(1)+','+yOf(p.v).toFixed(1)).join(' ');
-  const aln=pts.map((_,i)=>xOf(ts[i]).toFixed(1)+','+yOf(avg[i]).toFixed(1)).join(' ');
+  const raw=draw.map((p,i)=>xOf(ts[i]).toFixed(1)+','+yOf(p.v).toFixed(1)).join(' ');
+  const avgTs=drawAvg.map(p=>new Date(p.t).getTime());
+  const aln=drawAvg.map((p,i)=>xOf(avgTs[i]).toFixed(1)+','+yOf(p.v).toFixed(1)).join(' ');
+
   let xl='';
   const stp=pts.length>500?7*864e5:864e5;
   let t0=new Date(minMs);t0.setHours(0,0,0,0);
@@ -2930,11 +2951,13 @@ function _uirasChart(el,allPts,period,avgWin){
     yl+=`<text x="${pad+1}" y="${yOf(t).toFixed(1)}" font-family="DM Mono,monospace" font-size="7" fill="rgba(0,200,255,.4)" dominant-baseline="middle">${t}°</text>`;
   }
   const nx=xOf(Math.min(now,maxMs)).toFixed(1);
+  const cnt=pts.length>1000?'~'+(pts.length/1000).toFixed(1)+'k mittausta':pts.length+' mittausta';
   const pbtn=(p,lbl)=>`<button data-period="${p}" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 8px;border-radius:8px;border:1px solid rgba(0,180,255,${p===period?.4:.2});background:${p===period?'rgba(0,207,255,.15)':'none'};color:${p===period?'var(--accent)':'rgba(0,207,255,.6)'};cursor:pointer">${lbl}</button>`;
   const abtn=(w)=>`<button data-avg="${w}" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 8px;border-radius:8px;border:1px solid rgba(0,180,255,${w===avgWin?.4:.2});background:${w===avgWin?'rgba(0,207,255,.15)':'none'};color:${w===avgWin?'var(--accent)':'rgba(0,207,255,.6)'};cursor:pointer">MA${w}</button>`;
   el.innerHTML='<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'
     +pbtn('7d','7 vrk')+pbtn('30d','30 vrk')+pbtn('90d','90 vrk')+pbtn('all','Kaikki')
     +[1,6,12].map(abtn).join('')+'</div>'
+    +'<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2);margin-bottom:4px">'+cnt+'</div>'
     +`<svg viewBox="0 0 ${W} ${TH}" style="width:100%;display:block">`
       +`<polyline points="${raw}" fill="none" stroke="rgba(0,180,255,.25)" stroke-width="1" stroke-linejoin="round"/>`
       +`<polyline points="${aln}" fill="none" stroke="rgba(0,220,255,.9)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
