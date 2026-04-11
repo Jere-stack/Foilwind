@@ -1,131 +1,37 @@
 <!DOCTYPE html>
 
-<html lang="fi">
+<html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UiRas Debug</title>
 <style>
-body { font-family: monospace; background: #0a0e1a; color: #0cf; padding: 16px; font-size: 12px; }
-h2 { color: #fff; margin: 12px 0 6px; font-size: 14px; }
-pre { background: rgba(255,255,255,.05); padding: 10px; border-radius: 8px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; color: #aef; margin-bottom: 12px; }
-.ok { color: #4f8; } .err { color: #f44; } .warn { color: #fa4; }
-button { background: rgba(0,207,255,.15); border: 1px solid #0cf; color: #0cf; padding: 10px 18px; border-radius: 10px; font-size: 13px; margin: 6px 4px; cursor: pointer; }
+body{font-family:monospace;background:#111;color:#0cf;padding:16px;font-size:13px}
+button{display:block;width:100%;padding:14px;margin:8px 0;background:#0cf2;border:1px solid #0cf;color:#0cf;border-radius:10px;font-size:14px;cursor:pointer}
+#out{background:#0002;padding:12px;border-radius:8px;margin-top:12px;white-space:pre-wrap;word-break:break-all;color:#aef;min-height:60px}
 </style>
 </head>
 <body>
-<h2>UiRas API Debug</h2>
-<div id="out">Paina nappia aloittaaksesi...</div>
-
-<button onclick="testLatest()">1. Testaa latest.geojson</button>
-<button onclick="testHistory()">2. Testaa historia</button>
-<button id="hist-btn" style="display:none" onclick="testHistoryId()">3. Hae historia ID:llä</button>
-
+<h3 style="color:#fff;margin:0 0 12px">UiRas API Debug</h3>
+<button onclick="run()">Testaa API</button>
+<div id="out">Paina nappia...</div>
 <script>
-const BASE = 'https://iot.fvh.fi/opendata/uiras/';
-let firstId = null;
-
-function log(html) {
-  document.getElementById('out').innerHTML += html + '<br>';
-}
-function clear() { document.getElementById('out').innerHTML = ''; }
-
-async function testLatest() {
-  clear();
-  log('<span class="ok">Haetaan latest.geojson...</span>');
-  try {
-    const r = await fetch(BASE + 'uiras_latest.geojson');
-    log('HTTP status: ' + r.status);
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const gj = await r.json();
-    const feats = gj.features || [];
-    log('<span class="ok">✅ Saatiin ' + feats.length + ' featurea</span>');
-
-    if (feats.length > 0) {
-      const f = feats[0];
-      firstId = f.id || (f.properties && f.properties.dev_id) || null;
-      log('<h2>Feature[0] rakenne:</h2>');
-      log('<pre>id: ' + JSON.stringify(f.id) + '\ngeometry.coordinates: ' + JSON.stringify(f.geometry && f.geometry.coordinates) + '\nproperties keys: ' + JSON.stringify(Object.keys(f.properties||{})) + '\nproperties: ' + JSON.stringify(f.properties, null, 2) + '</pre>');
-
-```
-  // Näytä myös 3. feature jos löytyy
-  if (feats.length > 2) {
-    const f2 = feats[2];
-    log('<h2>Feature[2]:</h2>');
-    log('<pre>' + JSON.stringify(f2.properties, null, 2) + '</pre>');
+async function run(){
+  const out=document.getElementById('out');
+  out.textContent='Haetaan...\n';
+  try{
+    const r=await fetch('https://iot.fvh.fi/opendata/uiras/uiras_latest.geojson');
+    out.textContent+='Status: '+r.status+'\n';
+    const gj=await r.json();
+    const f=gj.features||[];
+    out.textContent+='Features: '+f.length+'\n\n';
+    if(f.length>0){
+      out.textContent+='Feature[0]:\n'+JSON.stringify(f[0],null,2)+'\n';
+    }
+  }catch(e){
+    out.textContent+='VIRHE: '+e.message+'\n';
   }
-
-  if (firstId) {
-    log('<span class="ok">ID löytyi: ' + firstId + '</span>');
-    document.getElementById('hist-btn').style.display = 'inline-block';
-    document.getElementById('hist-btn').textContent = '3. Hae historia: ' + firstId;
-  } else {
-    log('<span class="err">❌ ID ei löytynyt featuresta</span>');
-  }
-}
-```
-
-} catch(e) {
-log(’<span class="err">❌ Virhe: ’ + e.message + ‘</span>’);
-}
-}
-
-async function testHistory() {
-if (!firstId) { log(’<span class="warn">Aja ensin kohta 1</span>’); return; }
-await testHistoryId();
-}
-
-async function testHistoryId() {
-if (!firstId) { log(’<span class="warn">Aja ensin kohta 1</span>’); return; }
-clear();
-log(’<span class="ok">Haetaan historia: ’ + firstId + ‘.geojson</span>’);
-try {
-const r = await fetch(BASE + firstId + ‘.geojson’);
-log(‘HTTP status: ’ + r.status);
-if (!r.ok) throw new Error(‘HTTP ’ + r.status);
-const gj = await r.json();
-const feats = gj.features || [];
-log(’<span class="ok">✅ Saatiin ’ + feats.length + ’ featurea</span>’);
-
-```
-if (feats.length > 0) {
-  const f0 = feats[0];
-  const fL = feats[feats.length - 1];
-  log('<h2>Historia Feature[0] TÄYSIN RAW:</h2>');
-  log('<pre>' + JSON.stringify(f0, null, 2) + '</pre>');
-  log('<h2>Historia Feature[last]:</h2>');
-  log('<pre>' + JSON.stringify(fL, null, 2) + '</pre>');
-
-  // Kokeile eri kenttäyhdistelmiä
-  log('<h2>Kenttätestit Feature[0]:</h2>');
-  const p = f0.properties || {};
-  const m = p.measurement || {};
-  const tests = [
-    ['f.id', f0.id],
-    ['p.time', p.time],
-    ['p.timestamp', p.timestamp],
-    ['m.time', m.time],
-    ['p.temp_water', p.temp_water],
-    ['m.temp_water', m.temp_water],
-    ['p.water_temperature', p.water_temperature],
-    ['m.water_temperature', m.water_temperature],
-    ['p.temperature', p.temperature],
-    ['m.temperature', m.temperature],
-    ['p.value', p.value],
-  ];
-  let tbl = '<pre>';
-  tests.forEach(([k,v]) => {
-    tbl += (v != null ? '✅' : '❌') + ' ' + k + ': ' + JSON.stringify(v) + '\n';
-  });
-  log(tbl + '</pre>');
-}
-```
-
-} catch(e) {
-log(’<span class="err">❌ Virhe: ’ + e.message + ‘</span>’);
-}
 }
 </script>
-
 </body>
 </html>
