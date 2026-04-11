@@ -3456,32 +3456,33 @@ function _liveStatCard(id, spot) {
       _renderLive(el, spot._currentWx);
       return;
     }
-    /* Hae Open-Meteo (ennuste) + FMI (mitattu) rinnakkain */
-    const omUrl = 'https://api.open-meteo.com/v1/forecast?latitude=' + spot.lat.toFixed(3)
-      + '&longitude=' + spot.lng.toFixed(3)
-      + '&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
-      + ',temperature_2m,dew_point_2m,weather_code,precipitation'
-      + '&wind_speed_unit=ms&timezone=auto';
+    /* Hae FMI reaaliaikainen havainto + Open-Meteo saa/kastepiste */
     const fmiUrl = 'https://foilwind.vercel.app/api/fmi?lat=' + spot.lat.toFixed(4)
       + '&lng=' + spot.lng.toFixed(4);
+    const omUrl = 'https://api.open-meteo.com/v1/forecast?latitude=' + spot.lat.toFixed(3)
+      + '&longitude=' + spot.lng.toFixed(3)
+      + '&current=weather_code,precipitation'
+      + '&timezone=auto';
 
     Promise.allSettled([
-      fetch(omUrl).then(r => r.json()),
       fetch(fmiUrl).then(r => r.json()),
-    ]).then(([omR, fmiR]) => {
+      fetch(omUrl).then(r => r.json()),
+    ]).then(([fmiR, omR]) => {
       if (!el) return;
-      const om  = omR.status === 'fulfilled' ? omR.value : null;
       const fmi = fmiR.status === 'fulfilled' && !fmiR.value.error ? fmiR.value : null;
-      const cw  = om && om.current ? om.current : {};
-      const cMs  = cw.wind_speed_10m    || 0;
-      const cDir = cw.wind_direction_10m || 0;
-      const cGst = cw.wind_gusts_10m    || cMs;
-      const cTmp = cw.temperature_2m    ?? null;
-      const cDew = cw.dew_point_2m      ?? null;
-      const cWc  = cw.weather_code      ?? null;
-      const cPrp = cw.precipitation     ?? null;
+      const om  = omR.status === 'fulfilled' && omR.value.current ? omR.value.current : {};
+      /* Tuuli FMI:sta, muu Open-Meteosta */
+      const cMs  = fmi ? fmi.ws  : 0;
+      const cDir = fmi ? (fmi.wd ?? 0) : 0;
+      const cGst = fmi ? (fmi.wg ?? cMs) : cMs;
+      const cTmp = fmi ? (fmi.tmp ?? null) : null;
+      const cDew = fmi ? (fmi.dew ?? null) : null;
+      const cWc  = om.weather_code ?? null;
+      const cPrp = om.precipitation ?? null;
       spot._currentWx = { ts: Date.now(), ms: cMs, dir: cDir, gst: cGst,
-                          tmp: cTmp, dew: cDew, wc: cWc, prp: cPrp, fmi: fmi };
+                          tmp: cTmp, dew: cDew, wc: cWc, prp: cPrp,
+                          station: fmi ? fmi.station : null,
+                          obsTime: fmi ? fmi.time : null };
       _renderLive(el, spot._currentWx);
     });
   }, 150);
@@ -3531,10 +3532,12 @@ function _renderLive(el, wx) {
   const col = 'rgb(' + cc.r + ',' + cc.g + ',' + cc.b + ')';
   const id  = el.id.replace('-live','');
 
-  /* Päivitä kompakti stat-kortti */
+  /* Päivitä label aseman nimeksi */
+  const lblEl    = el.querySelector('.sh-stat-label');
   const valEl    = el.querySelector('[data-live-val]');
   const subEl    = el.querySelector('[data-live-sub]');
   const toggleEl = el.querySelector('[data-live-toggle]');
+  if (lblEl && wx.station) lblEl.textContent = '📡 ' + wx.station;
   if (valEl)    { valEl.textContent = Units.fmt(wx.ms); valEl.style.color = col; }
   if (subEl)    subEl.textContent = dirArrow(wx.dir) + ' ' + Math.round(wx.dir) + '°';
   if (toggleEl) toggleEl.textContent = el.classList.contains('expanded') ? '▲ Sulje' : '▼ Lisää';
