@@ -540,7 +540,7 @@ to   { opacity: 1; transform: translateX(0); }
 display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
 }
 .sh-hero-left { flex: 1; min-width: 0; }
-.sh-datetime { display: inline-flex; align-items: center; gap: 4px; font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 500; color: var(–accent); background: rgba(0,207,255,.10); border: 1px solid rgba(0,207,255,.25); border-radius: 6px; padding: 2px 8px; margin-bottom: 12px; }
+.sh-datetime { display: block; font-family: ‘DM Mono’, monospace; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.7); margin-bottom: 8px; letter-spacing: 0.2px; }
 .sh-name {
 font-size: 20px; font-weight: 800; letter-spacing: -.4px;
 margin-bottom: 2px; line-height: 1.15; word-break: break-word;
@@ -3610,7 +3610,9 @@ function openSheet(spot, hourIdx) {
     if (allVals.length < 2) return '';
 
     const nowMs = Date.now();
-    var harmonieCutMs = (State.activeModel === 'fmi_harmonie') ? nowMs + 48*3600000 : null;
+    /* Kaytetaan valittua aikaa graafin lahtöpisteena */
+    var selectedTime = h.time && h.time[idx] ? new Date(h.time[idx]).getTime() : nowMs;
+    var harmonieCutMs = (State.activeModel === 'fmi_harmonie') ? selectedTime + 48*3600000 : null;
 
     const PERIODS = [
       { key: '24h', label: '24h', hours: 24 },
@@ -3636,8 +3638,9 @@ function openSheet(spot, hourIdx) {
 
     function getSlice(periodKey) {
       var hours  = PERIODS.find(function(p){ return p.key===periodKey; }).hours;
-      var startMs = nowMs - 2*3600000;
-      var endMs   = hours ? nowMs + hours*3600000 : Infinity;
+      /* Aloitetaan valitusta hetkesta, max 1h taaksepain kontekstia varten */
+      var startMs = selectedTime - 3600000;
+      var endMs   = hours ? selectedTime + hours*3600000 : Infinity;
       var vs = [], ts = [];
       for (var i = 0; i < allVals.length; i++) {
         var tMs = allTimes[i] ? new Date(allTimes[i]).getTime() : 0;
@@ -3671,12 +3674,16 @@ function openSheet(spot, hourIdx) {
       var xOf = function(i){ return PAD + i/(n-1||1)*(W-PAD*2); };
       var yOf = function(v,mx){ return CHART_H - PAD - (v/((mx||maxV)||1))*(CHART_H-PAD*2); };
 
-      /* nowSlot */
-      var nowSlot=0;
+      /* nowSlot: lahin piste nykyhetkeen, selectedSlot: valittu hetki */
+      var nowSlot=0, selectedSlot=0;
       for(var i=0;i<times.length;i++){
-        if(times[i]&&new Date(times[i]).getTime()>=nowMs){nowSlot=i;break;}
+        if(!times[i]) continue;
+        var tMs=new Date(times[i]).getTime();
+        if(tMs>=nowMs&&nowSlot===0) nowSlot=i;
+        if(tMs>=selectedTime&&selectedSlot===0) selectedSlot=i;
       }
       var nowX = xOf(nowSlot).toFixed(1);
+      var selX = xOf(selectedSlot).toFixed(1);
 
       /* FMI HARMONIE raja-viiva */
       var harmCutX=null;
@@ -3688,36 +3695,30 @@ function openSheet(spot, hourIdx) {
         }
       }
 
-      /* Paaviivan pisteet */
+      /* Heatmap-taustapalkit: yksi palkki per tunnin piste */
+      var bgRects='';
+      for(var bi=0;bi<n-1;bi++){
+        var vmid=(vals[bi]+vals[bi+1])/2;
+        var cc=ColorRamp.rgb(vmid);
+        var bx=xOf(bi).toFixed(1);
+        var bw=(xOf(bi+1)-xOf(bi)+0.5).toFixed(1);
+        var isPastBg=bi<nowSlot;
+        var alpha=isPastBg?0.12:0.22;
+        bgRects+='<rect x="'+bx+'" y="'+PAD+'" width="'+bw+'" height="'+(CHART_H-PAD*2)+'" fill="rgb('+cc.r+','+cc.g+','+cc.b+')" opacity="'+alpha+'"/>';
+      }
+
+      /* Paaviiva: yksivärinen valkoinen, selkeä */
       var pastSegs='';
       var pastPts=vals.slice(0,nowSlot+1).map(function(v,i){
         return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);
       }).join(' ');
-      if(pastPts) pastSegs='<polyline points="'+pastPts+'" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+      if(pastPts) pastSegs='<polyline points="'+pastPts+'" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
 
-      /* Tuleva: liukuvari pisteittain (sama logiikka kuin heatmap) */
-      var colorSegs='';
-      for(var ci=nowSlot;ci<n-1;ci++){
-        /* Interpoloi vari segmentin keskiarvosta */
-        var vmid=(vals[ci]+vals[ci+1])/2;
-        var cc=ColorRamp.rgb(vmid);
-        var x1=xOf(ci).toFixed(1),y1=yOf(vals[ci]).toFixed(1);
-        var x2=xOf(ci+1).toFixed(1),y2=yOf(vals[ci+1]).toFixed(1);
-        colorSegs+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2
-          +'" stroke="rgb('+cc.r+','+cc.g+','+cc.b+')" stroke-width="3"'
-          +' stroke-linecap="round" stroke-linejoin="round"/>';
-      }
-      /* Tayteviiva alueen alle */
-      var fillPts=vals.slice(nowSlot).map(function(v,i){
+      var futurePts=vals.slice(nowSlot).map(function(v,i){
         return xOf(nowSlot+i).toFixed(1)+','+yOf(v).toFixed(1);
       }).join(' ');
+      var colorSegs=futurePts?'<polyline points="'+futurePts+'" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>':'';
       var areaFill='';
-      if(fillPts&&vals.slice(nowSlot).length>1){
-        var areaPath='M '+xOf(nowSlot).toFixed(1)+','+(CHART_H-PAD)
-          +' L '+fillPts
-          +' L '+xOf(n-1).toFixed(1)+','+(CHART_H-PAD)+' Z';
-        areaFill='<path d="'+areaPath+'" fill="rgba(100,200,255,.06)"/>';
-      }
 
       /* X-akseli */
       var labels='', lastDay=-1;
@@ -3750,24 +3751,10 @@ function openSheet(spot, hourIdx) {
         ylbls+='<line x1="'+PAD+'" y1="'+yy+'" x2="'+(W-PAD)+'" y2="'+yy+'" stroke="rgba(255,255,255,.05)" stroke-width="0.5"/>'
           +'<text x="'+(PAD+2)+'" y="'+yy+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.2)" dominant-baseline="middle">'+yv+'</text>';
       }
-      /* Foilausalue: 6 m/s+ vihrea */
-      var foilLow = 6;
-      if(foilLow < maxV) {
-        var fyBot = yOf(foilLow).toFixed(1);
-        var fyTop = PAD.toString();
-        var rectH = (parseFloat(fyBot)-PAD).toFixed(1);
-        if(parseFloat(rectH)>0){
-          /* Gradient-tausta ylhäältä vihreaksi */
-          var gradId = svgId+'-fg';
-          ylbls+='<defs><linearGradient id="'+gradId+'" x1="0" y1="0" x2="0" y2="1">'
-            +'<stop offset="0%" stop-color="rgba(100,255,160,0)"/>'
-            +'<stop offset="100%" stop-color="rgba(100,255,160,.12)"/>'
-            +'</linearGradient></defs>';
-          ylbls+='<rect x="'+PAD+'" y="'+fyTop+'" width="'+(W-PAD*2)+'" height="'+rectH+'" fill="url(#'+gradId+')" />';
-          /* Selkea raja 6 m/s */
-          ylbls+='<line x1="'+PAD+'" y1="'+fyBot+'" x2="'+(W-PAD)+'" y2="'+fyBot+'" stroke="rgba(100,255,160,.4)" stroke-width="1"/>';
-          ylbls+='<text x="'+(W-PAD-2)+'" y="'+fyBot+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(100,255,160,.6)" text-anchor="end" dominant-baseline="auto" dy="-2">6 m/s &#x1F44D;</text>';
-        }
+      /* 6 m/s raja-teksti */
+      if(6 < maxV) {
+        var fyBot6 = yOf(6).toFixed(1);
+        ylbls+='<text x="'+(W-PAD-2)+'" y="'+fyBot6+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.35)" text-anchor="end" dominant-baseline="auto" dy="-2">6</text>';
       }
 
       /* HARMONIE raja */
@@ -3792,14 +3779,15 @@ function openSheet(spot, hourIdx) {
         + 'preserveAspectRatio="none" style="display:block;'+(isFluid?'width:100%':'width:'+W+'px')+';height:auto;touch-action:none">'
         + '<defs></defs>'
         + ylbls
-        + '<path d="M '+xOf(0).toFixed(1)+','+(CHART_H-PAD)+' L '+vals.slice(0,nowSlot+1).map(function(v,i){return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);}).join(' L ')+' L '+xOf(nowSlot).toFixed(1)+','+(CHART_H-PAD)+' Z" fill="rgba(255,255,255,.03)"/>'
-        + areaFill
+        + bgRects
         + pastSegs
         + colorSegs
         + modelsG
         + harmMarker
-        + '<line x1="'+nowX+'" y1="'+PAD+'" x2="'+nowX+'" y2="'+(CHART_H-PAD+4)+'" stroke="rgba(255,255,255,.7)" stroke-width="1.5" stroke-dasharray="2,2"/>'
-        + '<text x="'+nowX+'" y="'+(PAD+8)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.65)" text-anchor="middle">NYT</text>'
+        /* NYT-viiva (vain jos ei ole valittu nykyhetki) */
+        + (nowSlot!==selectedSlot ? '<line x1="'+nowX+'" y1="'+PAD+'" x2="'+nowX+'" y2="'+(CHART_H-PAD)+'" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-dasharray="2,2"/><text x="'+nowX+'" y="'+(PAD+8)+'" font-family="DM Mono,monospace" font-size="6.5" fill="rgba(255,255,255,.4)" text-anchor="middle">NYT</text>' : '')
+        /* Valittu hetki -- korostettu */
+        + '<line x1="'+selX+'" y1="'+PAD+'" x2="'+selX+'" y2="'+(CHART_H-PAD)+'" stroke="rgba(255,255,255,.85)" stroke-width="1.5" stroke-dasharray="3,2"/>'
         + labels
         /* Tooltip pystyviiva + pisteet */
         + '<line id="'+svgId+'-vl" x1="-10" y1="'+PAD+'" x2="-10" y2="'+(CHART_H-PAD)+'" stroke="rgba(255,255,255,.5)" stroke-width="1" stroke-dasharray="3,2" pointer-events="none"/>'
@@ -4146,7 +4134,14 @@ function openSheet(spot, hourIdx) {
       + '<div class="sh-hero-left">'
         + '<div class="sh-name">' + spot.name + '</div>'
         + '<div class="sh-desc">' + spot.desc + '</div>'
-        + '<div class="sh-datetime">🕐 ' + fmtDateTime(h.time ? h.time[idx] : null) + '</div>'
+        + (()=>{
+            var dtStr = fmtDateTime(h.time ? h.time[idx] : null);
+            var isNow = Math.abs(new Date(h.time?h.time[idx]:0).getTime() - Date.now()) < 3600000;
+            return '<div class="sh-datetime">'
+              + (isNow ? '<span style="color:rgba(100,255,160,.6);font-size:9px;letter-spacing:1px;margin-right:6px">NYT</span>' : '')
+              + dtStr
+              + '</div>';
+          })()
         + (()=>{
             const si = spotIndex(ms, dir, spot.bestDirs, gst);
             const sc = spotIndexColor(si);
@@ -4238,7 +4233,8 @@ function openSheet(spot, hourIdx) {
     if (!sc) return;
     var cc = ColorRamp.rgb(ms);
     var r = cc.r, g = cc.g, b = cc.b;
-    sc.style.background = 'linear-gradient(180deg, rgba('+r+','+g+','+b+',.06) 0%, transparent 320px)';
+    /* Hienovarainen vari-hehku ylareunassa */
+    sc.style.background = 'linear-gradient(180deg, rgba('+r+','+g+','+b+',.04) 0%, transparent 180px)';
   })();
 
   /* Lataa FMI latest + historia — 2 kutsua, ei Open-Meteo -kutsuja */
