@@ -3745,25 +3745,27 @@ function openSheet(spot, hourIdx) {
         }
       }
 
-      /* Heatmap-taustapalkit: pystysuora vari-gradientti per sarake
-         Ylaraja = 0 m/s vari (tumma sininen), alaraja = sarakkeen arvo */
-      var bgDefs='', bgRects='';
-      for(var bi=0;bi<n-1;bi++){
-        var vmid=(vals[bi]+vals[bi+1])/2;
-        var cc=ColorRamp.rgb(vmid);
-        var ccZero=ColorRamp.rgb(0);
-        var bx=xOf(bi).toFixed(1);
-        var bw=Math.max(1,(xOf(bi+1)-xOf(bi)+0.5)).toFixed(1);
-        var isPastBg=bi<nowSlot;
-        var alpha=isPastBg?0.15:0.28;
-        var gid='bg'+svgId+bi;
-        /* Gradientti: yla=0m/s vari (tumma), ala=sarakkeen tuulivari */
-        bgDefs+='<linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1">'
-          +'<stop offset="0%" stop-color="rgb('+ccZero.r+','+ccZero.g+','+ccZero.b+')" stop-opacity="0"/>'
-          +'<stop offset="100%" stop-color="rgb('+cc.r+','+cc.g+','+cc.b+')" stop-opacity="'+alpha+'"/>'
-          +'</linearGradient>';
-        bgRects+='<rect x="'+bx+'" y="'+PAD+'" width="'+bw+'" height="'+(CHART_H-PAD*2)+'" fill="url(#'+gid+')"/>';
+      /* Silea pystysuora ColorRamp-gradientti koko SVG:n taustalle
+         Gradientin stop-pisteet: maxV (ylaosa, kirkas) -> 0 m/s (alaosa, tumma)
+         Kaytetaan ColorRamp:n avainarvoja stop-pisteina */
+      var bgGradId = svgId+'-vbg';
+      /* ColorRamp avainarvot: 0, 2, 4, 6, 8, 10, 13, 16, 20 m/s
+         Mutta skaala on 0..maxV, joten lasketaan prosentit sen mukaan */
+      var bgStops = [0, 2, 4, 6, 8, 10, 13, 16, 20];
+      var bgStopStr = '';
+      for(var si=0;si<bgStops.length;si++){
+        var sv = bgStops[si];
+        if(sv > maxV) sv = maxV;
+        var cc = ColorRamp.rgb(sv);
+        /* offset: 0% = ylaosa (maxV), 100% = alaosa (0 m/s) */
+        var pct = (100 - sv/maxV*100).toFixed(1);
+        var alpha = sv > 0 ? 0.32 : 0.05;
+        bgStopStr += '<stop offset="'+pct+'%" stop-color="rgb('+cc.r+','+cc.g+','+cc.b+')" stop-opacity="'+alpha+'"/>';
+        if(sv >= maxV) break;
       }
+      var bgDefs = '<linearGradient id="'+bgGradId+'" x1="0" y1="0" x2="0" y2="1">'+bgStopStr+'</linearGradient>';
+      /* Koko taustarect yhdella gradientilla */
+      var bgRects = '<rect x="'+PAD+'" y="'+PAD+'" width="'+(W-PAD*2)+'" height="'+(CHART_H-PAD*2)+'" fill="url(#'+bgGradId+')"/>';
 
       /* Paaviiva: yksivärinen valkoinen, selkeä */
       var pastSegs='';
@@ -5891,7 +5893,7 @@ function main() {
       if (t) t.classList.add('active');
     }
   })();
-  hideLoading(); startRenderLoop();
+  startRenderLoop();
 
   /* Unlock AudioContext (needed for iOS haptics) on first touch */
   document.addEventListener('touchstart', () => Haptics.unlock(), { once: true, passive: true });
@@ -5910,7 +5912,7 @@ function main() {
 
   /* Spotit valmiina → näytä heti aikajana + spottimarkerit */
   spotsP.then(() => {
-    updateLoadText('Spotit ladattu', 70);
+    updateLoadText('Piirretaan karttaa', 80);
     const ref = bestTimelineRef();
     if (ref) {
       const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
@@ -5919,7 +5921,9 @@ function main() {
       const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
       renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
       renderSpots(ni);
-      buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
+      buildWindField(ni).then(() => { drawColorField(); resetParticles(); hideLoading(); });
+    } else {
+      hideLoading();
     }
   });
 
@@ -5945,7 +5949,7 @@ const _loadingSafety = setTimeout(() => {
     console.warn('[FoilSpot] Safety timeout — hiding loader');
     hideLoading();
   }
-}, 5000);
+}, 12000);
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => { clearTimeout(_loadingSafety); main(); });
