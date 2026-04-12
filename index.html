@@ -3753,10 +3753,15 @@ function openSheet(spot, hourIdx) {
           })()
       + '</div>'
       + '<div class="sh-hero-right">'
-        + '<div>'
-          + '<div class="sh-big-wind" style="color:' + colorStr + '">' + Units.fmt(ms) + '</div>'
+        + '<div style="text-align:right">'
+          + '<div class="sh-big-wind" id="' + fmiId + '-bigwind" style="color:' + colorStr + '">' + Units.fmt(ms) + '</div>'
           + '<span class="sh-big-unit">' + Units.label() + '</span>'
-          + '<div class="sh-big-gust">Puuska ' + Units.fmt(gst) + ' ' + Units.label() + '</div>'
+          + '<div class="sh-big-gust" id="' + fmiId + '-bigwind-sub">Puuska ' + Units.fmt(gst) + ' ' + Units.label() + '</div>'
+          + '<div style="margin-top:4px;font-family:DM Mono,monospace;font-size:9px;color:'
+            + (trend.arrow==='↑'?'rgba(255,160,80,.7)':trend.arrow==='↓'?'rgba(80,180,255,.7)':'rgba(255,255,255,.3)')
+            + '">'
+            + (trend.arrow==='↑'?'↑':trend.arrow==='↓'?'↓':'→') + ' ' + trend.label
+          + '</div>'
         + '</div>'
       + '</div>'
       + '</div>'
@@ -3771,12 +3776,12 @@ function openSheet(spot, hourIdx) {
       + badge.text
     + '</div>'
 
-    /* Rivi 1: Trendi · Puuskaisuus · Lämpötila · Kastepiste */
+    /* Stat-rivi: Puuskaisuus · Lämpötila+Kastepiste yhdistettynä · FMI-linkki · Vesi-linkki */
     + '<div class="sh-stats" id="sh-stats-live">'
-      + _trendStatCard(trend)
       + _gustStatCard(gi)
-      + _tempStatCard(fmiId + '-tmp')
-      + _dewStatCard(fmiId + '-dew')
+      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')
+      + _fmiLinkCard(fmiId)
+      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, '°C', null))
     + '</div>'
 
     /* 24h tuuliennuste — heti stat-rivin jälkeen */
@@ -3830,33 +3835,45 @@ function openSheet(spot, hourIdx) {
           station: fmi.station, obsTime: fmi.time
         };
         /* Päivitä lämpötila ja kastepiste stat-kortit */
+        /* Lämpötila + kastepiste combo-kortissa */
         const tmpEl = document.getElementById(fmiId + '-tmp');
         const dewEl = document.getElementById(fmiId + '-dew');
-        if (tmpEl && fmi.tmp != null) {
-          const v = tmpEl.querySelector('.sh-stat-value');
-          if (v) { v.textContent = fmi.tmp.toFixed(1); v.style.color = 'rgba(255,200,100,.9)'; }
-        }
-        if (dewEl && fmi.dew != null) {
-          const v = dewEl.querySelector('.sh-stat-value');
-          if (v) { v.textContent = fmi.dew.toFixed(1); v.style.color = 'rgba(100,200,255,.9)'; }
-        }
-        /* Päivitä hero puuska + iso tuuliarvo FMI:sta */
-        const gustEl = document.querySelector('.sh-big-gust');
+        if (tmpEl && fmi.tmp != null) { tmpEl.textContent = fmi.tmp.toFixed(1); tmpEl.style.color = 'rgba(255,200,100,.9)'; }
+        if (dewEl && fmi.dew != null) { dewEl.textContent = fmi.dew.toFixed(1)+'°'; dewEl.style.color = 'rgba(100,200,255,.9)'; }
+        /* Hero: puuska + iso tuuli FMI:sta */
+        const gustEl = document.getElementById(fmiId + '-bigwind-sub');
         if (gustEl) gustEl.textContent = 'Puuska ' + Units.fmt(fmi.wg || 0) + ' ' + Units.label();
-        const bigWind = document.querySelector('.sh-big-wind');
+        const bigWind = document.getElementById(fmiId + '-bigwind');
         if (bigWind && fmi.ws != null) {
           const cc = ColorRamp.rgb(fmi.ws);
           bigWind.textContent = Units.fmt(fmi.ws);
           bigWind.style.color = 'rgb('+cc.r+','+cc.g+','+cc.b+')';
         }
+        /* FMI linkki-kortti */
+        const fmiLnkVal = document.getElementById(fmiId + '-lnk-val');
+        const fmiLnkSub = document.getElementById(fmiId + '-lnk-sub');
+        if (fmiLnkVal && fmi.ws != null) {
+          const cc2 = ColorRamp.rgb(fmi.ws);
+          fmiLnkVal.textContent = Units.fmt(fmi.ws);
+          fmiLnkVal.style.color = 'rgb('+cc2.r+','+cc2.g+','+cc2.b+')';
+          if (fmiLnkSub) fmiLnkSub.textContent = fmi.time || 'havainto';
+        }
       }).catch(function(){});
     } else {
       /* Käytä cachea — päivitä silti kortit */
       const wx = spot._currentWx;
-      const tmpEl = document.getElementById(fmiId + '-tmp');
-      const dewEl = document.getElementById(fmiId + '-dew');
-      if (tmpEl && wx.tmp != null) { const v=tmpEl.querySelector('.sh-stat-value'); if(v){v.textContent=wx.tmp.toFixed(1);v.style.color='rgba(255,200,100,.9)';} }
-      if (dewEl && wx.dew != null) { const v=dewEl.querySelector('.sh-stat-value'); if(v){v.textContent=wx.dew.toFixed(1);v.style.color='rgba(100,200,255,.9)';} }
+      const tmpEl2 = document.getElementById(fmiId + '-tmp');
+      const dewEl2 = document.getElementById(fmiId + '-dew');
+      if (tmpEl2 && wx.tmp != null) { tmpEl2.textContent = wx.tmp.toFixed(1); tmpEl2.style.color = 'rgba(255,200,100,.9)'; }
+      if (dewEl2 && wx.dew != null) { dewEl2.textContent = wx.dew.toFixed(1)+'°'; dewEl2.style.color = 'rgba(100,200,255,.9)'; }
+      const fmiLnkV2 = document.getElementById(fmiId + '-lnk-val');
+      if (fmiLnkV2 && wx.ms != null) {
+        const cc3 = ColorRamp.rgb(wx.ms);
+        fmiLnkV2.textContent = Units.fmt(wx.ms);
+        fmiLnkV2.style.color = 'rgb('+cc3.r+','+cc3.g+','+cc3.b+')';
+        const sub2 = document.getElementById(fmiId+'-lnk-sub');
+        if (sub2) sub2.textContent = wx.obsTime || 'havainto';
+      }
     }
 
     /* Historia */
@@ -3881,6 +3898,15 @@ function openSheet(spot, hourIdx) {
         const temp = d && d.temp != null ? d.temp.toFixed(1) + '°C' : '—';
         const valEl = el.querySelector('[data-ws-val]');
         if (valEl) valEl.textContent = temp;
+      }
+      /* Päivitä UiRas linkki-kortti */
+      const uLnkVal = document.getElementById(_waterStatId + '-lnk-val');
+      if (uLnkVal) {
+        const d2 = map[_uirasStation.id];
+        if (d2 && d2.temp != null) {
+          uLnkVal.textContent = d2.temp.toFixed(1);
+          uLnkVal.style.color = 'rgba(0,207,255,.9)';
+        }
       }
       /* Lataa historia */
       if (!uirasHistEl) return;
@@ -3918,6 +3944,48 @@ function _waterStatCard(id, station) {
   + '</div>';
   const panel = '<div id="' + panelId + '" class="sh-stat-water-panel"></div>';
   return btn + panel;
+}
+
+/* Lämpötila + kastepiste yhdistettynä */
+function _tempDewComboCard(tmpId, dewId) {
+  return '<div class="sh-stat">'
+    + '<span class="sh-stat-label">🌡 Lämpö</span>'
+    + '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:1px">'
+      + '<span id="'+tmpId+'" class="sh-stat-value" style="color:rgba(255,200,100,.5)">—</span>'
+      + '<span id="'+dewId+'" style="font-family:DM Mono,monospace;font-size:10px;color:rgba(100,200,255,.4);margin-top:1px">—°<span style="font-size:8px;opacity:.6"> kaste</span></span>'
+    + '</div>'
+    + '<span class="sh-stat-sub">°C</span>'
+  + '</div>';
+}
+
+/* FMI linkki-kortti — klikkaus scrollaa FMI-kaavioon */
+function _fmiLinkCard(fmiId) {
+  var eid = fmiId + '-hist';
+  return '<div class="sh-stat" id="'+fmiId+'-lnk" style="cursor:pointer;border-color:rgba(100,255,160,.2);background:rgba(100,255,160,.04)" onclick="_scrollToSection(\''+eid+'\')">'
+    + '<span class="sh-stat-label">📡 Tuuli</span>'
+    + '<span id="'+fmiId+'-lnk-val" class="sh-stat-value" style="color:rgba(100,255,160,.4)">—</span>'
+    + '<span id="'+fmiId+'-lnk-sub" class="sh-stat-sub" style="color:rgba(100,255,160,.35)">havainto</span>'
+  + '</div>';
+}
+
+/* UiRas linkki-kortti — klikkaus scrollaa UiRas-kaavioon */
+function _uirasLinkCard(id, station) {
+  var shortName = station.name.replace(/uimaranta/gi,'').trim();
+  var eid = 'uiras-always-' + id;
+  return '<div class="sh-stat" id="'+id+'-lnk" style="cursor:pointer;border-color:rgba(0,180,255,.2);background:rgba(0,180,255,.04)" onclick="_scrollToSection(\''+eid+'\')">'
+    + '<span class="sh-stat-label">🏊 Vesi</span>'
+    + '<span id="'+id+'-lnk-val" class="sh-stat-value" style="color:rgba(0,207,255,.4)">—</span>'
+    + '<span class="sh-stat-sub" style="color:rgba(0,207,255,.35)">'+shortName+'</span>'
+  + '</div>';
+}
+
+/* Scroll-helper */
+function _scrollToSection(id) {
+  var el = document.getElementById(id);
+  var sheet = document.getElementById('sheet');
+  if (!el || !sheet) return;
+  var top = el.offsetTop - 16;
+  sheet.scrollTo({ top: top, behavior: 'smooth' });
 }
 
 /* Trendi-stat-kortti */
