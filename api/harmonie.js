@@ -1,9 +1,15 @@
 const https = require('https');
 
-function fetchHarmonie(lat, lng) {
+/* FMI HARMONIE 2.5km + Open-Meteo jatko
+   - HARMONIE: 2 vrk historiaa + 2 vrk ennustetta
+   - Open-Meteo: jatkaa siita eteenpain 14 vrk (16 vrk yhteensa) */
+
+const OM_URL = 'https://api.open-meteo.com/v1/forecast';
+
+function fetchHarmonieXml(lat, lng) {
   return new Promise(function(resolve, reject) {
     var now = new Date();
-    var start = new Date(now.getTime() - 2*3600000).toISOString().slice(0,16) + 'Z';
+    var start = new Date(now.getTime() - 48*3600000).toISOString().slice(0,16) + 'Z';
     var end   = new Date(now.getTime() + 48*3600000).toISOString().slice(0,16) + 'Z';
     var url = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0'
       + '&request=getFeature'
@@ -18,6 +24,20 @@ function fetchHarmonie(lat, lng) {
       res.on('data', function(c) { body += c; });
       res.on('error', reject);
       res.on('end', function() { resolve(body); });
+    }).on('error', reject);
+  });
+}
+
+function fetchOM(lat, lng) {
+  return new Promise(function(resolve, reject) {
+    var url = OM_URL + '?latitude=' + lat + '&longitude=' + lng
+      + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,weather_code'
+      + '&wind_speed_unit=ms&timezone=auto&forecast_days=16';
+    https.get(url, function(res) {
+      var body = '';
+      res.on('data', function(c) { body += c; });
+      res.on('error', reject);
+      res.on('end', function() { resolve(JSON.parse(body)); });
     }).on('error', reject);
   });
 }
@@ -66,12 +86,36 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    var xml = await fetchHarmonie(lat.toFixed(4), lng.toFixed(4));
-    if (!xml || xml.length < 500) {
-      return res.status(502).json({ error: 'empty response from FMI' });
+    /* Hae HARMONIE ja Open-Meteo rinnakkain */
+    var results = await Promise.allSettled([
+      fetchHarmonieXml(lat.toFixed(4), lng.toFixed(4)),
+      fetchOM(lat.toFixed(4), lng.toFixed(4))
+    ]);
+
+    var xmlResult = results[0];
+    var omResult  = results[1];
+
+    if (xmlResult.status !== 'fulfilled' || !xmlResult.value || xmlResult.value.length < 500) {
+      /* HARMONIE ei saatavilla -- palautetaan Open-Meteo sellaisenaan */
+      if (omResult.status === 'fulfilled' && omResult.value.hourly) {
+        var oh = omResult.value.hourly;
+        return res.status(200).json({
+          source: 'Open-Meteo fallback',
+          hourly: {
+            time:              oh.time,
+            windspeed_10m:     oh.wind_speed_10m,
+            winddirection_10m: oh.wind_direction_10m,
+            windgusts_10m:     oh.wind_gusts_10m,
+            temperature_2m:    oh.temperature_2m,
+            weather_code:      oh.weather_code,
+          }
+        });
+      }
+      return res.status(502).json({ error: 'both sources failed' });
     }
 
-    var series = parseHarmonie(xml);
+    /* Parsitaan HARMONIE */
+    var series = parseHarmonie(xmlResult.value);
     var keys = Object.keys(series);
     var wsKey = keys.find(function(k){ return k.includes('windspeedms'); });
     var wdKey = keys.find(function(k){ return k.includes('winddirection'); });
@@ -83,29 +127,47 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ error: 'no wind data', debug_keys: keys });
     }
 
-    /* Suodata menneet tunnit pois -- aloita nykyhetkesta */
-    var nowMs = Date.now();
-    var wsAll = series[wsKey];
-    var startIdx = 0;
-    for (var i = 0; i < wsAll.length; i++) {
-      if (new Date(wsAll[i].t).getTime() >= nowMs - 3600000) { startIdx = i; break; }
-    }
+    /* Muodostetaan HARMONIE-aikasarja */
+    var hTimes = series[wsKey].map(function(p){ return toLocal(p.t); });
+    var hWs    = series[wsKey].map(function(p){ return p.v; });
+    var hWd    = wdKey ? series[wdKey].map(function(p){ return p.v; }) : hWs.map(function(){ return 0; });
+    var hWg    = wgKey ? series[wgKey].map(function(p){ return p.v; }) : hWs.slice();
+    var hT     = tKey  ? series[tKey].map(function(p){ return p.v; })  : null;
+    var hWx    = wxKey ? series[wxKey].map(function(p){ return p.v; }) : null;
 
-    function sliceVals(key) {
-      if (!key || !series[key]) return null;
-      return series[key].slice(startIdx).map(function(p){ return p.v; });
+    /* Jos Open-Meteo saatavilla, liitetaan se HARMONIE:n peraan */
+    if (omResult.status === 'fulfilled' && omResult.value.hourly) {
+      var oh = omResult.value.hourly;
+      /* Loyda HARMONIE:n viimeinen aika -- Open-Meteo alkaa siita */
+      var harmLastTime = hTimes[hTimes.length - 1];
+      var spliceIdx = -1;
+      if (oh.time && harmLastTime) {
+        for (var i = 0; i < oh.time.length; i++) {
+          /* Muunna Open-Meteo aika samaan muotoon (trimmaa sekunnit) */
+          var omT = oh.time[i].slice(0, 16);
+          if (omT > harmLastTime) { spliceIdx = i; break; }
+        }
+      }
+      if (spliceIdx >= 0) {
+        var omTail = oh.time.slice(spliceIdx).map(function(t){ return t.slice(0,16); });
+        hTimes = hTimes.concat(omTail);
+        hWs    = hWs.concat(oh.wind_speed_10m.slice(spliceIdx));
+        hWd    = hWd.concat(oh.wind_direction_10m.slice(spliceIdx));
+        hWg    = hWg.concat(oh.wind_gusts_10m.slice(spliceIdx));
+        if (hT && oh.temperature_2m)   hT  = hT.concat(oh.temperature_2m.slice(spliceIdx));
+        if (hWx && oh.weather_code)    hWx = hWx.concat(oh.weather_code.slice(spliceIdx));
+      }
     }
-    var times = wsAll.slice(startIdx).map(function(p){ return toLocal(p.t); });
 
     return res.status(200).json({
-      source:  'FMI HARMONIE 2.5km',
+      source:  'FMI HARMONIE 2.5km + Open-Meteo',
       hourly:  {
-        time:              times,
-        windspeed_10m:     sliceVals(wsKey),
-        winddirection_10m: wdKey ? sliceVals(wdKey) : times.map(function(){ return 0; }),
-        windgusts_10m:     wgKey ? sliceVals(wgKey) : sliceVals(wsKey),
-        temperature_2m:    tKey  ? sliceVals(tKey)  : null,
-        weather_code:      wxKey ? sliceVals(wxKey) : null,
+        time:              hTimes,
+        windspeed_10m:     hWs,
+        winddirection_10m: hWd,
+        windgusts_10m:     hWg,
+        temperature_2m:    hT,
+        weather_code:      hWx,
       }
     });
   } catch (err) {
