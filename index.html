@@ -1768,7 +1768,7 @@ const ViewportGrid = {
     if (!toLoad.length) return;
     const batches = [];
     for (let i = 0; i < toLoad.length; i += 80) batches.push(toLoad.slice(i, i + 80));
-    var spotFd = State.activeModel === 'fmi_harmonie' ? 2 : 5;
+    var spotFd = State.activeModel === 'fmi_harmonie' ? 2 : 16;
     for (const b of batches) await loadBatch(b, spotFd);
   },
 
@@ -2524,12 +2524,14 @@ function buildHarmonieUrls(points) {
   });
 }
 
-function buildBatchUrl(points, model, forecastDays) {
-  const days = forecastDays || 5;
+function buildBatchUrl(points, model, forecastDays, pastDays) {
+  const days = forecastDays || 16;  /* 16 vrk ennuste */
+  const past = pastDays !== undefined ? pastDays : 2; /* 2 vrk historiaa oletuksena */
   let url = OM_BASE + '?latitude=' + points.map(p => p.lat.toFixed(4)).join(',')
     + '&longitude=' + points.map(p => p.lng.toFixed(4)).join(',')
     + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
-    + '&wind_speed_unit=ms&timezone=auto&forecast_days=' + days;
+    + '&wind_speed_unit=ms&timezone=auto&forecast_days=' + days
+    + '&past_days=' + past;
   if (model && model !== 'best_match') url += '&models=' + model;
   return url;
 }
@@ -2594,9 +2596,9 @@ function loadBatch(points, forecastDays, forceOM) {
   }
 
   /* Open-Meteo batch */
-  function tryOM(mdl, retries, fd) {
+  function tryOM(mdl, retries, fd, past) {
     if (_rateLimited) return Promise.resolve();
-    return fetch(buildBatchUrl(points, mdl, fd))
+    return fetch(buildBatchUrl(points, mdl, fd, past))
       .then(r => {
         if (r.status === 429) {
           if (retries > 0) {
@@ -2628,8 +2630,11 @@ function loadBatch(points, forecastDays, forceOM) {
      forceOM=true  -> aina Open-Meteo (global coarse) */
   if (forceOM || (model !== 'fmi_harmonie' && model !== 'best_match')) {
     const mdl = forceOM ? 'best_match' : model;
-    return tryOM(mdl, 2, forecastDays)
-      .catch(e => { if (e.message==='429') return tryOM('best_match', 1, forecastDays); throw e; })
+    /* Global coarse (forceOM): nopea 1 pv ennuste, ei historiaa */
+    const pastD = forceOM ? 0 : 2;
+    const foreD = forceOM ? 1 : (forecastDays || 16);
+    return tryOM(mdl, 2, foreD, pastD)
+      .catch(e => { if (e.message==='429') return tryOM('best_match', 1, foreD, pastD); throw e; })
       .catch(e => { if (e.message==='429') setRateLimited(); });
   }
   if (model === 'fmi_harmonie') {
@@ -2640,8 +2645,8 @@ function loadBatch(points, forecastDays, forceOM) {
   return tryHarmonie()
     .catch(function(e) {
       console.warn('[API] HARMONIE -> Open-Meteo fallback:', e.message);
-      return tryOM('best_match', 2, forecastDays)
-        .catch(e2 => { if (e2.message==='429') return tryOM('best_match', 1, forecastDays); throw e2; })
+      return tryOM('best_match', 2, forecastDays || 16, 2)
+        .catch(e2 => { if (e2.message==='429') return tryOM('best_match', 1, forecastDays || 16, 2); throw e2; })
         .catch(e2 => { if (e2.message==='429') setRateLimited(); });
     });
 }
