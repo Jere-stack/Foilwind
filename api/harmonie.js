@@ -1,15 +1,10 @@
 const https = require('https');
 
-/* FMI HARMONIE piste-ennuste
-   storedquery: fmi::forecast::harmonie::surface::point::timevaluepair
-   Resoluutio:  2.5 km, paivittyy ~3h valein
-   Cache:       1h Vercel CDN */
-
 function fetchHarmonie(lat, lng) {
   return new Promise(function(resolve, reject) {
     var now = new Date();
-    var start = now.toISOString().slice(0,16) + 'Z';
-    var end = new Date(now.getTime() + 48*3600000).toISOString().slice(0,16) + 'Z';
+    var start = new Date(now.getTime() - 2*3600000).toISOString().slice(0,16) + 'Z';
+    var end   = new Date(now.getTime() + 48*3600000).toISOString().slice(0,16) + 'Z';
     var url = 'https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0'
       + '&request=getFeature'
       + '&storedquery_id=fmi::forecast::harmonie::surface::point::timevaluepair'
@@ -72,17 +67,15 @@ module.exports = async function handler(req, res) {
 
   try {
     var xml = await fetchHarmonie(lat.toFixed(4), lng.toFixed(4));
-
     if (!xml || xml.length < 500) {
       return res.status(502).json({ error: 'empty response from FMI' });
     }
 
     var series = parseHarmonie(xml);
     var keys = Object.keys(series);
-
-    var wsKey = keys.find(function(k){ return k.includes('windspeedms') || k === 'ws'; });
-    var wdKey = keys.find(function(k){ return k.includes('winddirection') || k === 'wd'; });
-    var wgKey = keys.find(function(k){ return k.includes('windgust') || k === 'wg'; });
+    var wsKey = keys.find(function(k){ return k.includes('windspeedms'); });
+    var wdKey = keys.find(function(k){ return k.includes('winddirection'); });
+    var wgKey = keys.find(function(k){ return k.includes('windgust'); });
     var tKey  = keys.find(function(k){ return k.includes('temperature'); });
     var wxKey = keys.find(function(k){ return k.includes('weathersymbol'); });
 
@@ -90,22 +83,29 @@ module.exports = async function handler(req, res) {
       return res.status(200).json({ error: 'no wind data', debug_keys: keys });
     }
 
-    var times = series[wsKey].map(function(p){ return toLocal(p.t); });
-    var ws    = series[wsKey].map(function(p){ return p.v; });
-    var wd    = wdKey ? series[wdKey].map(function(p){ return p.v; }) : ws.map(function(){ return 0; });
-    var wg    = wgKey ? series[wgKey].map(function(p){ return p.v; }) : ws.slice();
-    var t2m   = tKey  ? series[tKey].map(function(p){ return p.v; })  : null;
-    var wx3   = wxKey ? series[wxKey].map(function(p){ return p.v; }) : null;
+    /* Suodata menneet tunnit pois -- aloita nykyhetkesta */
+    var nowMs = Date.now();
+    var wsAll = series[wsKey];
+    var startIdx = 0;
+    for (var i = 0; i < wsAll.length; i++) {
+      if (new Date(wsAll[i].t).getTime() >= nowMs - 3600000) { startIdx = i; break; }
+    }
+
+    function sliceVals(key) {
+      if (!key || !series[key]) return null;
+      return series[key].slice(startIdx).map(function(p){ return p.v; });
+    }
+    var times = wsAll.slice(startIdx).map(function(p){ return toLocal(p.t); });
 
     return res.status(200).json({
       source:  'FMI HARMONIE 2.5km',
       hourly:  {
         time:              times,
-        windspeed_10m:     ws,
-        winddirection_10m: wd,
-        windgusts_10m:     wg,
-        temperature_2m:    t2m,
-        weather_code:      wx3,
+        windspeed_10m:     sliceVals(wsKey),
+        winddirection_10m: wdKey ? sliceVals(wdKey) : times.map(function(){ return 0; }),
+        windgusts_10m:     wgKey ? sliceVals(wgKey) : sliceVals(wsKey),
+        temperature_2m:    tKey  ? sliceVals(tKey)  : null,
+        weather_code:      wxKey ? sliceVals(wxKey) : null,
       }
     });
   } catch (err) {
