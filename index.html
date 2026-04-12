@@ -3605,150 +3605,306 @@ function openSheet(spot, hourIdx) {
 
   /* ── 24H SVG LINE CHART — menneet harmaat, nykyhetki-viiva, tiheät labels ── */
   function build24hChart() {
-    /* Aloitetaan 2h ennen nykyhetkeä jotta konteksti näkyy */
-    const startOff = 2;
-    const cs = Math.max(0, idx - startOff);
-    const ce = Math.min(h.windspeed_10m.length, cs + 26);
-    const vals = [], times = [];
-    for (let i = cs; i < ce; i++) {
-      vals.push(h.windspeed_10m[i] || 0);
-      times.push(h.time ? h.time[i] : '');
-    }
-    if (vals.length < 2) return '';
+    /* Multi-malli vertailukaavio
+       - Paaviiva: nykyinen malli (spot.wx) -- kaikki saatavilla oleva data
+       - Muut mallit: ladataan async, piirretaan paalle
+       - Interaktiivinen tooltip: nayttaa kaikki mallit */
 
-    const nowSlot = Math.min(startOff, idx); /* indeksi vals-taulukossa jossa "nyt" on */
-    const maxV = Math.max(...vals, 1);
+    const allVals  = h.windspeed_10m || [];
+    const allTimes = h.time || [];
+    if (allVals.length < 2) return '';
+
+    /* Kaytetaan kaikkea saatavilla olevaa dataa, max 16 * 24 = 384 pistetta */
+    const MAX_PTS = 384;
+    const step = Math.max(1, Math.floor(allVals.length / MAX_PTS));
+    const vals = [], times = [];
+    for (let i = 0; i < allVals.length; i += step) {
+      vals.push(allVals[i] || 0);
+      times.push(allTimes[i] || '');
+    }
+    const n = vals.length;
+
+    /* nowSlot: lahin indeksi nykyhetkeen */
+    const nowMs = Date.now();
+    let nowSlot = 0;
+    for (let i = 0; i < times.length; i++) {
+      if (!times[i]) continue;
+      if (new Date(times[i]).getTime() >= nowMs) { nowSlot = i; break; }
+    }
+
+    const maxV = Math.max.apply(null, vals.concat([1]));
     let peakMs = 0, peakH = '';
     vals.forEach((v, i) => { if (i >= nowSlot && v > peakMs) { peakMs = v; peakH = fmtHour(times[i]); } });
 
-    const W = 300, H = 68, pad = 4, labelH = 12;
-    const TH = H + labelH;
-    const xStep = (W - pad*2) / (vals.length - 1);
-    const xOf   = i => pad + i * xStep;
-    const yOf   = v => H - pad - (v / maxV) * (H - pad*2);
-    const nowX  = xOf(nowSlot).toFixed(1);
+    const W = 300, H = 80, pad = 4, labelH = 12, TH = H + labelH;
+    const xOf = i => pad + i / (n-1||1) * (W - pad*2);
+    const yOf = v => H - pad - (v / (maxV||1)) * (H - pad*2);
+    const nowX = xOf(nowSlot).toFixed(1);
+    const svgId = 'mc-' + Math.random().toString(36).slice(2,6);
 
-    /* Split line: past (grey) + future (color gradient) */
-    const pastPts   = vals.slice(0, nowSlot+1).map((v,i) => xOf(i).toFixed(1)+','+yOf(v).toFixed(1)).join(' ');
-    const futurePts = vals.slice(nowSlot).map((v,i) => xOf(nowSlot+i).toFixed(1)+','+yOf(v).toFixed(1)).join(' ');
+    /* Paaviiva: varitty gradienti mennyt/tuleva */
+    const pastPts = vals.slice(0, nowSlot+1).map((v,i) =>
+      xOf(i).toFixed(1) + ',' + yOf(v).toFixed(1)).join(' ');
+    const futurePts = vals.slice(nowSlot).map((v,i) =>
+      xOf(nowSlot+i).toFixed(1) + ',' + yOf(v).toFixed(1)).join(' ');
 
-    /* Area fills */
-    const pastArea = 'M '+xOf(0).toFixed(1)+','+(H-pad)
-      + ' L '+vals.slice(0,nowSlot+1).map((v,i)=>xOf(i).toFixed(1)+','+yOf(v).toFixed(1)).join(' L ')
-      + ' L '+xOf(nowSlot).toFixed(1)+','+(H-pad)+' Z';
-
-    const futureArea = 'M '+xOf(nowSlot).toFixed(1)+','+(H-pad)
-      + ' L '+vals.slice(nowSlot).map((v,i)=>xOf(nowSlot+i).toFixed(1)+','+yOf(v).toFixed(1)).join(' L ')
-      + ' L '+xOf(vals.length-1).toFixed(1)+','+(H-pad)+' Z';
-
-    /* Color gradient for future */
     const gradStops = vals.slice(nowSlot).map((v,i) => {
-      const x = xOf(nowSlot+i), pct = ((x-xOf(nowSlot))/(xOf(vals.length-1)-xOf(nowSlot))*100).toFixed(1);
+      const x = xOf(nowSlot+i);
+      const pct = ((x-xOf(nowSlot))/(xOf(n-1)-xOf(nowSlot))*100).toFixed(1);
       const cc = ColorRamp.rgb(v);
-      return `<stop offset="${pct}%" stop-color="rgb(${cc.r},${cc.g},${cc.b})"/>`;
+      return '<stop offset="'+pct+'%" stop-color="rgb('+cc.r+','+cc.g+','+cc.b+')"/>';
     }).join('');
 
-    /* Hour labels — joka tunti pieni piste, joka 3h numero */
-    let labels = '', ticks = '';
-    vals.forEach((v, i) => {
-      const x    = xOf(i).toFixed(1);
-      const hr   = times[i] ? new Date(times[i]).getHours() : -1;
-      const past = i < nowSlot;
-      const fill = past ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.5)';
-      /* Piste joka tunti */
-      ticks += `<circle cx="${x}" cy="${(H-pad+3).toFixed(1)}" r="1.2" fill="${fill}"/>`;
-      /* Numero joka 3h */
-      if (hr >= 0 && hr % 3 === 0) {
-        const col = past ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.55)';
-        labels += `<text x="${x}" y="${TH-1}" font-family="DM Mono,monospace" font-size="7.5" fill="${col}" text-anchor="middle">${('0'+hr).slice(-2)}</text>`;
+    /* X-akseli: paivan vaihtuessa nimi, muuten 6h tuntimerkki */
+    let labels = '', lastDay = -1;
+    for (let i = 0; i < times.length; i++) {
+      if (!times[i]) continue;
+      const d = new Date(times[i]);
+      const day = d.getDate(), hr = d.getHours();
+      const x = xOf(i).toFixed(1);
+      if (day !== lastDay) {
+        lastDay = day;
+        const dayNames = ['Su','Ma','Ti','Ke','To','Pe','La'];
+        labels += '<text x="'+x+'" y="'+(TH-1)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.45)" text-anchor="middle">'+dayNames[d.getDay()]+' '+day+'.</text>';
+      } else if (hr % 6 === 0) {
+        labels += '<text x="'+x+'" y="'+(TH-1)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.25)" text-anchor="middle">'+('0'+hr).slice(-2)+'</text>';
       }
-    });
+    }
 
-    /* Now line */
-    const nowLine = `<line x1="${nowX}" y1="${pad}" x2="${nowX}" y2="${H-pad+4}" stroke="rgba(255,255,255,.85)" stroke-width="1.5" stroke-dasharray="2,2"/>`;
-    const nowLabel = `<text x="${nowX}" y="${pad+6}" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.7)" text-anchor="middle">NYT</text>`;
+    /* Tooltip + hit area */
+    const overlay =
+      '<line id="'+svgId+'-vl" x1="-1" y1="'+pad+'" x2="-1" y2="'+(H-pad)+'" stroke="rgba(255,255,255,.4)" stroke-width="1" stroke-dasharray="3,2" pointer-events="none"/>'
+      + '<rect id="'+svgId+'-hit" x="'+pad+'" y="'+pad+'" width="'+(W-pad*2)+'" height="'+(H-pad*2)+'" fill="transparent" style="cursor:crosshair"/>';
 
-    const svgId24 = 'fc-' + Math.random().toString(36).slice(2,6);
+    const svgContent =
+      '<svg id="'+svgId+'" class="sh-24h-svg" viewBox="0 0 '+W+' '+TH+'" preserveAspectRatio="none" style="touch-action:none">'
+        + '<defs>'
+          + '<linearGradient id="'+svgId+'-fcg" x1="0%" y1="0%" x2="100%" y2="0%">'+gradStops+'</linearGradient>'
+        + '</defs>'
+        /* Mennyt alue */
+        + '<path d="M '+xOf(0).toFixed(1)+','+(H-pad)+' L '+vals.slice(0,nowSlot+1).map((v,i)=>xOf(i).toFixed(1)+','+yOf(v).toFixed(1)).join(' L ')+' L '+xOf(nowSlot).toFixed(1)+','+(H-pad)+' Z" fill="rgba(255,255,255,.03)"/>'
+        /* Mennyt viiva */
+        + (pastPts ? '<polyline points="'+pastPts+'" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>' : '')
+        /* Tuleva viiva -- varitty */
+        + '<polyline points="'+futurePts+'" fill="none" stroke="url(#'+svgId+'-fcg)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'
+        /* Placeholder: muut mallit piirretaan JS:ssa async */
+        + '<g id="'+svgId+'-models"></g>'
+        /* NYT-viiva */
+        + '<line x1="'+nowX+'" y1="'+pad+'" x2="'+nowX+'" y2="'+(H-pad+4)+'" stroke="rgba(255,255,255,.7)" stroke-width="1.5" stroke-dasharray="2,2"/>'
+        + '<text x="'+nowX+'" y="'+(pad+7)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.6)" text-anchor="middle">NYT</text>'
+        + labels
+        + overlay
+      + '</svg>';
 
-    const svgContent = `<svg id="${svgId24}" class="sh-24h-svg" viewBox="0 0 ${W} ${TH}" preserveAspectRatio="none" style="touch-action:none">`
-      + `<defs>`
-        + `<linearGradient id="fcg" x1="0%" y1="0%" x2="100%" y2="0%">${gradStops}</linearGradient>`
-        + `<linearGradient id="fag" x1="0%" y1="0%" x2="0%" y2="100%">`
-          + `<stop offset="0%" stop-color="rgba(0,207,255,.2)"/><stop offset="100%" stop-color="rgba(0,207,255,.0)"/>`
-        + `</linearGradient>`
-      + `</defs>`
-      + `<path d="${pastArea}" fill="rgba(255,255,255,.04)"/>`
-      + `<path d="${futureArea}" fill="url(#fag)"/>`
-      + (pastPts ? `<polyline points="${pastPts}" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>` : '')
-      + `<polyline points="${futurePts}" fill="none" stroke="url(#fcg)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`
-      + ticks + labels + nowLine + nowLabel
-      /* Tooltip elementit */
-      + `<line id="${svgId24}-vl" x1="-1" y1="${pad}" x2="-1" y2="${H-pad}" stroke="rgba(255,255,255,.55)" stroke-width="1" stroke-dasharray="3,2" pointer-events="none"/>`
-      + `<circle id="${svgId24}-dot" cx="-1" cy="-1" r="3.5" fill="white" stroke="rgba(0,0,0,.3)" stroke-width="1" pointer-events="none"/>`
-      + `<rect id="${svgId24}-hit" x="${pad}" y="${pad}" width="${W-pad*2}" height="${H-pad*2}" fill="transparent" style="cursor:crosshair"/>`
-    + `</svg>`;
+    /* Mallit joita verrataan -- aina nama kolme */
+    const COMPARE_MODELS = [
+      { id: 'ecmwf_ifs025', label: 'ECMWF', color: 'rgba(80,180,255,.7)',  dash: '4,3' },
+      { id: 'icon_eu',      label: 'ICON',  color: 'rgba(255,200,80,.7)',   dash: '4,3' },
+      { id: 'gfs_seamless', label: 'GFS',   color: 'rgba(200,100,255,.5)', dash: '3,4' },
+    ];
 
-    const section = '<div class="sh-24h-section">'
+    const modelNames = { fmi_harmonie: 'FMI 2.5km', best_match: 'Auto', ecmwf_ifs025: 'ECMWF', icon_eu: 'ICON', gfs_seamless: 'GFS' };
+    const activeLabel = modelNames[State.activeModel] || State.activeModel;
+
+    /* Legenda */
+    const legendHtml =
+      '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px;font-family:DM Mono,monospace;font-size:8px">'
+        + '<span><span style="color:rgba(100,220,255,.8)">&#9632;</span> '+activeLabel+'</span>'
+        + COMPARE_MODELS.map(m =>
+            '<span id="'+svgId+'-leg-'+m.id+'" style="color:rgba(255,255,255,.25)"><span style="color:'+m.color+'">&#8212;</span> '+m.label+'</span>'
+          ).join('')
+      + '</div>';
+
+    /* Tooltip div */
+    const tipHtml = '<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(8,12,26,.96);border:1px solid rgba(100,200,255,.2);border-radius:10px;padding:7px 11px;font-family:DM Mono,monospace;font-size:9px;pointer-events:none;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.6);z-index:100;min-width:110px"></div>';
+
+    const section = '<div class="sh-24h-section" id="'+svgId+'-section">'
       + '<div class="sh-24h-header">'
-        + '<span class="sh-24h-title">24h ennuste'
+        + '<span class="sh-24h-title">Tuuliennuste'
           + (State.activeModel==='fmi_harmonie' ? '<span style="font-size:8px;opacity:.5;margin-left:5px;font-weight:400">FMI 2.5km</span>' : '')
           + '</span>'
-        + (peakMs > 0 ? '<span class="sh-24h-peak">↑ ' + Units.fmt(peakMs) + ' ' + Units.label() + ' klo ' + peakH + '</span>' : '')
+        + (peakMs > 0 ? '<span class="sh-24h-peak">&#8593; ' + Units.fmt(peakMs) + ' ' + Units.label() + ' klo ' + peakH + '</span>' : '')
       + '</div>'
+      + legendHtml
       + '<div style="position:relative">'
-        + '<div id="' + svgId24 + '-tip" style="display:none;position:absolute;background:rgba(8,12,26,.95);border:1px solid rgba(0,207,255,.25);border-radius:8px;padding:6px 10px;font-family:DM Mono,monospace;font-size:9px;pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5);z-index:100"></div>'
+        + tipHtml
         + svgContent
       + '</div>'
     + '</div>';
 
-    /* Attach tooltip events after render */
+    /* Async: lataa ja piirrä muut mallit */
     setTimeout(function() {
-      const svg24 = document.getElementById(svgId24);
-      const hit24 = document.getElementById(svgId24 + '-hit');
-      const vl24  = document.getElementById(svgId24 + '-vl');
-      const dot24 = document.getElementById(svgId24 + '-dot');
-      const tip24 = document.getElementById(svgId24 + '-tip');
-      if (!hit24) return;
+      const svgEl  = document.getElementById(svgId);
+      const modelsG = document.getElementById(svgId + '-models');
+      const hitEl  = document.getElementById(svgId + '-hit');
+      const vlEl   = document.getElementById(svgId + '-vl');
+      const tipEl  = document.getElementById(svgId + '-tip');
+      if (!svgEl || !modelsG || !hitEl) return;
 
-      function px2i(cx) {
-        var r = svg24.getBoundingClientRect();
-        var sx = (cx - r.left) / r.width * W;
-        return Math.max(0, Math.min(vals.length-1, Math.round((sx-pad)/(W-pad*2)*(vals.length-1))));
+      /* Kayteetaan cachea jos data jo haettu */
+      const cacheKey = '_mc_' + spot.name + '_' + Math.floor(Date.now()/3600000);
+      const cached = spot._modelCache && spot._modelCache.key === cacheKey ? spot._modelCache.data : null;
+
+      function drawModel(mDef, mVals, mTimes) {
+        if (!mVals || mVals.length < 2) return;
+        /* Interpoloi samaan aikaruudukkoon kuin paaviiva */
+        const mMs = mTimes.map(function(t){ return new Date(t).getTime(); });
+        const mapped = times.map(function(t) {
+          if (!t) return null;
+          var tMs = new Date(t).getTime();
+          /* Loyda lahin indeksi */
+          var best = 0, bd = Infinity;
+          for (var j = 0; j < mMs.length; j++) {
+            var d = Math.abs(mMs[j] - tMs);
+            if (d < bd) { bd = d; best = j; }
+          }
+          return bd < 3600000 ? mVals[best] : null;
+        });
+
+        var localMax = Math.max.apply(null, mapped.filter(function(v){ return v!=null; }).concat([maxV]));
+        var yOfM = function(v){ return H - pad - (v / (localMax||1)) * (H - pad*2); };
+
+        var pts = mapped.map(function(v, i) {
+          if (v == null) return null;
+          return xOf(i).toFixed(1) + ',' + yOfM(v).toFixed(1);
+        }).filter(Boolean).join(' ');
+
+        if (!pts) return;
+        var line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        line.setAttribute('points', pts);
+        line.setAttribute('fill', 'none');
+        line.setAttribute('stroke', mDef.color);
+        line.setAttribute('stroke-width', '1.5');
+        line.setAttribute('stroke-dasharray', mDef.dash);
+        line.setAttribute('stroke-linejoin', 'round');
+        line.setAttribute('stroke-linecap', 'round');
+        line.setAttribute('pointer-events', 'none');
+        modelsG.appendChild(line);
+
+        /* Aktivoi legenda */
+        var legEl = document.getElementById(svgId + '-leg-' + mDef.id);
+        if (legEl) legEl.style.color = 'rgba(255,255,255,.7)';
+
+        return mapped; /* palautetaan interpoloitu data tooltippia varten */
       }
-      function show24(cx) {
-        var i = px2i(cx);
-        var x = xOf(i), y = yOf(vals[i]);
-        var cc = ColorRamp.rgb(vals[i]);
-        var col = 'rgb(' + cc.r + ',' + cc.g + ',' + cc.b + ')';
-        vl24.setAttribute('x1', x.toFixed(1)); vl24.setAttribute('x2', x.toFixed(1));
-        dot24.setAttribute('cx', x.toFixed(1)); dot24.setAttribute('cy', y.toFixed(1));
-        dot24.setAttribute('fill', col);
-        var hr = times[i] ? new Date(times[i]).getHours() : i;
-        var isPast = i < nowSlot;
-        tip24.innerHTML =
-          '<div style="color:rgba(255,255,255,.4);margin-bottom:2px">' + ('0'+hr).slice(-2) + ':00' + (isPast ? ' · mennyt' : '') + '</div>'
-          + '<div style="color:' + col + '">' + Units.fmt(vals[i]) + ' ' + Units.label() + '</div>';
-        var r2 = svg24.getBoundingClientRect(), relX = cx - r2.left, tipW = 100;
-        tip24.style.left = (relX > r2.width/2 ? relX - tipW - 8 : relX + 8) + 'px';
-        tip24.style.top  = '4px';
-        tip24.style.display = 'block';
+
+      var modelData = {}; /* {id: interpoloitu vals-array} */
+
+      function loadAndDraw() {
+        if (cached) {
+          COMPARE_MODELS.forEach(function(m) {
+            if (cached[m.id]) {
+              var mapped = drawModel(m, cached[m.id].vals, cached[m.id].times);
+              if (mapped) modelData[m.id] = { mapped: mapped, def: m };
+            }
+          });
+          attachTooltip();
+          return;
+        }
+
+        /* Hae kaikki kolme mallia yhdella Open-Meteo batchilla */
+        var modIds = COMPARE_MODELS.map(function(m){ return m.id; }).join(',');
+        var omUrl = OM_BASE + '?latitude=' + spot.lat.toFixed(4) + '&longitude=' + spot.lng.toFixed(4)
+          + '&hourly=wind_speed_10m'
+          + '&wind_speed_unit=ms&timezone=auto&forecast_days=16&past_days=2'
+          + '&models=' + modIds;
+
+        fetch(omUrl).then(function(r){ return r.ok ? r.json() : null; }).then(function(data) {
+          if (!data || !data.hourly) return;
+          var newCache = {};
+          var hourly = data.hourly;
+          /* Open-Meteo palauttaa wind_speed_10m_ecmwf_ifs025 jne. */
+          COMPARE_MODELS.forEach(function(m) {
+            var key = 'wind_speed_10m_' + m.id;
+            if (!hourly[key] && m.id === 'best_match') key = 'wind_speed_10m';
+            var mVals = hourly[key];
+            var mTimes = hourly.time;
+            if (!mVals || !mTimes) return;
+            newCache[m.id] = { vals: mVals, times: mTimes };
+            var mapped = drawModel(m, mVals, mTimes);
+            if (mapped) modelData[m.id] = { mapped: mapped, def: m };
+          });
+          spot._modelCache = { key: cacheKey, data: newCache };
+          attachTooltip();
+        }).catch(function(){ /* Ei haittaa jos mallidata puuttuu */ });
       }
-      function hide24() {
-        tip24.style.display = 'none';
-        vl24.setAttribute('x1','-1'); vl24.setAttribute('x2','-1');
-        dot24.setAttribute('cx','-1'); dot24.setAttribute('cy','-1');
+
+      function attachTooltip() {
+        if (!hitEl || !vlEl || !tipEl) return;
+
+        function px2i(cx) {
+          var r = svgEl.getBoundingClientRect();
+          var sx = (cx - r.left) / r.width * W;
+          return Math.max(0, Math.min(n-1, Math.round((sx-pad)/(W-pad*2)*(n-1))));
+        }
+
+        function showTip(cx) {
+          var i = px2i(cx);
+          var x = xOf(i);
+          vlEl.setAttribute('x1', x.toFixed(1)); vlEl.setAttribute('x2', x.toFixed(1));
+
+          var mainV = vals[i];
+          var cc = ColorRamp.rgb(mainV);
+          var col = 'rgb('+cc.r+','+cc.g+','+cc.b+')';
+          var t = times[i] ? new Date(times[i]) : null;
+          var timeStr = t ? (('0'+t.getDate()).slice(-2)+'.'+(t.getMonth()+1)+'. '+('0'+t.getHours()).slice(-2)+':00') : '';
+          var isPast = i < nowSlot;
+
+          var html = '<div style="color:rgba(255,255,255,.4);margin-bottom:5px;font-size:8px">'
+            + timeStr + (isPast ? ' &#183; mennyt' : '') + '</div>'
+            + '<div style="display:flex;justify-content:space-between;gap:16px;margin-bottom:3px">'
+              + '<span style="color:rgba(255,255,255,.5)">'+activeLabel+'</span>'
+              + '<span style="color:'+col+';font-weight:700">'+Units.fmt(mainV)+' '+Units.label()+'</span>'
+            + '</div>';
+
+          COMPARE_MODELS.forEach(function(m) {
+            var md = modelData[m.id];
+            if (!md || !md.mapped) return;
+            var v = md.mapped[i];
+            if (v == null) return;
+            var mcc = ColorRamp.rgb(v);
+            var mcol = 'rgb('+mcc.r+','+mcc.g+','+mcc.b+')';
+            var diff = v - mainV;
+            var diffStr = (diff >= 0 ? '+' : '') + diff.toFixed(1);
+            var diffCol = Math.abs(diff) < 0.5 ? 'rgba(255,255,255,.3)'
+              : diff > 0 ? 'rgba(255,120,80,.7)' : 'rgba(80,180,255,.7)';
+            html += '<div style="display:flex;justify-content:space-between;gap:16px;margin-bottom:2px">'
+              + '<span style="color:'+m.color+'">'+m.label+'</span>'
+              + '<span>'
+                + '<span style="color:'+mcol+'">'+Units.fmt(v)+'</span>'
+                + ' <span style="color:'+diffCol+';font-size:8px">'+(diff!==0?diffStr:'')+'</span>'
+              + '</span>'
+            + '</div>';
+          });
+
+          tipEl.innerHTML = html;
+          var r2 = svgEl.getBoundingClientRect(), relX = cx - r2.left, tipW = 130;
+          tipEl.style.left = (relX > r2.width/2 ? relX - tipW - 10 : relX + 10) + 'px';
+          tipEl.style.top = '4px';
+          tipEl.style.display = 'block';
+        }
+
+        function hideTip() {
+          tipEl.style.display = 'none';
+          vlEl.setAttribute('x1','-1'); vlEl.setAttribute('x2','-1');
+        }
+
+        hitEl.addEventListener('mousemove',  function(e){ showTip(e.clientX); }, { passive: true });
+        hitEl.addEventListener('mouseleave', hideTip, { passive: true });
+        hitEl.addEventListener('touchstart', function(e){ if(e.touches[0]) showTip(e.touches[0].clientX); }, { passive: true });
+        hitEl.addEventListener('touchmove',  function(e){ e.preventDefault(); if(e.touches[0]) showTip(e.touches[0].clientX); }, { passive: false });
+        hitEl.addEventListener('touchend',   function(){ setTimeout(hideTip, 1500); }, { passive: true });
       }
-      hit24.addEventListener('mousemove',  function(e){ show24(e.clientX); }, { passive: true });
-      hit24.addEventListener('mouseleave', hide24, { passive: true });
-      hit24.addEventListener('touchstart', function(e){ if(e.touches[0]) show24(e.touches[0].clientX); }, { passive: true });
-      hit24.addEventListener('touchmove',  function(e){ e.preventDefault(); if(e.touches[0]) show24(e.touches[0].clientX); }, { passive: false });
-      hit24.addEventListener('touchend',   function(){ setTimeout(hide24, 1500); }, { passive: true });
+
+      /* Paaviivalle tooltip heti, malli-data ladataan taustalla */
+      attachTooltip();
+      loadAndDraw();
     }, 50);
 
     return section;
   }
 
-  /* ── FMI NEAREST STATION ─────────────────────────────────────── */
+    /* ── FMI NEAREST STATION ─────────────────────────────────────── */
   function buildFmiCard(elId) {
     /* Use Open-Meteo current conditions as proxy — FMI WFS is XML,
        loaded async and injected after sheet opens */
