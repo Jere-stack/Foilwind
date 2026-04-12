@@ -1,11 +1,13 @@
 {
   "functions": {
-    "api/uiras.js": {
-      "maxDuration": 30
-    }
+    "api/uiras.js":    { "maxDuration": 30 },
+    "api/fmi.js":      { "maxDuration": 30 },
+    "api/harmonie.js": { "maxDuration": 30 }
   },
   "rewrites": [
-    { "source": "/api/uiras", "destination": "/api/uiras.js" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/uiras",    "destination": "/api/uiras.js" },
+    { "source": "/api/fmi",      "destination": "/api/fmi.js" },
+    { "source": "/api/harmonie", "destination": "/api/harmonie.js" },
+    { "source": "/(.*)",         "destination": "/index.html" }
   ]
 }
