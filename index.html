@@ -3620,12 +3620,11 @@ function openSheet(spot, hourIdx) {
     const sectionId  = 'mc-sec-' + Math.random().toString(36).slice(2,6);
     var activePeriod = spot._chartPeriod || '24h';
 
-    /* Kiinteat SVG-dimensiot -- korkeus pysyy aina samana, leveys scrollataan */
-    const CHART_H    = 100;  /* SVG pikseli korkeus */
-    const CHART_PX_H = 100;  /* DOM korkeus px -- aina sama */
-    const PAD = 4, LABEL_H = 14, TH = CHART_H + LABEL_H;
-    /* Leveys: 24h nakyy koko leveydella, pidemmissa scroll */
-    const PERIOD_W = { '24h': null, '5d': 600, 'all': 1200 }; /* null = 100% leveys */
+    /* SVG-dimensiot */
+    const CHART_H    = 120;  /* SVG viewBox korkeus */
+    const PAD = 4, LABEL_H = 16, TH = CHART_H + LABEL_H;
+    /* 24h: fluid (100% leveys), muut: kiintea px + vaakascroll */
+    const PERIOD_W = { '24h': null, '5d': 600, 'all': 1200 };
 
     const COMPARE_MODELS = [
       { id: 'ecmwf_ifs025', label: 'ECMWF', key: 'ecmwf' },
@@ -3665,7 +3664,9 @@ function openSheet(spot, hourIdx) {
       var isFluid = !PERIOD_W[periodKey];
       var W = isFluid ? 300 : PERIOD_W[periodKey]; /* viewBox width, paivitetaan JS:ssa */
       /* maxV: kaikki mallit huomioon -- paivitetaan jalkikateen JS:ssa */
-      var maxV = Math.max.apply(null,vals.concat([1]));
+      /* Kiintea asteikko min 8 m/s, skaalautuu ylospain tarvittaessa */
+      var dataMax = Math.max.apply(null, vals.concat([1]));
+      var maxV = Math.max(8, Math.ceil(dataMax / 2) * 2);
 
       var xOf = function(i){ return PAD + i/(n-1||1)*(W-PAD*2); };
       var yOf = function(v,mx){ return CHART_H - PAD - (v/((mx||maxV)||1))*(CHART_H-PAD*2); };
@@ -3687,21 +3688,35 @@ function openSheet(spot, hourIdx) {
         }
       }
 
-      /* Paaviivan pisteet -- varitty ColorRamp:lla pisteittain */
-      var pastSegs='', futureSegs='';
-      /* Mennyt: harmaa polyline */
+      /* Paaviivan pisteet */
+      var pastSegs='';
       var pastPts=vals.slice(0,nowSlot+1).map(function(v,i){
         return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);
       }).join(' ');
       if(pastPts) pastSegs='<polyline points="'+pastPts+'" fill="none" stroke="rgba(255,255,255,.2)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
 
-      /* Tuleva: piirra pisteittain variviivoina jotta vari vastaa ColorRamp:ia */
+      /* Tuleva: liukuvari pisteittain (sama logiikka kuin heatmap) */
       var colorSegs='';
       for(var ci=nowSlot;ci<n-1;ci++){
-        var cc=ColorRamp.rgb(vals[ci]);
+        /* Interpoloi vari segmentin keskiarvosta */
+        var vmid=(vals[ci]+vals[ci+1])/2;
+        var cc=ColorRamp.rgb(vmid);
         var x1=xOf(ci).toFixed(1),y1=yOf(vals[ci]).toFixed(1);
         var x2=xOf(ci+1).toFixed(1),y2=yOf(vals[ci+1]).toFixed(1);
-        colorSegs+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" stroke="rgb('+cc.r+','+cc.g+','+cc.b+')" stroke-width="2.5" stroke-linecap="round"/>';
+        colorSegs+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2
+          +'" stroke="rgb('+cc.r+','+cc.g+','+cc.b+')" stroke-width="3"'
+          +' stroke-linecap="round" stroke-linejoin="round"/>';
+      }
+      /* Tayteviiva alueen alle */
+      var fillPts=vals.slice(nowSlot).map(function(v,i){
+        return xOf(nowSlot+i).toFixed(1)+','+yOf(v).toFixed(1);
+      }).join(' ');
+      var areaFill='';
+      if(fillPts&&vals.slice(nowSlot).length>1){
+        var areaPath='M '+xOf(nowSlot).toFixed(1)+','+(CHART_H-PAD)
+          +' L '+fillPts
+          +' L '+xOf(n-1).toFixed(1)+','+(CHART_H-PAD)+' Z';
+        areaFill='<path d="'+areaPath+'" fill="rgba(100,200,255,.06)"/>';
       }
 
       /* X-akseli */
@@ -3735,16 +3750,23 @@ function openSheet(spot, hourIdx) {
         ylbls+='<line x1="'+PAD+'" y1="'+yy+'" x2="'+(W-PAD)+'" y2="'+yy+'" stroke="rgba(255,255,255,.05)" stroke-width="0.5"/>'
           +'<text x="'+(PAD+2)+'" y="'+yy+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.2)" dominant-baseline="middle">'+yv+'</text>';
       }
-      /* Foilausalue: 6-20 m/s vihrea taustahayvy */
-      var foilLow=6, foilHigh=Math.min(20,maxV*1.1);
+      /* Foilausalue: 6 m/s+ vihrea */
+      var foilLow = 6;
       if(foilLow < maxV) {
-        var fyTop  = yOf(Math.min(foilHigh,maxV)).toFixed(1);
-        var fyBot  = yOf(foilLow).toFixed(1);
-        if(parseFloat(fyTop)<parseFloat(fyBot)){
-          ylbls+='<rect x="'+PAD+'" y="'+fyTop+'" width="'+(W-PAD*2)+'" height="'+(parseFloat(fyBot)-parseFloat(fyTop)).toFixed(1)+'" fill="rgba(100,255,160,.055)" rx="2"/>';
-          /* Aluviiva 6 m/s */
-          ylbls+='<line x1="'+PAD+'" y1="'+fyBot+'" x2="'+(W-PAD)+'" y2="'+fyBot+'" stroke="rgba(100,255,160,.25)" stroke-width="0.8" stroke-dasharray="4,3"/>';
-          ylbls+='<text x="'+(W-PAD-2)+'" y="'+fyBot+'" font-family="DM Mono,monospace" font-size="6.5" fill="rgba(100,255,160,.4)" text-anchor="end" dominant-baseline="auto">6 m/s</text>';
+        var fyBot = yOf(foilLow).toFixed(1);
+        var fyTop = PAD.toString();
+        var rectH = (parseFloat(fyBot)-PAD).toFixed(1);
+        if(parseFloat(rectH)>0){
+          /* Gradient-tausta ylhäältä vihreaksi */
+          var gradId = svgId+'-fg';
+          ylbls+='<defs><linearGradient id="'+gradId+'" x1="0" y1="0" x2="0" y2="1">'
+            +'<stop offset="0%" stop-color="rgba(100,255,160,0)"/>'
+            +'<stop offset="100%" stop-color="rgba(100,255,160,.12)"/>'
+            +'</linearGradient></defs>';
+          ylbls+='<rect x="'+PAD+'" y="'+fyTop+'" width="'+(W-PAD*2)+'" height="'+rectH+'" fill="url(#'+gradId+')" />';
+          /* Selkea raja 6 m/s */
+          ylbls+='<line x1="'+PAD+'" y1="'+fyBot+'" x2="'+(W-PAD)+'" y2="'+fyBot+'" stroke="rgba(100,255,160,.4)" stroke-width="1"/>';
+          ylbls+='<text x="'+(W-PAD-2)+'" y="'+fyBot+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(100,255,160,.6)" text-anchor="end" dominant-baseline="auto" dy="-2">6 m/s &#x1F44D;</text>';
         }
       }
 
@@ -3767,10 +3789,11 @@ function openSheet(spot, hourIdx) {
       });
 
       var svg='<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" '
-        + 'style="display:block;'+(isFluid?'width:100%':'width:'+W+'px')+';height:'+(CHART_PX_H+LABEL_H)+'px;touch-action:none" id-period="'+periodKey+'">'
+        + 'preserveAspectRatio="none" style="display:block;'+(isFluid?'width:100%':'width:'+W+'px')+';height:auto;touch-action:none">'
         + '<defs></defs>'
         + ylbls
         + '<path d="M '+xOf(0).toFixed(1)+','+(CHART_H-PAD)+' L '+vals.slice(0,nowSlot+1).map(function(v,i){return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);}).join(' L ')+' L '+xOf(nowSlot).toFixed(1)+','+(CHART_H-PAD)+' Z" fill="rgba(255,255,255,.03)"/>'
+        + areaFill
         + pastSegs
         + colorSegs
         + modelsG
