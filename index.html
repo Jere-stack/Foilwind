@@ -823,23 +823,69 @@ transition: opacity .3s, transform .3s;
 LOADING  z:999
 ============================================================ */
 #loading {
-position: absolute; inset: 0; z-index: 999; background: var(–bg);
-display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
-transition: opacity .5s ease;
+position: fixed; inset: 0; z-index: 9999;
+background: #050a14;
+display: flex; flex-direction: column; align-items: center; justify-content: center;
+transition: opacity .7s ease;
 }
 #loading.out { opacity: 0; pointer-events: none; }
+#loading.hidden { display: none; }
+
+/* Logo */
 #load-logo {
-font-size: 36px; font-weight: 800;
-background: linear-gradient(135deg, #c8eeff 0%, var(–accent) 100%);
+font-size: 42px; font-weight: 800; letter-spacing: -1.5px;
+background: linear-gradient(135deg, #e0f4ff 0%, #00cfff 50%, #00ff9d 100%);
 -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+margin-bottom: 6px;
+animation: logoFadeIn .6s ease both;
 }
-.spinner {
-width: 36px; height: 36px;
-border: 2px solid rgba(0,207,255,.12); border-top-color: var(–accent);
-border-radius: 50%; animation: spin .75s linear infinite;
+#load-tagline {
+font-family: ‘DM Mono’, monospace; font-size: 11px;
+color: rgba(255,255,255,.3); letter-spacing: 3px; text-transform: uppercase;
+margin-bottom: 52px;
+animation: logoFadeIn .8s .1s ease both;
 }
-#load-txt { font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–muted); letter-spacing: 2px; text-transform: uppercase; }
-@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Progressbar */
+#load-progress-wrap {
+width: 160px; height: 2px;
+background: rgba(255,255,255,.08);
+border-radius: 1px;
+overflow: hidden;
+margin-bottom: 16px;
+animation: logoFadeIn .6s .2s ease both;
+}
+#load-progress-bar {
+height: 100%; width: 0%;
+background: linear-gradient(90deg, #00cfff, #00ff9d);
+border-radius: 1px;
+transition: width .4s ease;
+}
+
+/* Status teksti */
+#load-txt {
+font-family: ‘DM Mono’, monospace; font-size: 9px;
+color: rgba(255,255,255,.25); letter-spacing: 1.5px; text-transform: uppercase;
+animation: logoFadeIn .6s .3s ease both;
+min-height: 14px;
+}
+
+/* Taustavalo-animaatio */
+#load-glow {
+position: absolute; width: 300px; height: 300px;
+background: radial-gradient(circle, rgba(0,207,255,.08) 0%, transparent 70%);
+pointer-events: none;
+animation: glowPulse 2.5s ease-in-out infinite;
+}
+
+@keyframes logoFadeIn {
+from { opacity: 0; transform: translateY(8px); }
+to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes glowPulse {
+0%, 100% { transform: scale(1);   opacity: .6; }
+50%       { transform: scale(1.2); opacity: 1; }
+}
 
 /* ============================================================
 REFRESH INDICATOR
@@ -1127,9 +1173,13 @@ border-color: rgba(0,207,255,.4);
 <body>
 <div id="app">
   <div id="loading">
+    <div id="load-glow"></div>
     <div id="load-logo">FoilSpot</div>
-    <div class="spinner"></div>
-    <div id="load-txt">Ladataan säädataa...</div>
+    <div id="load-tagline">Wind &amp; Foil</div>
+    <div id="load-progress-wrap">
+      <div id="load-progress-bar"></div>
+    </div>
+    <div id="load-txt">Yhdistetään säädataan</div>
   </div>
 
   <div id="map"></div>
@@ -3695,16 +3745,24 @@ function openSheet(spot, hourIdx) {
         }
       }
 
-      /* Heatmap-taustapalkit: yksi palkki per tunnin piste */
-      var bgRects='';
+      /* Heatmap-taustapalkit: pystysuora vari-gradientti per sarake
+         Ylaraja = 0 m/s vari (tumma sininen), alaraja = sarakkeen arvo */
+      var bgDefs='', bgRects='';
       for(var bi=0;bi<n-1;bi++){
         var vmid=(vals[bi]+vals[bi+1])/2;
         var cc=ColorRamp.rgb(vmid);
+        var ccZero=ColorRamp.rgb(0);
         var bx=xOf(bi).toFixed(1);
-        var bw=(xOf(bi+1)-xOf(bi)+0.5).toFixed(1);
+        var bw=Math.max(1,(xOf(bi+1)-xOf(bi)+0.5)).toFixed(1);
         var isPastBg=bi<nowSlot;
-        var alpha=isPastBg?0.12:0.22;
-        bgRects+='<rect x="'+bx+'" y="'+PAD+'" width="'+bw+'" height="'+(CHART_H-PAD*2)+'" fill="rgb('+cc.r+','+cc.g+','+cc.b+')" opacity="'+alpha+'"/>';
+        var alpha=isPastBg?0.15:0.28;
+        var gid='bg'+svgId+bi;
+        /* Gradientti: yla=0m/s vari (tumma), ala=sarakkeen tuulivari */
+        bgDefs+='<linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1">'
+          +'<stop offset="0%" stop-color="rgb('+ccZero.r+','+ccZero.g+','+ccZero.b+')" stop-opacity="0"/>'
+          +'<stop offset="100%" stop-color="rgb('+cc.r+','+cc.g+','+cc.b+')" stop-opacity="'+alpha+'"/>'
+          +'</linearGradient>';
+        bgRects+='<rect x="'+bx+'" y="'+PAD+'" width="'+bw+'" height="'+(CHART_H-PAD*2)+'" fill="url(#'+gid+')"/>';
       }
 
       /* Paaviiva: yksivärinen valkoinen, selkeä */
@@ -3777,7 +3835,7 @@ function openSheet(spot, hourIdx) {
 
       var svg='<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" '
         + 'preserveAspectRatio="none" style="display:block;'+(isFluid?'width:100%':'width:'+W+'px')+';height:auto;touch-action:none">'
-        + '<defs></defs>'
+        + '<defs>'+bgDefs+'</defs>'
         + ylbls
         + bgRects
         + pastSegs
@@ -5790,8 +5848,22 @@ tlScroll.addEventListener('touchstart', e => e.stopPropagation(), { passive: tru
 tlScroll.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
 
 /* ── LOADING & REFRESH ────────────────────────────────────────── */
-function updateLoadText(msg) { const el = document.getElementById('load-txt'); if (el) el.textContent = msg; }
-function hideLoading() { const el = document.getElementById('loading'); el.classList.add('out'); setTimeout(() => { el.style.display = 'none'; }, 600); }
+function updateLoadText(msg, progress) {
+  const el = document.getElementById('load-txt');
+  if (el) el.textContent = msg;
+  if (progress !== undefined) {
+    const bar = document.getElementById('load-progress-bar');
+    if (bar) bar.style.width = Math.min(100, progress) + '%';
+  }
+}
+function hideLoading() {
+  const bar = document.getElementById('load-progress-bar');
+  if (bar) bar.style.width = '100%';
+  setTimeout(function() {
+    const el = document.getElementById('loading');
+    if (el) { el.classList.add('out'); setTimeout(function(){ el.classList.add('hidden'); }, 750); }
+  }, 300);
+}
 function scheduleRefresh() {
   clearInterval(State.refreshTimer);
   State.refreshTimer = setInterval(() => {
@@ -5830,12 +5902,15 @@ function main() {
   /* Load spots first (small batch, 7-day forecast), then viewport, skip coarse global */
   const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
 
+  updateLoadText('Haetaan ennustedata', 20);
+
   /* Ladataan spotit ja viewport RINNAKKAIN — nopeampi startup */
   const spotsP    = ViewportGrid.loadSpots().catch(e => console.warn('[loadSpots]', e));
   const viewportP = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[loadViewport]', e));
 
   /* Spotit valmiina → näytä heti aikajana + spottimarkerit */
   spotsP.then(() => {
+    updateLoadText('Spotit ladattu', 70);
     const ref = bestTimelineRef();
     if (ref) {
       const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
