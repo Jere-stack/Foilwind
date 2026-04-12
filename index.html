@@ -519,6 +519,23 @@ SPOT CARD — v6 redesign
 .sh-hero {
 display: flex; flex-direction: column; margin-bottom: 16px;
 }
+@keyframes windNumIn {
+from { opacity: 0; transform: translateY(8px) scale(.95); }
+to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes fadeSlideUp {
+from { opacity: 0; transform: translateY(6px); }
+to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes chartDraw {
+from { opacity: 0; transform: translateX(-6px); }
+to   { opacity: 1; transform: translateX(0); }
+}
+.sh-big-wind { animation: windNumIn .5s cubic-bezier(.34,1.56,.64,1) both; }
+.sh-foil-badge { animation: fadeSlideUp .35s .1s ease both; }
+.sh-stats { animation: fadeSlideUp .35s .15s ease both; }
+.sh-24h-section { animation: fadeSlideUp .4s .2s ease both; }
+.sh-stat-live-panel.open { animation: chartDraw .4s .25s ease both; }
 .sh-hero-top {
 display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
 }
@@ -533,16 +550,17 @@ font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–muted);
 }
 .sh-hero-right { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .sh-big-wind {
-font-family: ‘DM Mono’, monospace; font-size: 48px; font-weight: 500;
-line-height: 0.9; letter-spacing: -2px;
+font-family: ‘DM Mono’, monospace; font-size: 56px; font-weight: 200;
+line-height: 0.85; letter-spacing: -3px;
 }
 .sh-big-unit {
-font-family: ‘DM Mono’, monospace; font-size: 12px; color: var(–muted);
-display: block; margin-top: 2px; letter-spacing: 0.5px;
+font-family: ‘DM Mono’, monospace; font-size: 13px; font-weight: 300;
+color: rgba(255,255,255,.35); letter-spacing: 1px;
+display: inline; margin-left: 3px; vertical-align: 8px;
 }
 .sh-big-gust {
-font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–muted);
-margin-top: -2px;
+font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 300;
+color: rgba(255,255,255,.3); margin-top: 4px; letter-spacing: 0.3px;
 }
 .sh-hero-tags {
 display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
@@ -564,28 +582,26 @@ display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
 .sh-hero-live-val { font-size: 13px; font-weight: 700; }
 .sh-hero-live-lbl { font-size: 8px; color: rgba(100,255,160,.5); }
 
-/* Foilability badge — full-width prominent */
+/* Foilability badge — pill, compact, integrated */
 .sh-foil-badge {
-display: flex; align-items: center; justify-content: center; gap: 10px;
-padding: 14px 20px; border-radius: 14px;
-font-size: 14px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase;
-margin-bottom: 16px; position: relative; overflow: hidden;
+display: inline-flex; align-items: center; gap: 7px;
+padding: 5px 12px 5px 8px; border-radius: 99px;
+font-family: ‘DM Mono’, monospace;
+font-size: 11px; font-weight: 600; letter-spacing: .3px;
+margin-bottom: 16px;
+border-width: 1px; border-style: solid;
 }
-.sh-foil-badge::before {
-content: ‘’; position: absolute; inset: 0;
-background: linear-gradient(135deg, rgba(255,255,255,.04) 0%, transparent 60%);
-}
-.sh-foil-badge .badge-icon { font-size: 20px; }
+.sh-foil-badge .badge-icon { font-size: 14px; line-height: 1; }
 
 /* Stats row */
 .sh-stats {
 display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px;
 }
 .sh-stat {
-background: rgba(255,255,255,.035);
-border: 1px solid rgba(255,255,255,.07);
-border-radius: 12px; padding: 10px 8px;
-display: flex; flex-direction: column; align-items: center; gap: 4px;
+background: none;
+border: none;
+border-radius: 0; padding: 6px 4px;
+display: flex; flex-direction: column; align-items: center; gap: 3px;
 }
 .sh-stat-label {
 font-family: ‘DM Mono’, monospace; font-size: 8px;
@@ -774,12 +790,12 @@ font-family: ‘DM Mono’, monospace; font-size: 8px; color: var(–muted);
 .sh-windrose svg { filter: drop-shadow(0 0 8px rgba(0,207,255,.1)); }
 
 /* Badge variants */
-.b-calm    { background: rgba(4,26,130,.18); color: rgb(80,160,255);  border: 1px solid rgba(80,160,255,.2); }
-.b-light   { background: rgba(0,220,180,.12); color: rgb(0,220,180);  border: 1px solid rgba(0,220,180,.2); }
-.b-good    { background: rgba(28,237,85,.12); color: rgb(80,237,120); border: 1px solid rgba(80,237,120,.2); }
-.b-perfect { background: rgba(240,220,0,.12); color: rgb(240,220,0);  border: 1px solid rgba(240,220,0,.2); }
-.b-strong  { background: rgba(255,80,8,.15);  color: rgb(255,130,50); border: 1px solid rgba(255,80,8,.2); }
-.b-danger  { background: rgba(255,10,10,.15); color: rgb(255,90,90);  border: 1px solid rgba(255,10,10,.2); }
+.b-calm    { background: rgba(80,160,255,.06);  color: rgb(80,160,255);  border-color: rgba(80,160,255,.18); }
+.b-light   { background: rgba(0,220,180,.06);  color: rgb(0,220,180);  border-color: rgba(0,220,180,.18); }
+.b-good    { background: rgba(80,237,120,.06); color: rgb(80,237,120); border-color: rgba(80,237,120,.18); }
+.b-perfect { background: rgba(240,220,0,.06);  color: rgb(240,220,0);  border-color: rgba(240,220,0,.18); }
+.b-strong  { background: rgba(255,130,50,.06); color: rgb(255,130,50); border-color: rgba(255,80,8,.18); }
+.b-danger  { background: rgba(255,90,90,.06);  color: rgb(255,90,90);  border-color: rgba(255,10,10,.18); }
 
 /* ============================================================
 ERROR TOAST  z:50
@@ -3784,8 +3800,8 @@ function openSheet(spot, hourIdx) {
     /* Sun bar */
     + buildSunBar()
 
-    /* Foil badge */
-    + '<div class="sh-foil-badge ' + badge.cls + '">'
+    /* Foil badge — pill */
+    + '<div class="sh-foil-badge ' + badge.cls + '" style="display:inline-flex">'
       + '<span class="badge-icon">' + badge.icon + '</span>'
       + badge.text
     + '</div>'
@@ -3808,14 +3824,22 @@ function openSheet(spot, hourIdx) {
     + '<div style="height:8px"></div>'
 
     /* FMI historia-kaavio */
-    + '<div style="font-family:DM Mono,monospace;font-size:9px;font-weight:700;color:rgba(100,255,160,.6);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">'      + '📡 Ilmatieteenlaitos — havaintoasema'    + '</div>'    + '<div id="' + fmiId + '-hist" class="sh-stat-live-panel open" style="margin-bottom:14px">'
-      + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">📡 Ladataan havaintodataa...</div>'
+    + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
+      + '<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(100,255,160,.45);letter-spacing:.3px" id="' + fmiId + '-chart-lbl">Tuulihavainto · ladataan...</span>'
+      + '<div style="flex:1;height:1px;background:rgba(100,255,160,.08)"></div>'
+    + '</div>'
+    + '<div id="' + fmiId + '-hist" class="sh-stat-live-panel open" style="margin-bottom:14px">'
+      + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">Ladataan...</div>'
     + '</div>'
 
     /* UiRas vedenlämpö */
     + (_uirasStation
-        ? '<div style="font-family:DM Mono,monospace;font-size:9px;font-weight:700;color:rgba(0,207,255,.6);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">'            + '🏊 Uimaveden lämpötila — ' + _uirasStation.name          + '</div>'          + '<div id="uiras-always-' + _waterStatId + '" class="sh-stat-live-panel open" style="margin-bottom:14px;border-color:rgba(0,180,255,.2);background:rgba(0,180,255,.05)">'
-            + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">🏊 Ladataan vedenlämpöä...</div>'
+        ? '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
+            + '<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.45);letter-spacing:.3px" id="uiras-chart-lbl-' + _waterStatId + '">Uimaveden lämpötila · ' + _uirasStation.name + '</span>'
+            + '<div style="flex:1;height:1px;background:rgba(0,180,255,.08)"></div>'
+          + '</div>'
+          + '<div id="uiras-always-' + _waterStatId + '" class="sh-stat-live-panel open" style="margin-bottom:14px;border-color:rgba(0,180,255,.1);background:rgba(0,180,255,.03)">'
+            + '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:14px">Ladataan...</div>'
           + '</div>'
         : '')
 
@@ -3830,6 +3854,14 @@ function openSheet(spot, hourIdx) {
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet-overlay').classList.add('open');
   Haptics.medium();
+  /* Tausta hivelee tuulen mukaan */
+  (function() {
+    var sc = document.getElementById('sheet-content');
+    if (!sc) return;
+    var cc = ColorRamp.rgb(ms);
+    var r = cc.r, g = cc.g, b = cc.b;
+    sc.style.background = 'linear-gradient(180deg, rgba('+r+','+g+','+b+',.06) 0%, transparent 320px)';
+  })();
 
   /* Lataa FMI latest + historia — 2 kutsua, ei Open-Meteo -kutsuja */
   (function() {
@@ -3864,6 +3896,9 @@ function openSheet(spot, hourIdx) {
       if (!histEl) return;
       histEl.dataset.ok = '1';
       _renderLiveHistory(histEl, data, spot._currentWx || null);
+      /* Päivitä kaavio-otsikko */
+      var lbl = document.getElementById(fmiId + '-chart-lbl');
+      if (lbl && data.station) lbl.textContent = 'Tuulihavainto · ' + data.station;
     }).catch(function(){
       if (histEl) histEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Havaintodata ei saatavilla</div>';
     });
@@ -3937,7 +3972,7 @@ function _tempDewComboCard(tmpId, dewId) {
 /* FMI linkki-kortti — klikkaus scrollaa FMI-kaavioon */
 function _fmiLinkCard(fmiId) {
   var eid = fmiId + '-hist';
-  return '<div class="sh-stat" id="'+fmiId+'-lnk" style="cursor:pointer;border-color:rgba(100,255,160,.2);background:rgba(100,255,160,.04)" onclick="_scrollToSection(\''+eid+'\')">'
+  return '<div class="sh-stat" id="'+fmiId+'-lnk" style="cursor:pointer" onclick="_scrollToSection(\''+eid+'\')">'
     + '<span class="sh-stat-label">📡 Tuuli</span>'
     + '<span id="'+fmiId+'-lnk-val" class="sh-stat-value" style="color:rgba(100,255,160,.4)">—</span>'
     + '<div style="display:flex;flex-direction:column;gap:0">'
@@ -3951,7 +3986,7 @@ function _fmiLinkCard(fmiId) {
 function _uirasLinkCard(id, station) {
   var shortName = station.name.replace(/uimaranta/gi,'').replace(/\s*\(.*\)/,'').trim();
   var eid = 'uiras-always-' + id;
-  return '<div class="sh-stat" id="'+id+'-lnk" style="cursor:pointer;border-color:rgba(0,180,255,.2);background:rgba(0,180,255,.04)" onclick="_scrollToSection(\''+eid+'\')">'
+  return '<div class="sh-stat" id="'+id+'-lnk" style="cursor:pointer" onclick="_scrollToSection(\''+eid+'\')">'
     + '<span class="sh-stat-label">🏊 Vesi</span>'
     + '<span id="'+id+'-lnk-val" class="sh-stat-value" style="color:rgba(0,207,255,.4)">—</span>'
     + '<span id="'+id+'-lnk-name" class="sh-stat-sub" style="color:rgba(0,207,255,.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">'+shortName+'</span>'
