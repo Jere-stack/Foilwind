@@ -2512,9 +2512,19 @@ function renderLoop(ts) {
 }
 
 /* ── WEATHER BATCH API ────────────────────────────────────────── */
+/* HARMONIE 2.5km proxy per piste, Open-Meteo fallback batchina */
+const HARMONIE_BASE = 'https://foilwind.vercel.app/api/harmonie';
+const OM_BASE       = 'https://api.open-meteo.com/v1/forecast';
+
+function buildHarmonieUrls(points) {
+  return points.map(function(p) {
+    return HARMONIE_BASE + '?lat=' + p.lat.toFixed(4) + '&lng=' + p.lng.toFixed(4);
+  });
+}
+
 function buildBatchUrl(points, model, forecastDays) {
   const days = forecastDays || 5;
-  let url = 'https://api.open-meteo.com/v1/forecast?latitude=' + points.map(p => p.lat.toFixed(4)).join(',')
+  let url = OM_BASE + '?latitude=' + points.map(p => p.lat.toFixed(4)).join(',')
     + '&longitude=' + points.map(p => p.lng.toFixed(4)).join(',')
     + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
     + '&wind_speed_unit=ms&timezone=auto&forecast_days=' + days;
@@ -2560,6 +2570,28 @@ function loadBatch(points, forecastDays) {
     cached.forEach((wx, i) => { if (i < points.length && wx) points[i].wx = wx; });
     return Promise.resolve();
   }
+
+  /* --- HARMONIE 2.5km --- yksittaiset pyynnot per piste, kaikki rinnakkain */
+  function tryHarmonie() {
+    const urls = buildHarmonieUrls(points);
+    return Promise.all(urls.map(function(url) {
+      return fetch(url).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
+    })).then(function(results) {
+      let anySuccess = false;
+      results.forEach(function(j, i) {
+        if (i < points.length && j && !j.error && j.hourly && j.hourly.windspeed_10m && j.hourly.windspeed_10m.length > 0) {
+          points[i].wx = processBatchResponse(j);
+          anySuccess = true;
+        }
+      });
+      if (!anySuccess) throw new Error('harmonie_empty');
+      _batchCache[cacheKey] = points.map(p => p.wx || null);
+      ViewportGrid.invalidateCache();
+      console.log('[API] HARMONIE 2.5km OK (' + points.length + ' pistetta)');
+    });
+  }
+
+  /* --- Open-Meteo fallback --- batch-kutsu kaikille pisteille */
   function tryModel(model, retries, fd) {
     if (_rateLimited) return Promise.resolve();
     return fetch(buildBatchUrl(points, model, fd))
@@ -2590,9 +2622,15 @@ function loadBatch(points, forecastDays) {
         if (!anySuccess) throw new Error('no valid data');
       });
   }
-  return tryModel(State.activeModel, 2, forecastDays)
-    .catch(e => { if (e.message === '429') return tryModel('best_match', 1, forecastDays); throw e; })
-    .catch(e => { if (e.message === '429') { setRateLimited(); console.error('[API] Rate limited'); } });
+
+  /* Yritys jarjestys: HARMONIE -> Open-Meteo fallback */
+  return tryHarmonie()
+    .catch(function(e) {
+      console.warn('[API] HARMONIE fallback Open-Meteo:', e.message);
+      return tryModel(State.activeModel, 2, forecastDays)
+        .catch(e => { if (e.message === '429') return tryModel('best_match', 1, forecastDays); throw e; })
+        .catch(e => { if (e.message === '429') { setRateLimited(); console.error('[API] Rate limited'); } });
+    });
 }
 
 /* ── WIND FIELD BUILDER ───────────────────────────────────────── */
