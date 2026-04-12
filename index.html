@@ -3768,9 +3768,9 @@ function openSheet(spot, hourIdx) {
       + '</div>'
       + '<div class="sh-hero-right">'
         + '<div style="text-align:right">'
-          + '<div class="sh-big-wind" id="' + fmiId + '-bigwind" style="color:' + colorStr + '">' + Units.fmt(ms) + '</div>'
+          + '<div class="sh-big-wind" style="color:' + colorStr + '">' + Units.fmt(ms) + '</div>'
           + '<span class="sh-big-unit">' + Units.label() + '</span>'
-          + '<div class="sh-big-gust" id="' + fmiId + '-bigwind-sub">Puuska ' + Units.fmt(gst) + ' ' + Units.label() + '</div>'
+          + '<div class="sh-big-gust">Puuska ' + Units.fmt(gst) + ' ' + Units.label() + '</div>'
           + '<div style="margin-top:4px;font-family:DM Mono,monospace;font-size:9px;color:'
             + (trend.arrow==='↑'?'rgba(255,160,80,.7)':trend.arrow==='↓'?'rgba(80,180,255,.7)':'rgba(255,255,255,.3)')
             + '">'
@@ -3959,23 +3959,19 @@ function _uirasLinkCard(id, station) {
 function _updateFmiCard(fmiId, fmi) {
   var cc = ColorRamp.rgb(fmi.ws || 0);
   var col = 'rgb('+cc.r+','+cc.g+','+cc.b+')';
-  /* Iso tuuli herossa */
-  var bw = document.getElementById(fmiId+'-bigwind');
-  var bs = document.getElementById(fmiId+'-bigwind-sub');
-  if (bw && fmi.ws != null) { bw.textContent = Units.fmt(fmi.ws); bw.style.color = col; }
-  if (bs) bs.textContent = 'Puuska '+(fmi.wg!=null?Units.fmt(fmi.wg):'—')+' '+Units.label();
+  /* Hero pysyy ennusteessa — ei päivitetä */
   /* Lämpö + kastepiste */
   var te = document.getElementById(fmiId+'-tmp');
   var de = document.getElementById(fmiId+'-dew');
   if (te && fmi.tmp != null) { te.textContent = fmi.tmp.toFixed(1); te.style.color = 'rgba(255,200,100,.9)'; }
   if (de && fmi.dew != null) { de.textContent = fmi.dew.toFixed(1)+'°'; de.style.color = 'rgba(100,200,255,.9)'; }
-  /* Tuuli-linkki-kortti */
+  /* Tuuli-linkki-kortti: arvo + asemanimi + aika */
   var lv = document.getElementById(fmiId+'-lnk-val');
   var ls = document.getElementById(fmiId+'-lnk-sub');
   var ln = document.getElementById(fmiId+'-lnk-name');
   if (lv && fmi.ws != null) { lv.textContent = Units.fmt(fmi.ws); lv.style.color = col; }
-  if (ls) ls.textContent = fmi.time || 'havainto';
-  if (ln) ln.textContent = fmi.station || '';
+  if (ln && fmi.station) ln.textContent = fmi.station;
+  if (ls) ls.textContent = fmi.time ? fmi.time : '—';
 }
 
 function _updateUirasCard(waterStatId, temp, stationName) {
