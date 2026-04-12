@@ -1200,6 +1200,7 @@ border-color: rgba(0,207,255,.4);
     <div class="sp-section">
       <div class="sp-label">Säädata</div>
       <div class="sp-chips" id="models">
+        <div class="sp-chip" data-model="fmi_harmonie"><span class="l-icon">🇫🇮</span>FMI</div>
         <div class="sp-chip active" data-model="best_match"><span class="l-icon">🌐</span>Auto</div>
         <div class="sp-chip" data-model="icon_eu"><span class="l-icon">🇪🇺</span>ICON</div>
         <div class="sp-chip" data-model="ecmwf_ifs025"><span class="l-icon">🌍</span>ECMWF</div>
@@ -1649,7 +1650,7 @@ const ViewportGrid = {
     let done = 0;
     const total = pts.length;
     const loadPromise = Promise.allSettled(batches.map(b =>
-      loadBatch(b, 1).then(() => {
+      loadBatch(b, 1, true).then(() => {
         b.forEach(p => { if (p.wx) this._globalBase.set(this._ptKey(p.lat, p.lng), p); });
         done += b.length;
         if (onProgress) onProgress(done, total);
@@ -1767,7 +1768,8 @@ const ViewportGrid = {
     if (!toLoad.length) return;
     const batches = [];
     for (let i = 0; i < toLoad.length; i += 80) batches.push(toLoad.slice(i, i + 80));
-    for (const b of batches) await loadBatch(b, 5); /* 5 vrk riittää */
+    var spotFd = State.activeModel === 'fmi_harmonie' ? 2 : 5;
+    for (const b of batches) await loadBatch(b, spotFd);
   },
 
   getAllPoints() {
@@ -1950,7 +1952,7 @@ const State = {
   currentHourIdx: 0,
   windField: [],
   activeLayer: 'wind',
-  activeModel: 'best_match',
+  activeModel: (function(){ try{ var m=localStorage.getItem('fs_model'); return m||'best_match'; }catch(e){ return 'best_match'; } })(),
   dpr: 1,
   isPlaying: false,
   playTimer: null,
@@ -2561,45 +2563,45 @@ function setRateLimited() {
   document.getElementById('rl-banner').classList.add('show');
 }
 
-function loadBatch(points, forecastDays) {
+function loadBatch(points, forecastDays, forceOM) {
   if (_rateLimited) return Promise.resolve();
+  const model = State.activeModel;
   const p0 = points[0], pN = points[points.length - 1];
-  const cacheKey = p0.lat.toFixed(3)+','+p0.lng.toFixed(3)+'|'+pN.lat.toFixed(3)+','+pN.lng.toFixed(3)+'|'+points.length;
+  const cacheKey = model + '|' + p0.lat.toFixed(3)+','+p0.lng.toFixed(3)+'|'+pN.lat.toFixed(3)+','+pN.lng.toFixed(3)+'|'+points.length;
   if (_batchCache[cacheKey]) {
     const cached = _batchCache[cacheKey];
     cached.forEach((wx, i) => { if (i < points.length && wx) points[i].wx = wx; });
     return Promise.resolve();
   }
 
-  /* --- HARMONIE 2.5km --- yksittaiset pyynnot per piste, kaikki rinnakkain */
+  /* HARMONIE per-piste (rinnakkain) */
   function tryHarmonie() {
     const urls = buildHarmonieUrls(points);
     return Promise.all(urls.map(function(url) {
       return fetch(url).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
     })).then(function(results) {
-      let anySuccess = false;
+      let ok = 0;
       results.forEach(function(j, i) {
         if (i < points.length && j && !j.error && j.hourly && j.hourly.windspeed_10m && j.hourly.windspeed_10m.length > 0) {
-          points[i].wx = processBatchResponse(j);
-          anySuccess = true;
+          points[i].wx = processBatchResponse(j); ok++;
         }
       });
-      if (!anySuccess) throw new Error('harmonie_empty');
+      if (!ok) throw new Error('harmonie_empty');
       _batchCache[cacheKey] = points.map(p => p.wx || null);
       ViewportGrid.invalidateCache();
-      console.log('[API] HARMONIE 2.5km OK (' + points.length + ' pistetta)');
+      console.log('[API] FMI HARMONIE 2.5km: ' + ok + '/' + points.length + ' pistetta');
     });
   }
 
-  /* --- Open-Meteo fallback --- batch-kutsu kaikille pisteille */
-  function tryModel(model, retries, fd) {
+  /* Open-Meteo batch */
+  function tryOM(mdl, retries, fd) {
     if (_rateLimited) return Promise.resolve();
-    return fetch(buildBatchUrl(points, model, fd))
+    return fetch(buildBatchUrl(points, mdl, fd))
       .then(r => {
         if (r.status === 429) {
           if (retries > 0) {
-            const wait = (4 - retries) * 2000 + Math.random() * 1000;
-            return new Promise(resolve => setTimeout(resolve, wait)).then(() => tryModel(model, retries - 1, fd));
+            return new Promise(res => setTimeout(res, (4-retries)*2000+Math.random()*1000))
+              .then(() => tryOM(mdl, retries-1, fd));
           }
           throw new Error('429');
         }
@@ -2608,28 +2610,39 @@ function loadBatch(points, forecastDays) {
       })
       .then(data => {
         const arr = Array.isArray(data) ? data : [data];
-        let anySuccess = false;
+        let ok = false;
         arr.forEach((j, i) => {
-          if (i < points.length) {
-            if (j && !j.error && j.hourly) { points[i].wx = processBatchResponse(j); anySuccess = true; }
-            else { points[i].wx = points[i].wx || null; }
+          if (i < points.length && j && !j.error && j.hourly) {
+            points[i].wx = processBatchResponse(j); ok = true;
           }
         });
-        if (anySuccess) {
-          _batchCache[cacheKey] = points.map(p => p.wx || null);
-          ViewportGrid.invalidateCache();
-        }
-        if (!anySuccess) throw new Error('no valid data');
+        if (ok) { _batchCache[cacheKey] = points.map(p => p.wx||null); ViewportGrid.invalidateCache(); }
+        else throw new Error('no valid data');
       });
   }
 
-  /* Yritys jarjestys: HARMONIE -> Open-Meteo fallback */
+  /* Reititys mallin mukaan:
+     fmi_harmonie  -> HARMONIE, ei fallbackia (kayttaja valitsi)
+     best_match    -> HARMONIE ensin, fallback Auto
+     muu (ICON/ECMWF/GFS) -> suoraan Open-Meteo
+     forceOM=true  -> aina Open-Meteo (global coarse) */
+  if (forceOM || (model !== 'fmi_harmonie' && model !== 'best_match')) {
+    const mdl = forceOM ? 'best_match' : model;
+    return tryOM(mdl, 2, forecastDays)
+      .catch(e => { if (e.message==='429') return tryOM('best_match', 1, forecastDays); throw e; })
+      .catch(e => { if (e.message==='429') setRateLimited(); });
+  }
+  if (model === 'fmi_harmonie') {
+    return tryHarmonie()
+      .catch(e => { console.error('[API] HARMONIE virhe:', e.message); });
+  }
+  /* best_match: HARMONIE ensin, fallback Open-Meteo */
   return tryHarmonie()
     .catch(function(e) {
-      console.warn('[API] HARMONIE fallback Open-Meteo:', e.message);
-      return tryModel(State.activeModel, 2, forecastDays)
-        .catch(e => { if (e.message === '429') return tryModel('best_match', 1, forecastDays); throw e; })
-        .catch(e => { if (e.message === '429') { setRateLimited(); console.error('[API] Rate limited'); } });
+      console.warn('[API] HARMONIE -> Open-Meteo fallback:', e.message);
+      return tryOM('best_match', 2, forecastDays)
+        .catch(e2 => { if (e2.message==='429') return tryOM('best_match', 1, forecastDays); throw e2; })
+        .catch(e2 => { if (e2.message==='429') setRateLimited(); });
     });
 }
 
@@ -3672,7 +3685,9 @@ function openSheet(spot, hourIdx) {
 
     const section = '<div class="sh-24h-section">'
       + '<div class="sh-24h-header">'
-        + '<span class="sh-24h-title">24h ennuste</span>'
+        + '<span class="sh-24h-title">24h ennuste'
+          + (State.activeModel==='fmi_harmonie' ? '<span style="font-size:8px;opacity:.5;margin-left:5px;font-weight:400">FMI 2.5km</span>' : '')
+          + '</span>'
         + (peakMs > 0 ? '<span class="sh-24h-peak">↑ ' + Units.fmt(peakMs) + ' ' + Units.label() + ' klo ' + peakH + '</span>' : '')
       + '</div>'
       + '<div style="position:relative">'
@@ -5417,12 +5432,15 @@ document.getElementById('models').addEventListener('click', e => {
   document.querySelectorAll('#models .sp-chip').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
   document.getElementById('settings-popup').classList.remove('open');
   State.activeModel = model;
+  try { localStorage.setItem('fs_model', model); } catch(e) {}
   _rateLimited = false;
   try { sessionStorage.removeItem('foilspot_rl'); } catch(e) {}
   Object.keys(_batchCache).forEach(k => delete _batchCache[k]);
   ViewportGrid._globalBase.clear();
   SPOTS.forEach(s => { s.wx = null; }); ViewportGrid.invalidateCache();
-  Toast.show('Vaihdetaan malliin: ' + model.replace('_',' ').toUpperCase() + '...', 3000);
+  const modelNames = { fmi_harmonie:'FMI HARMONIE 2.5km', best_match:'Auto (paras saatavilla)',
+    icon_eu:'ICON EU 7km', ecmwf_ifs025:'ECMWF IFS 9km', gfs_seamless:'GFS 13km' };
+  Toast.show('Malli: ' + (modelNames[model] || model) + '...', 3000);
   const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
   ViewportGrid.loadGlobalCoarse().then(() => {
     const vp = ViewportGrid.loadViewport(State.map).catch(e => console.warn(e));
@@ -5467,6 +5485,15 @@ function scheduleRefresh() {
 function main() {
   buildLegend(); initMap(); initCanvases();
   Crosshair.init(); WeatherWidget.init(); Units.init();
+  /* Palauta tallennettu malli */
+  (function() {
+    var saved = State.activeModel;
+    if (saved && saved !== 'best_match') {
+      document.querySelectorAll('#models .sp-chip').forEach(function(c){ c.classList.remove('active'); });
+      var t = document.querySelector('#models .sp-chip[data-model="'+saved+'"]');
+      if (t) t.classList.add('active');
+    }
+  })();
   hideLoading(); startRenderLoop();
 
   /* Unlock AudioContext (needed for iOS haptics) on first touch */
