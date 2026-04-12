@@ -493,20 +493,25 @@ touch-action: pan-y;
 #sheet.dragging { transition: none; }
 
 #sheet-handle {
-display: flex; justify-content: center; padding: 14px 0 8px;
+display: flex; justify-content: center;
+padding: 10px 0 8px;
 position: sticky; top: 0;
+/* Sama taustaväri kuin sheet — ei väripalkki */
 background: rgba(10,14,26,.98);
--webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
-z-index: 1;
+-webkit-backdrop-filter: blur(28px); backdrop-filter: blur(28px);
+border-radius: var(–sheet-radius) var(–sheet-radius) 0 0;
+z-index: 2;
 cursor: grab;
+flex-shrink: 0;
 }
 #sheet-handle:active { cursor: grabbing; }
+/* iOS-tyylinen drag indicator */
 #sheet-handle::after {
-content: ‘’; width: 40px; height: 4px; border-radius: 2px;
-background: rgba(255,255,255,.2);
+content: ‘’; width: 36px; height: 4px; border-radius: 2px;
+background: rgba(255,255,255,.18);
 transition: background .15s, width .15s;
 }
-#sheet-handle:active::after { background: rgba(255,255,255,.45); width: 56px; }
+#sheet-handle:active::after { background: rgba(255,255,255,.4); width: 48px; }
 
 #sheet-content { padding: 2px 20px 20px; }
 
@@ -3745,9 +3750,8 @@ function openSheet(spot, hourIdx) {
         }
       }
 
-      /* Silea pystysuora ColorRamp-gradientti koko SVG:n taustalle
-         Gradientin stop-pisteet: maxV (ylaosa, kirkas) -> 0 m/s (alaosa, tumma)
-         Kaytetaan ColorRamp:n avainarvoja stop-pisteina */
+      /* Silea pystysuora ColorRamp-gradientti */
+      var svgId='mc-'+Math.random().toString(36).slice(2,6);
       var bgGradId = svgId+'-vbg';
       /* ColorRamp avainarvot: 0, 2, 4, 6, 8, 10, 13, 16, 20 m/s
          Mutta skaala on 0..maxV, joten lasketaan prosentit sen mukaan */
@@ -3823,8 +3827,6 @@ function openSheet(spot, hourIdx) {
         harmMarker='<line x1="'+harmCutX+'" y1="'+PAD+'" x2="'+harmCutX+'" y2="'+(CHART_H-PAD)+'" stroke="rgba(100,255,160,.35)" stroke-width="1" stroke-dasharray="3,3"/>'
           +'<text x="'+harmCutX+'" y="'+(PAD+8)+'" font-family="DM Mono,monospace" font-size="6.5" fill="rgba(100,255,160,.45)" text-anchor="middle">FMI</text>';
       }
-
-      var svgId='mc-'+Math.random().toString(36).slice(2,6);
 
       /* Muu mallien placeholder g */
       var modelsG='<g id="'+svgId+'-mg"></g>';
