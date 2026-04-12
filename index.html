@@ -3625,7 +3625,7 @@ function openSheet(spot, hourIdx) {
     const CHART_PX_H = 100;  /* DOM korkeus px -- aina sama */
     const PAD = 4, LABEL_H = 14, TH = CHART_H + LABEL_H;
     /* Leveys: 24h nakyy koko leveydella, pidemmissa scroll */
-    const PERIOD_W = { '24h': 300, '5d': 600, 'all': 1200 };
+    const PERIOD_W = { '24h': null, '5d': 600, 'all': 1200 }; /* null = 100% leveys */
 
     const COMPARE_MODELS = [
       { id: 'ecmwf_ifs025', label: 'ECMWF', key: 'ecmwf' },
@@ -3662,7 +3662,8 @@ function openSheet(spot, hourIdx) {
     function buildSvg(periodKey) {
       var sl = getSlice(periodKey);
       var vals=sl.vals, times=sl.times, n=vals.length;
-      var W = PERIOD_W[periodKey]||300;
+      var isFluid = !PERIOD_W[periodKey];
+      var W = isFluid ? 300 : PERIOD_W[periodKey]; /* viewBox width, paivitetaan JS:ssa */
       /* maxV: kaikki mallit huomioon -- paivitetaan jalkikateen JS:ssa */
       var maxV = Math.max.apply(null,vals.concat([1]));
 
@@ -3726,13 +3727,25 @@ function openSheet(spot, hourIdx) {
         }
       }
 
-      /* Y-akseli */
+      /* Y-akseli + foilausalue */
       var ylbls='';
       var yStep = maxV>15?4:maxV>8?2:1;
       for(var yv=yStep;yv<=Math.ceil(maxV);yv+=yStep){
         var yy=yOf(yv).toFixed(1);
         ylbls+='<line x1="'+PAD+'" y1="'+yy+'" x2="'+(W-PAD)+'" y2="'+yy+'" stroke="rgba(255,255,255,.05)" stroke-width="0.5"/>'
           +'<text x="'+(PAD+2)+'" y="'+yy+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.2)" dominant-baseline="middle">'+yv+'</text>';
+      }
+      /* Foilausalue: 6-20 m/s vihrea taustahayvy */
+      var foilLow=6, foilHigh=Math.min(20,maxV*1.1);
+      if(foilLow < maxV) {
+        var fyTop  = yOf(Math.min(foilHigh,maxV)).toFixed(1);
+        var fyBot  = yOf(foilLow).toFixed(1);
+        if(parseFloat(fyTop)<parseFloat(fyBot)){
+          ylbls+='<rect x="'+PAD+'" y="'+fyTop+'" width="'+(W-PAD*2)+'" height="'+(parseFloat(fyBot)-parseFloat(fyTop)).toFixed(1)+'" fill="rgba(100,255,160,.055)" rx="2"/>';
+          /* Aluviiva 6 m/s */
+          ylbls+='<line x1="'+PAD+'" y1="'+fyBot+'" x2="'+(W-PAD)+'" y2="'+fyBot+'" stroke="rgba(100,255,160,.25)" stroke-width="0.8" stroke-dasharray="4,3"/>';
+          ylbls+='<text x="'+(W-PAD-2)+'" y="'+fyBot+'" font-family="DM Mono,monospace" font-size="6.5" fill="rgba(100,255,160,.4)" text-anchor="end" dominant-baseline="auto">6 m/s</text>';
+        }
       }
 
       /* HARMONIE raja */
@@ -3754,7 +3767,7 @@ function openSheet(spot, hourIdx) {
       });
 
       var svg='<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" '
-        + 'style="display:block;width:'+W+'px;height:'+(CHART_PX_H+LABEL_H)+'px;touch-action:none">'
+        + 'style="display:block;'+(isFluid?'width:100%':'width:'+W+'px')+';height:'+(CHART_PX_H+LABEL_H)+'px;touch-action:none" id-period="'+periodKey+'">'
         + '<defs></defs>'
         + ylbls
         + '<path d="M '+xOf(0).toFixed(1)+','+(CHART_H-PAD)+' L '+vals.slice(0,nowSlot+1).map(function(v,i){return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);}).join(' L ')+' L '+xOf(nowSlot).toFixed(1)+','+(CHART_H-PAD)+' Z" fill="rgba(255,255,255,.03)"/>'
