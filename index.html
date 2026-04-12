@@ -3940,18 +3940,21 @@ function _fmiLinkCard(fmiId) {
   return '<div class="sh-stat" id="'+fmiId+'-lnk" style="cursor:pointer;border-color:rgba(100,255,160,.2);background:rgba(100,255,160,.04)" onclick="_scrollToSection(\''+eid+'\')">'
     + '<span class="sh-stat-label">📡 Tuuli</span>'
     + '<span id="'+fmiId+'-lnk-val" class="sh-stat-value" style="color:rgba(100,255,160,.4)">—</span>'
-    + '<span id="'+fmiId+'-lnk-sub" class="sh-stat-sub" style="color:rgba(100,255,160,.35)">havainto</span>'
+    + '<div style="display:flex;flex-direction:column;gap:0">'
+      + '<span id="'+fmiId+'-lnk-name" style="font-family:DM Mono,monospace;font-size:8px;color:rgba(100,255,160,.55);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">—</span>'
+      + '<span id="'+fmiId+'-lnk-sub" style="font-family:DM Mono,monospace;font-size:8px;color:rgba(100,255,160,.3);line-height:1.3">—</span>'
+    + '</div>'
   + '</div>';
 }
 
 /* UiRas linkki-kortti — klikkaus scrollaa UiRas-kaavioon */
 function _uirasLinkCard(id, station) {
-  var shortName = station.name.replace(/uimaranta/gi,'').trim();
+  var shortName = station.name.replace(/uimaranta/gi,'').replace(/\s*\(.*\)/,'').trim();
   var eid = 'uiras-always-' + id;
   return '<div class="sh-stat" id="'+id+'-lnk" style="cursor:pointer;border-color:rgba(0,180,255,.2);background:rgba(0,180,255,.04)" onclick="_scrollToSection(\''+eid+'\')">'
     + '<span class="sh-stat-label">🏊 Vesi</span>'
     + '<span id="'+id+'-lnk-val" class="sh-stat-value" style="color:rgba(0,207,255,.4)">—</span>'
-    + '<span class="sh-stat-sub" style="color:rgba(0,207,255,.35)">'+shortName+'</span>'
+    + '<span id="'+id+'-lnk-name" class="sh-stat-sub" style="color:rgba(0,207,255,.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">'+shortName+'</span>'
   + '</div>';
 }
 
