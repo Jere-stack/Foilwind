@@ -3231,9 +3231,23 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         if (st.id===curSt.id) return;
         curSt=st; setTr(st);
         el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ladataan '+st.name+'...</div>';
-        UiRas.history(st.id).then(function(pts){
+        /* Hae historia + latest rinnakkain */
+        var spotRef3 = State.sheetSpot;
+        var wsIdRef = spotRef3 ? ('ws-'+spotRef3.name.replace(/[^a-z0-9]/gi,'_')) : null;
+        Promise.allSettled([
+          UiRas.history(st.id),
+          UiRas.loadLatest()
+        ]).then(function(results){
+          var pts2   = results[0].status==='fulfilled' ? results[0].value : null;
+          var latest = results[1].status==='fulfilled' ? results[1].value : null;
+          /* Päivitä vesi-linkki-kortti */
+          if (latest && latest[st.id] && latest[st.id].temp != null && wsIdRef) {
+            _updateUirasCard(wsIdRef, latest[st.id].temp, st.name);
+          }
+          /* Päivitä kaavio */
           el._period = period;
-          _uirasChartInteractive(el, pts, st.name, st, spotLat, spotLng);
+          if (pts2 && pts2.length) _uirasChartInteractive(el, pts2, st.name, st, spotLat, spotLng);
+          else el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Ei dataa</div>';
         }).catch(function(){
           el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Ei dataa</div>';
         });
@@ -3776,12 +3790,13 @@ function openSheet(spot, hourIdx) {
       + badge.text
     + '</div>'
 
-    /* Stat-rivi: Puuskaisuus · Lämpötila+Kastepiste yhdistettynä · FMI-linkki · Vesi-linkki */
+    /* Stat-rivi: otsikko + Lämpö+Kaste · Vesi · Tuuli · Puuskaisuus */
+    + '<div style="font-family:DM Mono,monospace;font-size:8px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'
     + '<div class="sh-stats" id="sh-stats-live">'
-      + _gustStatCard(gi)
       + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')
-      + _fmiLinkCard(fmiId)
       + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, '°C', null))
+      + _fmiLinkCard(fmiId)
+      + _gustStatCard(gi)
     + '</div>'
 
     /* 24h tuuliennuste — heti stat-rivin jälkeen */
@@ -3835,45 +3850,12 @@ function openSheet(spot, hourIdx) {
           station: fmi.station, obsTime: fmi.time
         };
         /* Päivitä lämpötila ja kastepiste stat-kortit */
-        /* Lämpötila + kastepiste combo-kortissa */
-        const tmpEl = document.getElementById(fmiId + '-tmp');
-        const dewEl = document.getElementById(fmiId + '-dew');
-        if (tmpEl && fmi.tmp != null) { tmpEl.textContent = fmi.tmp.toFixed(1); tmpEl.style.color = 'rgba(255,200,100,.9)'; }
-        if (dewEl && fmi.dew != null) { dewEl.textContent = fmi.dew.toFixed(1)+'°'; dewEl.style.color = 'rgba(100,200,255,.9)'; }
-        /* Hero: puuska + iso tuuli FMI:sta */
-        const gustEl = document.getElementById(fmiId + '-bigwind-sub');
-        if (gustEl) gustEl.textContent = 'Puuska ' + Units.fmt(fmi.wg || 0) + ' ' + Units.label();
-        const bigWind = document.getElementById(fmiId + '-bigwind');
-        if (bigWind && fmi.ws != null) {
-          const cc = ColorRamp.rgb(fmi.ws);
-          bigWind.textContent = Units.fmt(fmi.ws);
-          bigWind.style.color = 'rgb('+cc.r+','+cc.g+','+cc.b+')';
-        }
-        /* FMI linkki-kortti */
-        const fmiLnkVal = document.getElementById(fmiId + '-lnk-val');
-        const fmiLnkSub = document.getElementById(fmiId + '-lnk-sub');
-        if (fmiLnkVal && fmi.ws != null) {
-          const cc2 = ColorRamp.rgb(fmi.ws);
-          fmiLnkVal.textContent = Units.fmt(fmi.ws);
-          fmiLnkVal.style.color = 'rgb('+cc2.r+','+cc2.g+','+cc2.b+')';
-          if (fmiLnkSub) fmiLnkSub.textContent = fmi.time || 'havainto';
-        }
+        _updateFmiCard(fmiId, fmi);
       }).catch(function(){});
     } else {
       /* Käytä cachea — päivitä silti kortit */
-      const wx = spot._currentWx;
-      const tmpEl2 = document.getElementById(fmiId + '-tmp');
-      const dewEl2 = document.getElementById(fmiId + '-dew');
-      if (tmpEl2 && wx.tmp != null) { tmpEl2.textContent = wx.tmp.toFixed(1); tmpEl2.style.color = 'rgba(255,200,100,.9)'; }
-      if (dewEl2 && wx.dew != null) { dewEl2.textContent = wx.dew.toFixed(1)+'°'; dewEl2.style.color = 'rgba(100,200,255,.9)'; }
-      const fmiLnkV2 = document.getElementById(fmiId + '-lnk-val');
-      if (fmiLnkV2 && wx.ms != null) {
-        const cc3 = ColorRamp.rgb(wx.ms);
-        fmiLnkV2.textContent = Units.fmt(wx.ms);
-        fmiLnkV2.style.color = 'rgb('+cc3.r+','+cc3.g+','+cc3.b+')';
-        const sub2 = document.getElementById(fmiId+'-lnk-sub');
-        if (sub2) sub2.textContent = wx.obsTime || 'havainto';
-      }
+      var wx = spot._currentWx;
+      if (wx && wx.ms != null) _updateFmiCard(fmiId, { ws: wx.ms, wg: wx.gst, tmp: wx.tmp, dew: wx.dew, time: wx.obsTime, station: wx.station });
     }
 
     /* Historia */
@@ -3900,14 +3882,8 @@ function openSheet(spot, hourIdx) {
         if (valEl) valEl.textContent = temp;
       }
       /* Päivitä UiRas linkki-kortti */
-      const uLnkVal = document.getElementById(_waterStatId + '-lnk-val');
-      if (uLnkVal) {
-        const d2 = map[_uirasStation.id];
-        if (d2 && d2.temp != null) {
-          uLnkVal.textContent = d2.temp.toFixed(1);
-          uLnkVal.style.color = 'rgba(0,207,255,.9)';
-        }
-      }
+      var d2 = map[_uirasStation.id];
+      if (d2 && d2.temp != null) _updateUirasCard(_waterStatId, d2.temp, _uirasStation.name);
       /* Lataa historia */
       if (!uirasHistEl) return;
       return UiRas.history(_uirasStation.id);
@@ -3977,6 +3953,36 @@ function _uirasLinkCard(id, station) {
     + '<span id="'+id+'-lnk-val" class="sh-stat-value" style="color:rgba(0,207,255,.4)">—</span>'
     + '<span class="sh-stat-sub" style="color:rgba(0,207,255,.35)">'+shortName+'</span>'
   + '</div>';
+}
+
+/* Päivittää kaikki havaintoboksit — kutsutaan aina kun asema vaihtuu */
+function _updateFmiCard(fmiId, fmi) {
+  var cc = ColorRamp.rgb(fmi.ws || 0);
+  var col = 'rgb('+cc.r+','+cc.g+','+cc.b+')';
+  /* Iso tuuli herossa */
+  var bw = document.getElementById(fmiId+'-bigwind');
+  var bs = document.getElementById(fmiId+'-bigwind-sub');
+  if (bw && fmi.ws != null) { bw.textContent = Units.fmt(fmi.ws); bw.style.color = col; }
+  if (bs) bs.textContent = 'Puuska '+(fmi.wg!=null?Units.fmt(fmi.wg):'—')+' '+Units.label();
+  /* Lämpö + kastepiste */
+  var te = document.getElementById(fmiId+'-tmp');
+  var de = document.getElementById(fmiId+'-dew');
+  if (te && fmi.tmp != null) { te.textContent = fmi.tmp.toFixed(1); te.style.color = 'rgba(255,200,100,.9)'; }
+  if (de && fmi.dew != null) { de.textContent = fmi.dew.toFixed(1)+'°'; de.style.color = 'rgba(100,200,255,.9)'; }
+  /* Tuuli-linkki-kortti */
+  var lv = document.getElementById(fmiId+'-lnk-val');
+  var ls = document.getElementById(fmiId+'-lnk-sub');
+  var ln = document.getElementById(fmiId+'-lnk-name');
+  if (lv && fmi.ws != null) { lv.textContent = Units.fmt(fmi.ws); lv.style.color = col; }
+  if (ls) ls.textContent = fmi.time || 'havainto';
+  if (ln) ln.textContent = fmi.station || '';
+}
+
+function _updateUirasCard(waterStatId, temp, stationName) {
+  var lv = document.getElementById(waterStatId+'-lnk-val');
+  var ln = document.getElementById(waterStatId+'-lnk-name');
+  if (lv && temp != null) { lv.textContent = temp.toFixed(1); lv.style.color = 'rgba(0,207,255,.9)'; }
+  if (ln && stationName) ln.textContent = stationName;
 }
 
 /* Scroll-helper */
@@ -4336,12 +4342,18 @@ function _renderLiveHistory(el, data, wx) {
     const stations = _fmiStationsSorted(spotRef.lat, spotRef.lng);
     const curPlace = data.place || 'harmaja';
     const selected = stations.find(function(s){ return s.place===curPlace; }) || stations[0];
+    var fmiIdRef = spotRef ? ('fmi-'+spotRef.name.replace(/\s/g,'_')) : null;
     const dropdown = _fmiDropdown(el, stations, selected, function(st) {
       el.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:10px">Ladataan '+st.name+'...</div>';
-      fetch('https://foilwind.vercel.app/api/fmi?history=1&place='+st.place)
-        .then(function(r){ return r.json(); })
-        .then(function(nd){ el._fmiHours=hours; delete el.dataset.ok; el.dataset.ok='1'; _renderLiveHistory(el,Object.assign({},nd,{place:st.place}),wx); })
-        .catch(function(){ el.innerHTML='<div style="text-align:center;padding:10px;color:rgba(255,100,100,.7);font-family:DM Mono,monospace;font-size:10px">Virhe</div>'; });
+      Promise.allSettled([
+        fetch('https://foilwind.vercel.app/api/fmi?place='+st.place).then(function(r){return r.json();}),
+        fetch('https://foilwind.vercel.app/api/fmi?history=1&place='+st.place).then(function(r){return r.json();})
+      ]).then(function(results){
+        var lat2 = results[0].status==='fulfilled'&&!results[0].value.error ? results[0].value : null;
+        var nd   = results[1].status==='fulfilled' ? results[1].value : null;
+        if (lat2 && fmiIdRef) _updateFmiCard(fmiIdRef, lat2);
+        if (nd) { el._fmiHours=hours; delete el.dataset.ok; el.dataset.ok='1'; _renderLiveHistory(el,Object.assign({},nd,{place:st.place}),lat2||wx); }
+      }).catch(function(){ el.innerHTML='<div style="text-align:center;padding:10px;color:rgba(255,100,100,.7);font-family:DM Mono,monospace;font-size:10px">Virhe</div>'; });
     });
     el.insertBefore(dropdown, el.firstChild);
   }
