@@ -62,7 +62,7 @@ MAP  z:1
 ============================================================ */
 #map { position: absolute; inset: 0; z-index: 1; background: var(–bg); touch-action: none; }
 .leaflet-container { background: var(–bg) !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
-.leaflet-tile-pane { -webkit-filter: brightness(2.0) contrast(1.05) saturate(1.15); filter: brightness(2.0) contrast(1.05) saturate(1.15); }
+.leaflet-tile-pane { -webkit-filter: brightness(0.72) saturate(0.6); filter: brightness(0.72) saturate(0.6); }
 .leaflet-control-zoom { display: none !important; }
 .leaflet-control-attribution { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
 .leaflet-control-attribution a { color: rgba(255,255,255,.22) !important; }
@@ -80,10 +80,14 @@ will-change: contents;
 }
 #c-wind { z-index: 3; transition: opacity 0.15s; }
 .heatmap-overlay {
-opacity: 0.88;
-filter: blur(14px); -webkit-filter: blur(14px);
+opacity: 1.0;
+/* Screen-blendaus: tummalla pohjalla värit loistavat kirkkaasti */
+mix-blend-mode: screen;
 image-rendering: auto;
 transition: filter 0.3s, -webkit-filter 0.3s;
+}
+.heatmap-overlay img {
+mix-blend-mode: screen;
 }
 
 /* ============================================================
@@ -2349,7 +2353,20 @@ const WindTexture = {
             const base = idx * 4;
             const rgb = ColorRamp.rgb(w.ms);
             const t = w.ms / Config.MAX_MS;
-            const a = w.ms < 0.3 ? 0.08 : Math.min(0.65, 0.10 + 0.55 * (1 - Math.exp(-2.5 * t)));
+            /* Alpha-käyrä: 0-4 m/s läpinäkyvä, 6+ m/s vahva
+               Screen-blendauksessa tumma = läpinäkyvä, kirkas = loistava */
+            let a;
+            if (w.ms < 0.5) {
+              a = 0; /* täysin läpinäkyvä — tyhjä */
+            } else if (w.ms < 4.0) {
+              a = (w.ms - 0.5) / 3.5 * 0.18; /* 0 → 0.18 */
+            } else if (w.ms < 6.0) {
+              a = 0.18 + (w.ms - 4.0) / 2.0 * 0.30; /* 0.18 → 0.48 */
+            } else if (w.ms < 10.0) {
+              a = 0.48 + (w.ms - 6.0) / 4.0 * 0.30; /* 0.48 → 0.78 */
+            } else {
+              a = Math.min(0.92, 0.78 + (w.ms - 10.0) / 10.0 * 0.14);
+            }
             d[base] = rgb.r; d[base+1] = rgb.g; d[base+2] = rgb.b; d[base+3] = Math.round(a * 255);
           }
         }
@@ -2403,10 +2420,20 @@ function drawColorField() {
 function updateHeatmapBlur() {
   if (!State.map) return;
   const z = State.map.getZoom();
-  const blur = Math.max(2, Math.round(20 - (z - 2) * 2));
+  /* Blur: zoomissa 5+ tarkempi, kaukaa pehmeampi */
+  const blur = Math.max(3, Math.round(22 - (z - 2) * 2.2));
+  /* Saturate vahvistaa vareja screen-blendauksen kanssa */
+  const sat = z <= 5 ? 1.6 : 1.4;
+  const fStr = 'blur(' + blur + 'px) saturate(' + sat + ')';
   document.querySelectorAll('.heatmap-overlay').forEach(el => {
-    el.style.filter = 'blur(' + blur + 'px)';
-    el.style.webkitFilter = 'blur(' + blur + 'px)';
+    el.style.filter = fStr;
+    el.style.webkitFilter = fStr;
+    /* Varmista mix-blend-mode pysyy -- jotkut selaimet resetoivat sen */
+    el.style.mixBlendMode = 'screen';
+  });
+  /* Myos img-lapsi jos Leaflet lisaa sen */
+  document.querySelectorAll('.heatmap-overlay img').forEach(img => {
+    img.style.mixBlendMode = 'screen';
   });
 }
 
