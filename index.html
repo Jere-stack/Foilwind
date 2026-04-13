@@ -63,6 +63,8 @@ MAP  z:1
 #map { position: absolute; inset: 0; z-index: 1; background: #e8e8e8; touch-action: none; }
 .leaflet-container { background: #f0f0ee !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
 .leaflet-tile-pane { -webkit-filter: saturate(0.7); filter: saturate(0.7); }
+/* Labels-pane: korostetaan rajoja ja rantaviivoja hieman */
+.leaflet-labelsPane-pane { -webkit-filter: saturate(1.2) contrast(1.3); filter: saturate(1.2) contrast(1.3); opacity: 0.9; }
 .leaflet-control-zoom { display: none !important; }
 .leaflet-control-attribution { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
 .leaflet-control-attribution a { color: rgba(255,255,255,.22) !important; }
@@ -2064,9 +2066,19 @@ function initMap() {
     tap: false,              /* plugin hoitaa touch-eventtien käsittelyn */
     tapTolerance: 15
   });
+  /* Pohjakartta: vaalea ilman tekstejä */
   L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd', maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+  }).addTo(map);
+
+  /* Rajat ja nimet heatmapin paalle -- pane overlayPane+1 */
+  map.createPane('labelsPane');
+  map.getPane('labelsPane').style.zIndex = 450;
+  map.getPane('labelsPane').style.pointerEvents = 'none';
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom: 19, pane: 'labelsPane',
+    attribution: ''
   }).addTo(map);
 
   /* Konfiguroi DoubleTapDragZoom-plugin */
@@ -2357,12 +2369,9 @@ const WindTexture = {
             const rgb = ColorRamp.rgb(w.ms);
             const t = w.ms / Config.MAX_MS;
             /* Multiply-blendaus vaalealla pohjalla:
-               korkea alpha = vari naytetaan, matala = lahes valkoinen (katoaa)
-               0-2 m/s: lahes valkoinen (nakyy vain heikosti)
-               6+ m/s:  selkea vari */
-            const a = w.ms < 0.3
-              ? 0.0
-              : Math.min(0.88, 0.05 + 0.83 * (1 - Math.exp(-0.38 * w.ms)));
+               Tasainen pohja-alpha 0.52 -> vari nakyvissa koko ajan
+               Kasvaa lievasti korkeammilla tuulilla */
+            const a = Math.min(0.90, 0.52 + 0.38 * (1 - Math.exp(-0.22 * w.ms)));
             d[base] = rgb.r; d[base+1] = rgb.g; d[base+2] = rgb.b; d[base+3] = Math.round(a * 255);
           }
         }
@@ -2407,7 +2416,7 @@ function drawColorField() {
     State.heatmapOverlay.setBounds(bounds);
   } else {
     State.heatmapOverlay = L.imageOverlay(url, bounds, {
-      opacity: 1, interactive: false, className: 'heatmap-overlay', pane: 'overlayPane'
+      opacity: 0.82, interactive: false, className: 'heatmap-overlay', pane: 'overlayPane'
     }).addTo(State.map);
   }
   updateHeatmapBlur();
