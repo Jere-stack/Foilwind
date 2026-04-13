@@ -867,7 +867,6 @@ animation: logoFadeIn .6s .2s ease both;
 height: 100%; width: 0%;
 background: linear-gradient(90deg, #00cfff, #00ff9d);
 border-radius: 1px;
-transition: width .4s ease;
 }
 
 /* Status teksti */
@@ -5899,13 +5898,59 @@ function updateLoadText(msg, progress) {
     if (bar) bar.style.width = Math.min(100, progress) + '%';
   }
 }
+
+/* Animoitu progressbar — liikkuu tasaisesti ilman hyppeja */
+var _loadProgress = 0;
+var _loadTargetProgress = 0;
+var _loadAnimFrame = null;
+var _loadDone = false;
+
+function setLoadProgress(target) {
+  _loadTargetProgress = Math.min(99, target);
+  if (!_loadAnimFrame) _animateProgress();
+}
+
+function _animateProgress() {
+  if (_loadDone) return;
+  var bar = document.getElementById('load-progress-bar');
+  if (!bar) return;
+  var diff = _loadTargetProgress - _loadProgress;
+  /* Hidastuu lahestyttaessa targeettia */
+  var step = diff > 0 ? Math.max(0.15, diff * 0.055) : 0;
+  _loadProgress = Math.min(_loadTargetProgress, _loadProgress + step);
+  bar.style.width = _loadProgress.toFixed(1) + '%';
+  if (Math.abs(diff) > 0.1) {
+    _loadAnimFrame = requestAnimationFrame(_animateProgress);
+  } else {
+    _loadAnimFrame = null;
+  }
+}
+
+/* Simuloidaan tasaista etenemista vaikka verkko olisi hidas */
+function startProgressSimulation() {
+  /* 0→15%: nopea (init) */
+  setLoadProgress(15);
+  /* 15→45%: DNS + yhteys */
+  setTimeout(function(){ setLoadProgress(45); }, 400);
+  /* 45→65%: data alkaa tulla */
+  setTimeout(function(){ setLoadProgress(65); }, 1200);
+  /* 65→80%: hitaampi, odotellaan dataa */
+  setTimeout(function(){ setLoadProgress(80); }, 2500);
+  /* 80→90%: erittain hidas — data viela matkalla */
+  setTimeout(function(){ setLoadProgress(90); }, 5000);
+  /* Ei mennä yli 90% automaattisesti — hideLoading hoitaa lopun */
+}
+
 function hideLoading() {
-  const bar = document.getElementById('load-progress-bar');
-  if (bar) bar.style.width = '100%';
+  _loadDone = true;
+  if (_loadAnimFrame) { cancelAnimationFrame(_loadAnimFrame); _loadAnimFrame = null; }
+  /* Hyppy 100%:iin, pieni viive, sitten fade */
+  var bar = document.getElementById('load-progress-bar');
+  if (bar) { bar.style.transition = 'width 0.3s ease'; bar.style.width = '100%'; }
   setTimeout(function() {
-    const el = document.getElementById('loading');
+    var el = document.getElementById('loading');
     if (el) { el.classList.add('out'); setTimeout(function(){ el.classList.add('hidden'); }, 750); }
-  }, 300);
+  }, 350);
 }
 function scheduleRefresh() {
   clearInterval(State.refreshTimer);
@@ -5935,6 +5980,7 @@ function main() {
     }
   })();
   startRenderLoop();
+  startProgressSimulation();
 
   /* Unlock AudioContext (needed for iOS haptics) on first touch */
   document.addEventListener('touchstart', () => Haptics.unlock(), { once: true, passive: true });
@@ -5945,15 +5991,12 @@ function main() {
   /* Load spots first (small batch, 7-day forecast), then viewport, skip coarse global */
   const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
 
-  updateLoadText('Haetaan ennustedata', 20);
-
   /* Ladataan spotit ja viewport RINNAKKAIN — nopeampi startup */
   const spotsP    = ViewportGrid.loadSpots().catch(e => console.warn('[loadSpots]', e));
   const viewportP = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[loadViewport]', e));
 
   /* Spotit valmiina → näytä heti aikajana + spottimarkerit */
   spotsP.then(() => {
-    updateLoadText('Piirretaan karttaa', 80);
     const ref = bestTimelineRef();
     if (ref) {
       const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
