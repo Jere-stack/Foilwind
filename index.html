@@ -60,9 +60,9 @@ body {
 /* ============================================================
 MAP  z:1
 ============================================================ */
-#map { position: absolute; inset: 0; z-index: 1; background: var(–bg); touch-action: none; }
-.leaflet-container { background: var(–bg) !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
-.leaflet-tile-pane { -webkit-filter: brightness(2.0) contrast(1.05) saturate(1.15); filter: brightness(2.0) contrast(1.05) saturate(1.15); }
+#map { position: absolute; inset: 0; z-index: 1; background: #e8e8e8; touch-action: none; }
+.leaflet-container { background: #f0f0ee !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
+.leaflet-tile-pane { -webkit-filter: saturate(0.7); filter: saturate(0.7); }
 .leaflet-control-zoom { display: none !important; }
 .leaflet-control-attribution { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
 .leaflet-control-attribution a { color: rgba(255,255,255,.22) !important; }
@@ -81,13 +81,13 @@ will-change: contents;
 #c-wind { z-index: 3; transition: opacity 0.15s; }
 .heatmap-overlay {
 opacity: 1.0;
-/* Screen-blendaus: tummalla pohjalla värit loistavat kirkkaasti */
-mix-blend-mode: screen;
+/* Multiply: vaalealla pohjalla tuulivarit painuvat luonnollisesti kartalle */
+mix-blend-mode: multiply;
 image-rendering: auto;
 transition: filter 0.3s, -webkit-filter 0.3s;
 }
 .heatmap-overlay img {
-mix-blend-mode: screen;
+mix-blend-mode: multiply;
 }
 
 /* ============================================================
@@ -2064,7 +2064,7 @@ function initMap() {
     tap: false,              /* plugin hoitaa touch-eventtien käsittelyn */
     tapTolerance: 15
   });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd', maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
@@ -2356,7 +2356,13 @@ const WindTexture = {
             const base = idx * 4;
             const rgb = ColorRamp.rgb(w.ms);
             const t = w.ms / Config.MAX_MS;
-            const a = w.ms < 0.3 ? 0.08 : Math.min(0.65, 0.10 + 0.55 * (1 - Math.exp(-2.5 * t)));
+            /* Multiply-blendaus vaalealla pohjalla:
+               korkea alpha = vari naytetaan, matala = lahes valkoinen (katoaa)
+               0-2 m/s: lahes valkoinen (nakyy vain heikosti)
+               6+ m/s:  selkea vari */
+            const a = w.ms < 0.3
+              ? 0.0
+              : Math.min(0.88, 0.05 + 0.83 * (1 - Math.exp(-0.38 * w.ms)));
             d[base] = rgb.r; d[base+1] = rgb.g; d[base+2] = rgb.b; d[base+3] = Math.round(a * 255);
           }
         }
@@ -2419,11 +2425,11 @@ function updateHeatmapBlur() {
     el.style.filter = fStr;
     el.style.webkitFilter = fStr;
     /* Varmista mix-blend-mode pysyy -- jotkut selaimet resetoivat sen */
-    el.style.mixBlendMode = 'screen';
+    el.style.mixBlendMode = 'multiply';
   });
   /* Myos img-lapsi jos Leaflet lisaa sen */
   document.querySelectorAll('.heatmap-overlay img').forEach(img => {
-    img.style.mixBlendMode = 'screen';
+    img.style.mixBlendMode = 'multiply';
   });
 }
 
@@ -2533,7 +2539,7 @@ function renderLoop(ts) {
 
   if (State._panning) {
     windCtx.globalCompositeOperation = 'destination-in';
-    windCtx.fillStyle = 'rgba(0,0,0,0.85)';
+    windCtx.fillStyle = 'rgba(255,255,255,0.85)';
     windCtx.fillRect(0, 0, W, H);
     windCtx.globalCompositeOperation = 'source-over';
     return;
@@ -2545,7 +2551,7 @@ function renderLoop(ts) {
   while (particles.length < target) particles.push(makeParticle(true));
 
   windCtx.globalCompositeOperation = 'destination-in';
-  windCtx.fillStyle = 'rgba(0,0,0,' + Config.FADE_OPACITY + ')';
+  windCtx.fillStyle = 'rgba(255,255,255,' + Config.FADE_OPACITY + ')';
   windCtx.fillRect(0, 0, W, H);
   windCtx.globalCompositeOperation = 'source-over';
   windCtx.lineCap = 'round';
