@@ -62,7 +62,7 @@ MAP  z:1
 ============================================================ */
 #map { position: absolute; inset: 0; z-index: 1; background: var(–bg); touch-action: none; }
 .leaflet-container { background: var(–bg) !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
-.leaflet-tile-pane { -webkit-filter: brightness(0.72) saturate(0.6); filter: brightness(0.72) saturate(0.6); }
+.leaflet-tile-pane { -webkit-filter: brightness(2.0) contrast(1.05) saturate(1.15); filter: brightness(2.0) contrast(1.05) saturate(1.15); }
 .leaflet-control-zoom { display: none !important; }
 .leaflet-control-attribution { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
 .leaflet-control-attribution a { color: rgba(255,255,255,.22) !important; }
@@ -2353,20 +2353,7 @@ const WindTexture = {
             const base = idx * 4;
             const rgb = ColorRamp.rgb(w.ms);
             const t = w.ms / Config.MAX_MS;
-            /* Alpha-käyrä: 0-4 m/s läpinäkyvä, 6+ m/s vahva
-               Screen-blendauksessa tumma = läpinäkyvä, kirkas = loistava */
-            let a;
-            if (w.ms < 0.5) {
-              a = 0; /* täysin läpinäkyvä — tyhjä */
-            } else if (w.ms < 4.0) {
-              a = (w.ms - 0.5) / 3.5 * 0.18; /* 0 → 0.18 */
-            } else if (w.ms < 6.0) {
-              a = 0.18 + (w.ms - 4.0) / 2.0 * 0.30; /* 0.18 → 0.48 */
-            } else if (w.ms < 10.0) {
-              a = 0.48 + (w.ms - 6.0) / 4.0 * 0.30; /* 0.48 → 0.78 */
-            } else {
-              a = Math.min(0.92, 0.78 + (w.ms - 10.0) / 10.0 * 0.14);
-            }
+            const a = w.ms < 0.3 ? 0.08 : Math.min(0.65, 0.10 + 0.55 * (1 - Math.exp(-2.5 * t)));
             d[base] = rgb.r; d[base+1] = rgb.g; d[base+2] = rgb.b; d[base+3] = Math.round(a * 255);
           }
         }
