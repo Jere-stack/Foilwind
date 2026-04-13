@@ -1542,17 +1542,20 @@ const Units = {
   _bft: [0.3,1.6,3.4,5.5,8.0,10.8,13.9,17.2,20.8,24.5,28.5,32.7],
   init() {
     try { const s = localStorage.getItem('fs_unit'); if (s && this._defs[s]) this._active = s; } catch(e) {}
-    document.querySelectorAll('#units .sp-chip').forEach(c => {
-      c.classList.toggle('active', c.dataset.unit === this._active);
-    });
+    const u = this._active;
+    document.querySelectorAll('#units .sp-chip').forEach(c =>
+      c.classList.toggle('active', c.dataset.unit === u));
+    document.querySelectorAll('#units-picker .up-option').forEach(el =>
+      el.classList.toggle('active', el.dataset.unit === u));
   },
   set(unit) {
     if (!this._defs[unit]) return;
     this._active = unit;
     try { localStorage.setItem('fs_unit', unit); } catch(e) {}
-    document.querySelectorAll('#units .sp-chip').forEach(c => {
-      c.classList.toggle('active', c.dataset.unit === unit);
-    });
+    document.querySelectorAll('#units .sp-chip').forEach(c =>
+      c.classList.toggle('active', c.dataset.unit === unit));
+    document.querySelectorAll('#units-picker .up-option').forEach(el =>
+      el.classList.toggle('active', el.dataset.unit === unit));
   },
   get() { return this._active; },
   label() { return this._defs[this._active].label; },
@@ -5639,9 +5642,11 @@ const UnitsPicker = {
     document.getElementById('units-picker').classList.remove('open');
   },
   _syncActive() {
-    document.querySelectorAll('.up-option').forEach(el => {
-      el.classList.toggle('active', el.dataset.unit === Units.get());
-    });
+    const u = Units.get();
+    document.querySelectorAll('.up-option').forEach(el =>
+      el.classList.toggle('active', el.dataset.unit === u));
+    document.querySelectorAll('#units .sp-chip').forEach(c =>
+      c.classList.toggle('active', c.dataset.unit === u));
   }
 };
 
@@ -5652,22 +5657,38 @@ document.getElementById('cr-speed').addEventListener('click', (e) => {
   UnitsPicker.toggle();
 }, { passive: false });
 
-document.getElementById('units-picker').addEventListener('click', e => {
-  const opt = e.target.closest('.up-option');
-  if (!opt) return;
-  const unit = opt.dataset.unit;
+/* Yksikkö valittu — päivittää kaiken UI:n */
+function applyUnit(unit) {
   if (!unit || unit === Units.get()) return;
   Haptics.selection();
   Units.set(unit);
-  /* Sync old settings chips too */
-  document.querySelectorAll('#units .sp-chip').forEach(c => {
-    c.classList.toggle('active', c.dataset.unit === unit);
-  });
-  UnitsPicker._syncActive();
-  UnitsPicker.close();
-  buildLegend(); Crosshair.refresh(); renderSpots(State.currentHourIdx);
+  /* Synkronoi kaikki kolme yksikkövalitsinta */
+  document.querySelectorAll('#units .sp-chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.unit === unit));
+  document.querySelectorAll('#units-picker .up-option').forEach(el =>
+    el.classList.toggle('active', el.dataset.unit === unit));
+  /* Päivitä UI */
+  buildLegend();
+  Crosshair.refresh();
+  renderSpots(State.currentHourIdx);
   if (State.sheetSpot) openSheet(State.sheetSpot, State.currentHourIdx);
-  if (ForecastPanel._open) ForecastPanel.render();
+  if (typeof ForecastPanel !== 'undefined' && ForecastPanel._open) ForecastPanel.render();
+  if (typeof WxPanel !== 'undefined' && WxPanel._open) WxPanel.open();
+}
+
+/* units-picker (crosshair-popup) */
+document.getElementById('units-picker').addEventListener('click', e => {
+  const opt = e.target.closest('.up-option');
+  if (!opt) return;
+  applyUnit(opt.dataset.unit);
+  UnitsPicker.close();
+}, { passive: true });
+
+/* #units settings-panelin chips */
+document.getElementById('units').addEventListener('click', e => {
+  const chip = e.target.closest('.sp-chip');
+  if (!chip) return;
+  applyUnit(chip.dataset.unit);
 }, { passive: true });
 
 /* ── HOURLY WEATHER PANEL ─────────────────────────────────────────
