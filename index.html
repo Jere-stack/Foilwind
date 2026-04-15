@@ -3323,7 +3323,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   var now = Date.now();
   var pts = period === 'all' ? allPts : allPts.filter(function(p){ return new Date(p.t).getTime() >= now - pMs[period]; });
   if (pts.length < 5) pts = allPts;
-  if (!pts.length) { el.innerHTML = '<div style="text-align:center;font-size:10px;color:var(--muted);padding:12px">Ei dataa</div>'; return; }
+  if (!pts.length) { el.innerHTML = '<div style="text-align:center;font-size:10px;color:var(--muted);padding:20px">Ei dataa</div>'; return; }
 
   /* Ohenna */
   function ds(data, max) {
@@ -3332,60 +3332,146 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     for (var i = 0; i < max; i++) out.push(data[Math.round(i * step)]);
     return out;
   }
-  var draw = ds(pts, 400);
+  var draw = ds(pts, 300);
   var n = draw.length;
   var vals = draw.map(function(p){ return p.v; });
-  var times = draw.map(function(p){ return p.t; });
-  var minV = Math.min.apply(null,vals) - 0.3;
-  var maxV = Math.max.apply(null,vals) + 0.3;
+  var minV = Math.min.apply(null,vals);
+  var maxV = Math.max.apply(null,vals);
+  var range = maxV - minV || 1;
+  var padV = range * 0.18;
+  var lo = minV - padV, hi = maxV + padV;
 
-  var W=300,H=80,pad=4,lH=14,TH=H+lH;
-  function xOf(i){ return pad + i/(n-1||1)*(W-pad*2); }
-  function yOf(v){ return H-pad-(v-minV)/(maxV-minV||1)*(H-pad*2); }
-  function iOf(x){ return Math.max(0,Math.min(n-1,Math.round((x-pad)/(W-pad*2)*(n-1)))); }
+  /* Koordinaatit */
+  var W = 300, H = 110, padX = 2, padY = 8, labH = 18;
+  var TH = H + labH;
+  function xOf(i){ return padX + i/(n-1||1)*(W-padX*2); }
+  function yOf(v){ return padY + (1-(v-lo)/(hi-lo))*(H-padY*2); }
+  function iOf(xPx){ return Math.max(0,Math.min(n-1,Math.round((xPx-padX)/(W-padX*2)*(n-1)))); }
 
-  var linePts = draw.map(function(p,i){ return xOf(i).toFixed(1)+','+yOf(p.v).toFixed(1); }).join(' ');
+  /* Bezier smooth path */
+  function smoothPath(pts2) {
+    if (pts2.length < 2) return '';
+    var d = 'M'+xOf(0).toFixed(1)+','+yOf(pts2[0].v).toFixed(1);
+    for (var i = 1; i < pts2.length; i++) {
+      var x0=xOf(i-1), y0=yOf(pts2[i-1].v), x1=xOf(i), y1=yOf(pts2[i].v);
+      var cx = (x0+x1)/2;
+      d += ' C'+cx.toFixed(1)+','+y0.toFixed(1)+' '+cx.toFixed(1)+','+y1.toFixed(1)+' '+x1.toFixed(1)+','+y1.toFixed(1);
+    }
+    return d;
+  }
 
-  /* X-akseli */
+  var linePath = smoothPath(draw);
+
+  /* Area path (viiva + sulkeutuu alhaalla) */
+  var areaPath = linePath
+    + ' L'+xOf(n-1).toFixed(1)+','+H.toFixed(1)
+    + ' L'+xOf(0).toFixed(1)+','+H.toFixed(1)+' Z';
+
+  /* Min/max indeksit */
+  var minIdx = vals.indexOf(Math.min.apply(null,vals));
+  var maxIdx = vals.indexOf(Math.max.apply(null,vals));
+
+  /* X-akseli: päivämäärät */
   var xl = '';
-  var stp = pts.length > 500 ? 7*864e5 : 864e5;
-  var t0 = new Date(new Date(draw[0].t).getTime()); t0.setHours(0,0,0,0);
   var ms0 = new Date(draw[0].t).getTime(), ms1 = new Date(draw[n-1].t).getTime();
-  for (var t = t0.getTime(); t <= ms1; t += stp) {
-    if (t < ms0) continue;
-    var fd = new Date(t);
-    var xi = iOf(pad + (t - ms0)/(ms1-ms0||1)*(W-pad*2));
-    xl += '<text x="'+xOf(xi).toFixed(1)+'" y="'+(TH-1)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.3)" text-anchor="middle">'+fd.getDate()+'.'+( fd.getMonth()+1)+'.</text>';
+  var stp = (ms1-ms0) > 14*864e5 ? 7*864e5 : 864e5;
+  var t0 = new Date(ms0); t0.setHours(0,0,0,0);
+  for (var tt = t0.getTime(); tt <= ms1; tt += stp) {
+    if (tt < ms0) continue;
+    var fd = new Date(tt);
+    var xi = iOf(padX + (tt-ms0)/(ms1-ms0||1)*(W-padX*2));
+    var lx = xOf(xi);
+    if (lx < 14 || lx > W-14) continue;
+    xl += '<text x="'+lx.toFixed(1)+'" y="'+(TH-3)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.22)" text-anchor="middle">'+fd.getDate()+'.'+( fd.getMonth()+1)+'.</text>';
   }
 
-  /* Y-akseli */
-  var yl = '';
-  for (var tv = Math.ceil(minV); tv <= Math.floor(maxV); tv++) {
-    if (tv <= minV || tv >= maxV) continue;
-    yl += '<text x="'+(pad+1)+'" y="'+yOf(tv).toFixed(1)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(0,200,255,.4)" dominant-baseline="middle">'+tv+'°</text>';
+  /* Nykyinen (viimeisin) arvo */
+  var lastVal = draw[n-1].v;
+  var lastX = xOf(n-1), lastY = yOf(lastVal);
+
+  /* Min/max labelit */
+  function mkLabel(idx, isMax) {
+    var lx = xOf(idx), ly = yOf(draw[idx].v);
+    var anchor = lx < W*0.15 ? 'start' : lx > W*0.85 ? 'end' : 'middle';
+    var dy = isMax ? -10 : 12;
+    return '<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="2.5" fill="'+(isMax?'rgba(0,220,255,.9)':'rgba(0,160,220,.6)')+'" pointer-events="none"/>'
+      +'<text x="'+lx.toFixed(1)+'" y="'+(ly+dy).toFixed(1)+'" font-family="DM Mono,monospace" font-size="8" fill="'+(isMax?'rgba(0,220,255,.8)':'rgba(0,180,220,.55)')+'" text-anchor="'+anchor+'" pointer-events="none">'+draw[idx].v.toFixed(1)+'°</text>';
   }
+  /* Näytä min+max vain jos eroa yli 0.5° */
+  var minMaxLabels = (maxV - minV > 0.5) ? (mkLabel(maxIdx,true) + mkLabel(minIdx,false)) : '';
 
   var svgId = 'uw-' + Math.random().toString(36).slice(2,7);
-  var pbtn = function(p,lbl){ var a=p===period; return '<button data-up="'+p+'" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 8px;border-radius:8px;border:1px solid rgba(0,180,255,'+(a?.4:.2)+');background:'+(a?'rgba(0,207,255,.15)':'none')+';color:'+(a?'var(--accent)':'rgba(0,207,255,.6)')+';cursor:pointer">'+lbl+'</button>'; };
+  var gradId = svgId+'-gr';
+  var pbtn = function(p,lbl){
+    var a = p===period;
+    return '<button data-up="'+p+'" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 10px;border-radius:20px;border:1px solid rgba(0,180,255,'+(a?.35:.15)+');background:'+(a?'rgba(0,207,255,.12)':'transparent')+';color:'+(a?'rgba(0,220,255,.9)':'rgba(255,255,255,.3)')+';cursor:pointer;transition:all .2s;-webkit-user-select:none;user-select:none">'+lbl+'</button>';
+  };
 
   el.innerHTML =
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+    /* Header rivi */
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
       +'<div id="'+svgId+'-dd"></div>'
-      +'<div style="display:flex;gap:5px">'
-        +pbtn('7d','7 vrk')+pbtn('30d','30 vrk')+pbtn('all','Kaikki')
-      +'</div>'
+      +'<div style="display:flex;gap:4px">'+pbtn('7d','7 vrk')+pbtn('30d','30 vrk')+pbtn('all','Kaikki')+'</div>'
     +'</div>'
-    +'<div style="position:relative">'
-      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(8,12,26,.95);border:1px solid rgba(0,207,255,.25);border-radius:8px;padding:6px 10px;font-family:DM Mono,monospace;font-size:9px;pointer-events:none;white-space:nowrap;box-shadow:0 4px 16px rgba(0,0,0,.5);z-index:100"></div>'
-      +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block;touch-action:none">'
-        +'<polyline points="'+linePts+'" fill="none" stroke="rgba(0,220,255,.85)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>'
-        +'<line id="'+svgId+'-vl" x1="-1" y1="'+pad+'" x2="-1" y2="'+(H-pad)+'" stroke="rgba(255,255,255,.5)" stroke-width="1" stroke-dasharray="3,2" pointer-events="none"/>'
-        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="3.5" fill="rgba(0,220,255,.95)" stroke="rgba(0,0,0,.3)" stroke-width="1" pointer-events="none"/>'
-        +'<rect id="'+svgId+'-hit" x="'+pad+'" y="'+pad+'" width="'+(W-pad*2)+'" height="'+(H-pad*2)+'" fill="transparent" style="cursor:crosshair"/>'
-        +yl+xl
+
+    /* SVG wrapper */
+    +'<div style="position:relative;margin:0 -4px">'
+      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(6,10,24,.96);border:1px solid rgba(0,207,255,.2);border-radius:10px;padding:7px 12px;font-family:DM Mono,monospace;font-size:10px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 24px rgba(0,0,0,.6);z-index:100;transform:translateX(-50%)"></div>'
+      +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block;touch-action:none;overflow:visible">'
+
+        /* Gradient def */
+        +'<defs>'
+          +'<linearGradient id="'+gradId+'" x1="0" y1="0" x2="0" y2="1">'
+            +'<stop offset="0%" stop-color="rgba(0,207,255,.28)"/>'
+            +'<stop offset="60%" stop-color="rgba(0,160,220,.08)"/>'
+            +'<stop offset="100%" stop-color="rgba(0,120,200,.0)"/>'
+          +'</linearGradient>'
+        +'</defs>'
+
+        /* Horisontaalinen vihjegridi (vain 2-3 linjaa, hyvin himmeä) */
+        +(function(){
+          var g=''; var steps=2;
+          for(var s=0;s<=steps;s++){
+            var gy=(padY+(s/steps)*(H-padY*2)).toFixed(1);
+            g+='<line x1="'+padX+'" y1="'+gy+'" x2="'+(W-padX)+'" y2="'+gy+'" stroke="rgba(255,255,255,.04)" stroke-width="1"/>';
+          }
+          return g;
+        })()
+
+        /* Area täyttö */
+        +'<path d="'+areaPath+'" fill="url(#'+gradId+')" />'
+
+        /* Viiva */
+        +'<path d="'+linePath+'" fill="none" stroke="rgba(0,210,255,.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+
+        /* Min/max pisteet + labelit */
+        +minMaxLabels
+
+        /* Nykyinen (viimeisin) piste — pulssiva */
+        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="4" fill="rgba(0,220,255,.25)" pointer-events="none">'
+          +'<animate attributeName="r" values="3;6;3" dur="2.5s" repeatCount="indefinite"/>'
+          +'<animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.5s" repeatCount="indefinite"/>'
+        +'</circle>'
+        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="3.5" fill="rgba(0,220,255,.95)" stroke="rgba(0,0,0,.4)" stroke-width="1.5" pointer-events="none"/>'
+
+        /* Tooltip crosshair */
+        +'<line id="'+svgId+'-vl" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-dasharray="3,3" pointer-events="none"/>'
+        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="4" fill="rgba(0,220,255,.9)" stroke="rgba(255,255,255,.4)" stroke-width="1.5" pointer-events="none"/>'
+
+        /* Hit area */
+        +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX*2)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
+
+        /* X-akseli */
+        +xl
       +'</svg>'
     +'</div>'
-    +'<div style="margin-top:6px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2)">UiRas / FVH &middot; '+(stationName||'')+'</div>';
+
+    /* Footer */
+    +'<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between">'
+      +'<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.18)">UiRas / FVH &middot; '+(stationName||'')+'</div>'
+      +'<div id="'+svgId+'-cur" style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,210,255,.8);font-weight:700">'+lastVal.toFixed(1)+'°</div>'
+    +'</div>';
+
 
   /* Period napit */
   el.querySelectorAll('[data-up]').forEach(function(btn){
@@ -3492,14 +3578,16 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     var x = xOf(idx), y = yOf(draw[idx].v);
     vl.setAttribute('x1',x.toFixed(1)); vl.setAttribute('x2',x.toFixed(1));
     dot.setAttribute('cx',x.toFixed(1)); dot.setAttribute('cy',y.toFixed(1));
-    var t = times[idx] || '';
     var d = new Date(draw[idx].t);
     var dstr = d.getDate()+'.'+(d.getMonth()+1)+'. '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
-    tip.innerHTML = '<div style="color:rgba(255,255,255,.4);margin-bottom:3px">'+dstr+'</div>'
-      +'<div style="color:rgba(0,220,255,.9)">'+draw[idx].v.toFixed(1)+' °C</div>';
-    var r = svg.getBoundingClientRect(), relX = cx - r.left, tipW = 100;
-    tip.style.left = (relX > r.width/2 ? relX - tipW - 8 : relX + 8) + 'px';
-    tip.style.top = '4px';
+    var tempStr = draw[idx].v.toFixed(1);
+    tip.innerHTML =
+      '<div style="color:rgba(0,210,255,.9);font-size:14px;font-weight:700;letter-spacing:-.3px">'+tempStr+'°</div>'
+      +'<div style="color:rgba(255,255,255,.35);font-size:8px;margin-top:2px">'+dstr+'</div>';
+    var r = svg.getBoundingClientRect();
+    var relX = (x / W) * r.width;
+    tip.style.left = relX + 'px';
+    tip.style.top  = Math.max(2, (y/TH)*r.height - 52) + 'px';
     tip.style.display = 'block';
   }
   function hideTip() {
