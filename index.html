@@ -13,8 +13,8 @@
 <title>FoilSpot v7-light</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
 <!-- Non-blocking font load — ei blokkaa iOS Safaria -->
-<link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
-<noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet"></noscript>
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet"></noscript>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css" crossorigin/>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js" crossorigin
   onerror="document.getElementById('load-txt').textContent='Verkkovirhe — tarkista yhteys'"></script>
@@ -28,32 +28,41 @@
   --border: rgba(255,255,255,0.09);
   --accent: #00cfff;
   --accent-glow: rgba(0,207,255,0.15);
-  --text:   #ddeeff;
-  --muted:  rgba(180,215,255,0.45);
+  --text:   #e8f0ff;
+  --muted:  rgba(200,210,230,0.45);
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
   --sar: env(safe-area-inset-right, 0px);
   --sheet-radius: 24px;
   --spring: cubic-bezier(.32,.72,.24,1);
+
+–c-wind:  #ffffff;
+–c-temp:  rgb(255,175,85);
+–c-water: rgb(0,215,185);
+–c-gust:  rgba(255,175,85,.65);
+
+–font-ui:   ‘Inter’, system-ui, -apple-system, sans-serif;
+–font-mono: ‘DM Mono’, monospace;
+–font-brand:‘Syne’, system-ui, sans-serif;
 }
 *, *::before, *::after {
-  margin: 0; padding: 0; box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
+margin: 0; padding: 0; box-sizing: border-box;
+-webkit-tap-highlight-color: transparent;
+-webkit-touch-callout: none;
 }
 html {
-  height: -webkit-fill-available; background: var(--bg);
-  overscroll-behavior: none;
+height: -webkit-fill-available; background: var(–bg);
+overscroll-behavior: none;
 }
 body {
-  width: 100%; height: 100%; min-height: -webkit-fill-available;
-  background: var(--bg); color: var(--text);
-  font-family: 'Syne', sans-serif;
-  overflow: hidden; position: fixed; inset: 0;
-  -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
-  overscroll-behavior: none;
-  /* touch-action ei bodylle — estää iOS double-tap zoom detection */
+width: 100%; height: 100%; min-height: -webkit-fill-available;
+background: var(–bg); color: var(–text);
+font-family: var(–font-ui);
+overflow: hidden; position: fixed; inset: 0;
+-webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+overscroll-behavior: none;
+/* touch-action ei bodylle — estää iOS double-tap zoom detection */
 }
 #app { position: absolute; inset: 0; }
 
@@ -215,9 +224,9 @@ transition: all .15s ease;
 }
 .sp-chip:active { transform: scale(0.93); }
 .sp-chip.active {
-background: rgba(0,207,255,.15);
-border-color: rgba(0,207,255,.4);
-color: var(–accent);
+background: rgba(255,255,255,.1);
+border-color: rgba(255,255,255,.5);
+color: var(–text);
 }
 .sp-chip .l-icon { font-size: 11px; }
 
@@ -232,7 +241,7 @@ transition: opacity 0.3s;
 #wx-widget.hidden { opacity: 0; }
 #wx-icon { font-size: 30px; line-height: 1; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
 #wx-temp { font-family: ‘DM Mono’, monospace; font-size: 28px; font-weight: 500; color: var(–text); line-height: 1; letter-spacing: -0.5px; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
-#wx-desc { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); line-height: 1.2; max-width: 80px; }
+#wx-desc { font-family: var(–font-ui); font-size: 9px; color: var(–muted); line-height: 1.2; max-width: 80px; }
 
 /* ============================================================
 BOTTOM PANEL  z:20
@@ -359,7 +368,7 @@ SPOT LIST — Ranked spots panel
 #spot-list {
 position: absolute; bottom: 0; left: 0; right: 0; z-index: 30;
 background: rgba(10,14,26,.97);
-border-top: 1px solid rgba(0,207,255,.2);
+border-top: 1px solid rgba(255,255,255,.07);
 border-radius: var(–sheet-radius) var(–sheet-radius) 0 0;
 -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
 box-shadow: 0 -8px 40px rgba(0,0,0,.6);
@@ -390,14 +399,14 @@ transition: background .15s;
 padding: 4px 20px 14px; display: flex; justify-content: space-between; align-items: center;
 }
 .sl-title { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
-.sl-count { font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–muted); }
+.sl-count { font-family: var(–font-ui); font-size: 10px; color: var(–muted); }
 .sl-item {
 display: flex; align-items: center; gap: 12px;
 padding: 12px 20px; border-bottom: 1px solid var(–border);
 cursor: pointer; transition: background .12s;
 touch-action: manipulation;
 }
-.sl-item:active { background: rgba(0,207,255,.08); }
+.sl-item:active { background: rgba(255,255,255,.06); }
 .sl-rank {
 font-family: ‘DM Mono’, monospace; font-size: 11px; font-weight: 700;
 color: var(–muted); width: 20px; text-align: center; flex-shrink: 0;
@@ -407,14 +416,14 @@ width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
 border: 1.5px solid rgba(255,255,255,.4);
 }
 .sl-info { flex: 1; min-width: 0; }
-.sl-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sl-desc { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); margin-top: 1px; }
+.sl-name { font-family: var(–font-ui); font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sl-desc { font-family: var(–font-ui); font-size: 9px; color: var(–muted); margin-top: 1px; }
 .sl-wind { text-align: right; flex-shrink: 0; }
 .sl-wind-val {
 font-family: ‘DM Mono’, monospace; font-size: 18px; font-weight: 500;
 line-height: 1;
 }
-.sl-wind-sub { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); margin-top: 2px; }
+.sl-wind-sub { font-family: var(–font-ui); font-size: 9px; color: var(–muted); margin-top: 2px; }
 .sl-badge-foilable {
 display: inline-block; font-family: ‘DM Mono’, monospace; font-size: 8px;
 background: rgba(80,237,120,.15); color: rgb(80,237,120);
@@ -463,8 +472,8 @@ position: absolute; top: -4px; left: 50%; transform: translateX(-50%);
 width: 0; height: 0;
 border-left: 4px solid transparent;
 border-right: 4px solid transparent;
-border-bottom: 7px solid var(–accent);
-filter: drop-shadow(0 0 4px rgba(0,207,255,0.5));
+border-bottom: 7px solid rgba(255,255,255,.9);
+filter: drop-shadow(0 0 6px rgba(255,255,255,0.4));
 }
 
 /* ============================================================
@@ -548,13 +557,14 @@ to   { opacity: 1; transform: translateX(0); }
 display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
 }
 .sh-hero-left { flex: 1; min-width: 0; }
-.sh-datetime { display: block; font-family: ‘DM Mono’, monospace; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.7); margin-bottom: 8px; letter-spacing: 0.2px; }
+.sh-datetime { display: block; font-family: var(–font-mono); font-size: 12px; font-weight: 500; color: rgba(255,255,255,.5); margin-bottom: 8px; letter-spacing: 0.5px; text-transform: uppercase; }
 .sh-name {
-font-size: 20px; font-weight: 800; letter-spacing: -.4px;
+font-family: var(–font-ui);
+font-size: 20px; font-weight: 800; letter-spacing: -.5px;
 margin-bottom: 2px; line-height: 1.15; word-break: break-word;
 }
 .sh-desc {
-font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–muted);
+font-family: var(–font-ui); font-size: 10px; color: var(–muted);
 }
 .sh-hero-right { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .sh-big-wind {
@@ -567,35 +577,35 @@ color: rgba(255,255,255,.35); letter-spacing: 1px;
 display: inline; margin-left: 3px; vertical-align: 8px;
 }
 .sh-big-gust {
-font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 300;
-color: rgba(255,255,255,.3); margin-top: 4px; letter-spacing: 0.3px;
+font-family: var(–font-mono); font-size: 10px; font-weight: 300;
+color: rgba(255,255,255,.38); margin-top: 4px; letter-spacing: 0.3px;
 }
 .sh-hero-tags {
 display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
 }
 .sh-hero-tag {
-font-family: ‘DM Mono’, monospace; font-size: 9px;
-padding: 3px 8px; border-radius: 7px;
+font-family: var(–font-ui); font-size: 9px; font-weight: 500;
+padding: 3px 9px; border-radius: 20px;
 border: 1px solid rgba(255,255,255,.1);
-background: rgba(255,255,255,.04);
-white-space: nowrap;
+background: rgba(255,255,255,.05);
+white-space: nowrap; letter-spacing: 0.1px;
 }
 .sh-hero-live {
-font-family: ‘DM Mono’, monospace; font-size: 10px;
-padding: 5px 10px; border-radius: 8px;
+font-family: var(–font-ui); font-size: 10px;
+padding: 5px 10px; border-radius: 10px;
 border: 1px solid rgba(100,255,160,.2);
 background: rgba(100,255,160,.06);
 display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
 }
 .sh-hero-live-val { font-size: 13px; font-weight: 700; }
-.sh-hero-live-lbl { font-size: 8px; color: rgba(100,255,160,.5); }
+.sh-hero-live-lbl { font-family: var(–font-ui); font-size: 8px; color: rgba(100,255,160,.45); letter-spacing: 0.3px; text-transform: uppercase; }
 
 /* Foilability badge — pill, compact, integrated */
 .sh-foil-badge {
 display: inline-flex; align-items: center; gap: 7px;
 padding: 5px 12px 5px 8px; border-radius: 99px;
-font-family: ‘DM Mono’, monospace;
-font-size: 11px; font-weight: 600; letter-spacing: .3px;
+font-family: var(–font-ui);
+font-size: 11px; font-weight: 700; letter-spacing: .1px;
 margin-bottom: 16px;
 border-width: 1px; border-style: solid;
 }
@@ -612,26 +622,26 @@ border-radius: 0; padding: 6px 4px;
 display: flex; flex-direction: column; align-items: center; gap: 3px;
 }
 .sh-stat-label {
-font-family: ‘DM Mono’, monospace; font-size: 8px;
-color: var(–muted); text-transform: uppercase; letter-spacing: 0.8px;
+font-family: var(–font-ui); font-size: 8px; font-weight: 500;
+color: var(–muted); text-transform: uppercase; letter-spacing: 0.9px;
 }
 .sh-stat-value {
-font-family: ‘DM Mono’, monospace; font-size: 16px; font-weight: 500;
+font-family: var(–font-mono); font-size: 16px; font-weight: 500;
 line-height: 1; letter-spacing: -0.5px;
 }
 .sh-stat-sub {
-font-family: ‘DM Mono’, monospace; font-size: 8px;
-color: var(–muted); letter-spacing: 0.3px;
+font-family: var(–font-ui); font-size: 8px;
+color: var(–muted); letter-spacing: 0.2px;
 }
 .sh-stat-live {
-border-color: rgba(100,255,160,.2);
-background: rgba(100,255,160,.04);
+border-color: rgba(255,255,255,.08);
+background: rgba(255,255,255,.02);
 cursor: pointer;
 -webkit-user-select: none; user-select: none;
 }
 .sh-stat-live.expanded {
-border-color: rgba(100,255,160,.4);
-background: rgba(100,255,160,.08);
+border-color: rgba(255,255,255,.15);
+background: rgba(255,255,255,.05);
 }
 /* Live-paneeli: sama grid-span malli kuin water-panel */
 .sh-stat-live-panel {
@@ -650,7 +660,7 @@ margin-top: 0;
 /* Asemavalitsin dropdown */
 .fmi-station-trigger {
 display: flex; align-items: center; gap: 6px;
-font-family: ‘DM Mono’, monospace; font-size: 9px;
+font-family: var(–font-ui); font-size: 9px;
 color: rgba(100,255,160,.6); cursor: pointer;
 background: none; border: none; padding: 0;
 margin-bottom: 10px; -webkit-user-select: none; user-select: none;
@@ -709,12 +719,12 @@ transition: background .15s, border-color .15s;
 -webkit-user-select: none; user-select: none;
 }
 .sh-stat-water.expanded {
-border-color: rgba(0,207,255,.4);
-background: rgba(0,180,255,.1);
+border-color: rgba(255,255,255,.35);
+background: rgba(255,255,255,.08);
 }
 .sh-stat-water-name {
 font-family: ‘DM Mono’, monospace; font-size: 7px;
-color: rgba(0,207,255,.5); text-align: center;
+color: rgba(255,255,255,.7); text-align: center;
 white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 max-width: 100%; line-height: 1;
 }
@@ -811,7 +821,7 @@ ERROR TOAST  z:50
 /* v6: rate-limit banner */
 #rl-banner { position: fixed; bottom: calc(var(–sab) + 148px); left: 12px; right: 12px; z-index: 50; background: rgba(255,160,0,.12); border: 1px solid rgba(255,160,0,.35); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-radius: 12px; padding: 10px 14px; display: none; align-items: center; gap: 10px; }
 #rl-banner.show { display: flex; }
-#rl-banner-text { flex: 1; font-family: ‘DM Mono’, monospace; font-size: 10px; color: rgb(255,200,80); line-height: 1.4; }
+#rl-banner-text { flex: 1; font-family: var(–font-ui); font-size: 10px; color: rgb(255,200,80); line-height: 1.4; }
 #rl-banner-close { font-size: 16px; color: rgba(255,200,80,.6); cursor: pointer; padding: 2px 6px; flex-shrink: 0; }
 
 #toast {
@@ -821,7 +831,7 @@ opacity: 0; pointer-events: none;
 background: rgba(255,60,60,.15); border: 1px solid rgba(255,60,60,.3);
 -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
 border-radius: 12px; padding: 10px 18px;
-font-family: ‘DM Mono’, monospace; font-size: 11px; color: rgb(255,140,140);
+font-family: var(–font-ui); font-size: 11px; color: rgb(255,140,140);
 letter-spacing: .3px; white-space: nowrap;
 transition: opacity .3s, transform .3s;
 }
@@ -898,6 +908,7 @@ margin-bottom: 20px;
 animation: logoFadeIn .6s .0s ease both;
 }
 #load-logo {
+font-family: var(–font-brand);
 font-size: 58px; font-weight: 800; letter-spacing: -2.5px;
 background: linear-gradient(135deg, #ffffff 0%, #b8e8ff 55%, #00cfff 100%);
 -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
@@ -996,7 +1007,7 @@ position: sticky; top: 0; background: rgba(8,12,24,.97); z-index: 1; }
 background: rgba(255,255,255,.2); }
 #fc-header { padding: 4px 20px 14px; }
 #fc-title { font-size: 17px; font-weight: 800; letter-spacing: -.3px; }
-#fc-subtitle { font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–muted); margin-top: 2px; }
+#fc-subtitle { font-family: var(–font-ui); font-size: 10px; color: var(–muted); margin-top: 2px; }
 /* Toggle switches */
 #fc-toggles { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
 .fc-toggle {
@@ -1157,9 +1168,9 @@ background: #ffd700; box-shadow: 0 0 6px #ffd700;
 display: flex; justify-content: space-between; align-items: baseline;
 margin-bottom: 6px;
 }
-.sh-24h-title { font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 600;
+.sh-24h-title { font-family: var(–font-ui); font-size: 10px; font-weight: 600;
 color: rgba(255,255,255,.6); letter-spacing: .5px; }
-.sh-24h-peak { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–accent); }
+.sh-24h-peak { font-family: var(–font-ui); font-size: 9px; color: rgba(255,255,255,.5); }
 .sh-24h-svg { width: 100%; display: block; }
 
 /* FMI station card */
@@ -1169,24 +1180,25 @@ border-radius: 12px; padding: 10px 14px; margin-bottom: 14px;
 display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
 .sh-fmi-left { flex: 1; min-width: 0; }
-.sh-fmi-name { font-size: 11px; font-weight: 700; color: var(–text);
+.sh-fmi-name { font-family: var(–font-ui); font-size: 11px; font-weight: 600; color: var(–text);
 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sh-fmi-meta { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); margin-top: 2px; }
+.sh-fmi-meta { font-family: var(–font-ui); font-size: 9px; color: var(–muted); margin-top: 2px; }
 .sh-fmi-wind { text-align: right; flex-shrink: 0; }
 .sh-fmi-ms { font-family: ‘DM Mono’, monospace; font-size: 20px; font-weight: 700; line-height: 1; }
-.sh-fmi-unit { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); }
-.sh-fmi-loading { font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–muted); }
+.sh-fmi-unit { font-family: var(–font-ui); font-size: 9px; color: var(–muted); }
+.sh-fmi-loading { font-family: var(–font-ui); font-size: 10px; color: var(–muted); }
 
 /* Navigate button */
 .sh-nav-btn {
+font-family: var(–font-ui);
 display: flex; align-items: center; justify-content: center; gap: 8px;
 width: 100%; padding: 12px; border-radius: 14px; margin-bottom: 8px;
 background: rgba(0,207,255,.08); border: 1px solid rgba(0,207,255,.2);
-font-family: ‘DM Mono’, monospace; font-size: 11px; font-weight: 600;
+font-family: var(–font-ui); font-size: 11px; font-weight: 600;
 color: var(–accent); cursor: pointer; transition: background .12s;
 -webkit-user-select: none; user-select: none;
 }
-.sh-nav-btn:active { background: rgba(0,207,255,.18); }
+.sh-nav-btn:active { background: rgba(255,255,255,.1); }
 .sh-nav-btn svg { flex-shrink: 0; }
 
 /* ── UIRAS VEDENLÄMPÖ ─────────────────────────────────────────── */
@@ -1200,13 +1212,14 @@ margin-bottom: 0;
 }
 .sh-uiras-left { flex: 1; min-width: 0; }
 .sh-uiras-name {
+font-family: var(–font-ui);
 font-size: 11px; font-weight: 700; color: var(–text);
 white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.sh-uiras-meta { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); margin-top: 2px; }
+.sh-uiras-meta { font-family: var(–font-ui); font-size: 9px; color: var(–muted); margin-top: 2px; }
 .sh-uiras-temp { text-align: right; flex-shrink: 0; }
-.sh-uiras-val { font-family: ‘DM Mono’, monospace; font-size: 22px; font-weight: 700; color: #4dd; line-height: 1; }
-.sh-uiras-unit { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–muted); }
+.sh-uiras-val { font-family: ‘DM Mono’, monospace; font-size: 22px; font-weight: 700; color: var(–c-water); line-height: 1; }
+.sh-uiras-unit { font-family: var(–font-ui); font-size: 9px; color: var(–muted); }
 .sh-uiras-toggle {
 width: 100%; margin-top: 10px; padding: 8px 0 0;
 border: none; background: none; border-top: 1px solid rgba(0,180,255,.12);
@@ -3304,7 +3317,7 @@ function buildUirasPlaceholder(spot) {
         + '<div data-uiras-meta style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted);margin-top:2px">' + dist + ' · ladataan...</div>'
       + '</div>'
       + '<div style="text-align:right;flex-shrink:0;margin-left:12px">'
-        + '<div data-uiras-temp style="font-family:DM Mono,monospace;font-size:24px;font-weight:700;color:#4dd;line-height:1">—</div>'
+        + '<div data-uiras-temp style="font-family:DM Mono,monospace;font-size:24px;font-weight:700;color:var(--c-water);line-height:1">—</div>'
         + '<div style="font-family:DM Mono,monospace;font-size:9px;color:var(--muted)">°C</div>'
       + '</div>'
     + '</div>'
@@ -3323,7 +3336,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   var now = Date.now();
   var pts = period === 'all' ? allPts : allPts.filter(function(p){ return new Date(p.t).getTime() >= now - pMs[period]; });
   if (pts.length < 5) pts = allPts;
-  if (!pts.length) { el.innerHTML = '<div style="text-align:center;font-size:10px;color:var(--muted);padding:20px">Ei dataa</div>'; return; }
+  if (!pts.length) { el.innerHTML = '<div style="text-align:center;font-family:system-ui,sans-serif;font-size:10px;color:var(--muted);padding:20px">Ei dataa</div>'; return; }
 
   /* Ohenna */
   function ds(data, max) {
@@ -3404,7 +3417,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   var gradId = svgId+'-gr';
   var pbtn = function(p,lbl){
     var a = p===period;
-    return '<button data-up="'+p+'" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 10px;border-radius:20px;border:1px solid rgba(0,180,255,'+(a?.35:.15)+');background:'+(a?'rgba(0,207,255,.12)':'transparent')+';color:'+(a?'rgba(0,220,255,.9)':'rgba(255,255,255,.3)')+';cursor:pointer;transition:all .2s;-webkit-user-select:none;user-select:none">'+lbl+'</button>';
+    return '<button data-up="'+p+'" style="font-family:Inter,system-ui,sans-serif;font-size:9px;padding:3px 10px;border-radius:20px;border:1px solid rgba(0,180,255,'+(a?.35:.15)+');background:'+(a?'rgba(0,207,255,.12)':'transparent')+';color:'+(a?'rgba(0,220,255,.9)':'rgba(255,255,255,.3)')+';cursor:pointer;transition:all .2s;-webkit-user-select:none;user-select:none">'+lbl+'</button>';
   };
 
   el.innerHTML =
@@ -3416,15 +3429,15 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
 
     /* SVG wrapper */
     +'<div style="position:relative;margin:0 -4px">'
-      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(6,10,24,.96);border:1px solid rgba(0,207,255,.2);border-radius:10px;padding:7px 12px;font-family:DM Mono,monospace;font-size:10px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 24px rgba(0,0,0,.6);z-index:100;transform:translateX(-50%)"></div>'
+      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(6,10,24,.96);border:1px solid rgba(0,207,255,.15);border-radius:10px;padding:7px 12px;font-family:system-ui,sans-serif;font-size:10px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 24px rgba(0,0,0,.6);z-index:100;transform:translateX(-50%)"></div>'
       +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block;touch-action:none;overflow:visible">'
 
         /* Gradient def */
         +'<defs>'
           +'<linearGradient id="'+gradId+'" x1="0" y1="0" x2="0" y2="1">'
-            +'<stop offset="0%" stop-color="rgba(0,207,255,.28)"/>'
-            +'<stop offset="60%" stop-color="rgba(0,160,220,.08)"/>'
-            +'<stop offset="100%" stop-color="rgba(0,120,200,.0)"/>'
+            +'<stop offset="0%" stop-color="rgba(0,215,185,.25)"/>'
+            +'<stop offset="60%" stop-color="rgba(0,215,185,.06)"/>'
+            +'<stop offset="100%" stop-color="rgba(0,215,185,.0)"/>'
           +'</linearGradient>'
         +'</defs>'
 
@@ -3442,7 +3455,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         +'<path d="'+areaPath+'" fill="url(#'+gradId+')" />'
 
         /* Viiva */
-        +'<path d="'+linePath+'" fill="none" stroke="rgba(0,210,255,.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        +'<path d="'+linePath+'" fill="none" stroke="rgb(0,215,185)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
 
         /* Min/max pisteet + labelit */
         +minMaxLabels
@@ -3468,7 +3481,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
 
     /* Footer */
     +'<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between">'
-      +'<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.18)">UiRas / FVH &middot; '+(stationName||'')+'</div>'
+      +'<div style="font-family:Inter,system-ui,sans-serif;font-size:8px;color:rgba(255,255,255,.18)">UiRas / FVH &middot; '+(stationName||'')+'</div>'
       +'<div id="'+svgId+'-cur" style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,210,255,.8);font-weight:700">'+lastVal.toFixed(1)+'°</div>'
     +'</div>';
 
@@ -3493,11 +3506,11 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
 
     /* Trigger */
     var tr = document.createElement('button');
-    tr.style.cssText = 'display:flex;align-items:center;gap:5px;background:none;border:none;font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.6);cursor:pointer;padding:0;-webkit-user-select:none;user-select:none';
+    tr.style.cssText = 'display:flex;align-items:center;gap:5px;background:none;border:none;font-family:var(--font-ui),system-ui,sans-serif;font-size:9px;color:rgba(0,215,185,.7);cursor:pointer;padding:0;-webkit-user-select:none;user-select:none';
     function setTr(st) {
-      tr.innerHTML = '<span style="color:rgba(255,255,255,.3)">Asema</span>'
-        +'<span style="color:rgba(0,207,255,.85);font-weight:700">'+st.name+'</span>'
-        +'<span style="color:rgba(255,255,255,.25)">'+st.km.toFixed(1)+'km</span>'
+      tr.innerHTML = '<span style="color:rgba(255,255,255,.25)">Asema</span>'
+        +'<span style="color:rgba(0,215,185,.9);font-weight:700">'+st.name+'</span>'
+        +'<span style="color:rgba(255,255,255,.22)">'+st.km.toFixed(1)+'km</span>'
         +'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="2,3 5,7 8,3" fill="none" stroke="rgba(0,207,255,.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     }
     var curSt = sorted.find(function(s){ return s.id===uirasStation.id; }) || sorted[0];
@@ -3508,11 +3521,11 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     menu.style.cssText = 'display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:180px;background:rgba(12,18,36,.98);border:1px solid rgba(0,180,255,.2);border-radius:12px;overflow:hidden;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.6);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)';
     sorted.forEach(function(st) {
       var item = document.createElement('div');
-      item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;font-family:DM Mono,monospace;font-size:10px;border-bottom:1px solid rgba(255,255,255,.04);-webkit-user-select:none;user-select:none'+(st.id===curSt.id?';background:rgba(0,180,255,.08)':'');
+      item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;font-family:system-ui,sans-serif;font-size:10px;border-bottom:1px solid rgba(255,255,255,.04);-webkit-user-select:none;user-select:none'+(st.id===curSt.id?';background:rgba(0,180,255,.08)':'');
       item.innerHTML = '<span style="color:rgba(255,255,255,.85);font-weight:700">'+st.name+'</span>'
         +'<div style="display:flex;align-items:center;gap:8px">'
           +'<span style="color:rgba(255,255,255,.3);font-size:9px">'+st.km.toFixed(1)+'km</span>'
-          +(st.id===curSt.id?'<span style="color:rgba(0,207,255,.8)">✓</span>':'')
+          +(st.id===curSt.id?'<span style="color:rgba(0,215,185,.9)">✓</span>':'')
         +'</div>';
       item.addEventListener('click', function(e){
         e.stopPropagation();
@@ -3583,7 +3596,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     var tempStr = draw[idx].v.toFixed(1);
     tip.innerHTML =
       '<div style="color:rgba(0,210,255,.9);font-size:14px;font-weight:700;letter-spacing:-.3px">'+tempStr+'°</div>'
-      +'<div style="color:rgba(255,255,255,.35);font-size:8px;margin-top:2px">'+dstr+'</div>';
+      +'<div style="font-family:Inter,system-ui,sans-serif;color:rgba(255,255,255,.35);font-size:8px;margin-top:2px">'+dstr+'</div>';
     var r = svg.getBoundingClientRect();
     var relX = (x / W) * r.width;
     tip.style.left = relX + 'px';
@@ -4540,9 +4553,9 @@ function openSheet(spot, hourIdx) {
 function _waterStatSimple(id, station) {
   const shortName = station.name.replace(/uimaranta/gi,'').trim();
   return '<div id="' + id + '" class="sh-stat" style="border-color:rgba(0,180,255,.2);background:rgba(0,180,255,.05)">'
-    + '<span class="sh-stat-label">🏊 Vesi</span>'
-    + '<span data-ws-val class="sh-stat-value" style="color:#4dd">—</span>'
-    + '<span class="sh-stat-sub" style="color:rgba(0,207,255,.4)">' + shortName + '</span>'
+    + '<span class="sh-stat-label">Vesi</span>'
+    + '<span data-ws-val class="sh-stat-value" style="color:var(--c-water)">—</span>'
+    + '<span class="sh-stat-sub" style="color:rgba(0,215,185,.5)">' + shortName + '</span>'
   + '</div>';
 }
 
@@ -4553,8 +4566,8 @@ function _waterStatCard(id, station) {
   /* Nappi pysyy ylärivissä — panel on erillinen grid-item koko leveydellä */
   const btn = '<div id="' + id + '" class="sh-stat sh-stat-water" '
     + 'data-uiras-water-btn data-uiras-station-id="' + station.id + '" data-uiras-panel-id="' + panelId + '">'
-    + '<span class="sh-stat-label">🏊 Vesi</span>'
-    + '<span data-ws-val class="sh-stat-value" style="color:#4dd">—</span>'
+    + '<span class="sh-stat-label">Vesi</span>'
+    + '<span data-ws-val class="sh-stat-value" style="color:var(--c-water)">—</span>'
     + '<span class="sh-stat-water-name">' + shortName + '</span>'
     + '<span data-ws-toggle class="sh-stat-water-toggle">▼ Historia</span>'
   + '</div>';
@@ -4565,9 +4578,9 @@ function _waterStatCard(id, station) {
 /* Lämpötila + kastepiste yhdistettynä */
 function _tempDewComboCard(tmpId, dewId) {
   return '<div class="sh-stat">'
-    + '<span class="sh-stat-label">🌡 Lämpö</span>'
+    + '<span class="sh-stat-label">Lämpö</span>'
     + '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:1px">'
-      + '<span id="'+tmpId+'" class="sh-stat-value" style="color:rgba(255,200,100,.5)">—</span>'
+      + '<span id="'+tmpId+'" class="sh-stat-value" style="color:var(--c-temp)">—</span>'
       + '<span id="'+dewId+'" style="font-family:DM Mono,monospace;font-size:10px;color:rgba(100,200,255,.4);margin-top:1px">—°<span style="font-size:8px;opacity:.6"> kaste</span></span>'
     + '</div>'
     + '<span class="sh-stat-sub">°C</span>'
@@ -4578,7 +4591,7 @@ function _tempDewComboCard(tmpId, dewId) {
 function _fmiLinkCard(fmiId) {
   var eid = fmiId + '-hist';
   return '<div class="sh-stat" id="'+fmiId+'-lnk" style="cursor:pointer" onclick="_scrollToSection(\''+eid+'\')">'
-    + '<span class="sh-stat-label">📡 Tuuli</span>'
+    + '<span class="sh-stat-label">Tuuli</span>'
     + '<span id="'+fmiId+'-lnk-val" class="sh-stat-value" style="color:rgba(100,255,160,.4)">—</span>'
     + '<div style="display:flex;flex-direction:column;gap:0">'
       + '<span id="'+fmiId+'-lnk-name" style="font-family:DM Mono,monospace;font-size:8px;color:rgba(100,255,160,.55);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">—</span>'
@@ -4592,9 +4605,9 @@ function _uirasLinkCard(id, station) {
   var shortName = station.name.replace(/uimaranta/gi,'').replace(/\s*\(.*\)/,'').trim();
   var eid = 'uiras-always-' + id;
   return '<div class="sh-stat" id="'+id+'-lnk" style="cursor:pointer" onclick="_scrollToSection(\''+eid+'\')">'
-    + '<span class="sh-stat-label">🏊 Vesi</span>'
-    + '<span id="'+id+'-lnk-val" class="sh-stat-value" style="color:rgba(0,207,255,.4)">—</span>'
-    + '<span id="'+id+'-lnk-name" class="sh-stat-sub" style="color:rgba(0,207,255,.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">'+shortName+'</span>'
+    + '<span class="sh-stat-label">Vesi</span>'
+    + '<span id="'+id+'-lnk-val" class="sh-stat-value" style="color:var(--c-water)">—</span>'
+    + '<span id="'+id+'-lnk-name" class="sh-stat-sub" style="color:rgba(0,215,185,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px">'+shortName+'</span>'
   + '</div>';
 }
 
@@ -4921,7 +4934,7 @@ function _renderLiveHistory(el, data, wx) {
   var wsGId=svgId+'-wsg',wgGId=svgId+'-wgg';
   var pbtn=function(p){
     var a=(p==='12h'&&hours===12)||(p==='24h'&&hours===24);
-    return '<button data-fmi-period="'+p+'" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 10px;border-radius:20px;border:1px solid rgba(100,255,160,'+(a?.35:.15)+');background:'+(a?'rgba(100,255,160,.1)':'transparent')+';color:'+(a?'rgba(100,255,160,.9)':'rgba(255,255,255,.3)')+';cursor:pointer;-webkit-user-select:none;user-select:none">'+p+'</button>';
+    return '<button data-fmi-period="'+p+'" style="font-family:Inter,system-ui,sans-serif;font-size:9px;padding:3px 10px;border-radius:20px;border:1px solid rgba(100,255,160,'+(a?.35:.15)+');background:'+(a?'rgba(100,255,160,.1)':'transparent')+';color:'+(a?'rgba(100,255,160,.9)':'rgba(255,255,255,.3)')+';cursor:pointer;-webkit-user-select:none;user-select:none">'+p+'</button>';
   };
   el.innerHTML=
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
@@ -4929,7 +4942,7 @@ function _renderLiveHistory(el, data, wx) {
       +'<div style="display:flex;gap:4px">'+pbtn('12h')+pbtn('24h')+'</div>'
     +'</div>'
     +'<div style="position:relative;margin:0 -4px">'
-      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(6,10,24,.96);border:1px solid rgba(100,255,160,.2);border-radius:10px;padding:7px 12px;font-family:DM Mono,monospace;font-size:10px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 24px rgba(0,0,0,.6);z-index:100;transform:translateX(-50%)"></div>'
+      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(6,10,24,.96);border:1px solid rgba(100,255,160,.15);border-radius:10px;padding:7px 12px;font-family:system-ui,sans-serif;font-size:10px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 24px rgba(0,0,0,.6);z-index:100;transform:translateX(-50%)"></div>'
       +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block;touch-action:none;overflow:visible">'
         +'<defs>'
           +'<linearGradient id="'+wsGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(100,255,160,.22)"/><stop offset="100%" stop-color="rgba(100,255,160,.0)"/></linearGradient>'
