@@ -867,7 +867,7 @@ rgba(2,6,18,.05) 60%,
 rgba(2,6,18,.95) 100%);
 }
 
-/* ── Yläosan container: badge + logo + renkaat ── */
+/* – Yläosan container: badge + logo + renkaat – */
 #load-top {
 position: relative; z-index: 3;
 margin-top: calc(env(safe-area-inset-top) + 13vh);
@@ -926,7 +926,7 @@ animation: loadFadeUp .7s .2s ease both;
 filter: drop-shadow(0 0 28px rgba(0,207,255,.5));
 }
 
-/* ── Alaosan container: slogan + palkki ── */
+/* – Alaosan container: slogan + palkki – */
 #load-bottom {
 position: relative; z-index: 3;
 margin-top: auto;
@@ -1090,7 +1090,7 @@ font-family: ‘DM Mono’, monospace; font-size: 18px; font-weight: 600; line-h
 .fc-empty { padding: 24px 20px; text-align: center;
 font-family: ‘DM Mono’, monospace; font-size: 11px; color: var(–muted); }
 
-/* ── UNITS PICKER — pill menu ──────────────────────────────────── */
+/* – UNITS PICKER — pill menu ———————————— */
 #units-picker {
 position: fixed;
 /* top set dynamically in JS below cr-gust */
@@ -1117,7 +1117,7 @@ text-shadow: 0 1px 8px rgba(0,0,0,0.8);
 }
 .up-option.active .up-label { color: #fff; font-weight: 700; }
 
-/* ── HOURLY WEATHER PANEL ─────────────────────────────────────── */
+/* – HOURLY WEATHER PANEL ————————————— */
 #wx-panel {
 position: fixed;
 top: calc(var(–sat) + 56px);
@@ -1157,7 +1157,7 @@ flex-shrink: 0; transition: background .12s;
 .wx-hour-wind { font-family: “DM Mono”,monospace; font-size: 9px; font-weight: 600; }
 
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-/* ── SPOT CARD ENHANCEMENTS ───────────────────────────────────── */
+/* – SPOT CARD ENHANCEMENTS ———————————–– */
 
 /* Sun bar */
 .sh-sun-bar {
@@ -1217,7 +1217,7 @@ color: var(–accent); cursor: pointer; transition: background .12s;
 .sh-nav-btn:active { background: rgba(0,207,255,.18); }
 .sh-nav-btn svg { flex-shrink: 0; }
 
-/* ── UIRAS VEDENLÄMPÖ ─────────────────────────────────────────── */
+/* – UIRAS VEDENLÄMPÖ —————————————–– */
 .sh-uiras {
 background: rgba(0,180,255,.07); border: 1px solid rgba(0,180,255,.18);
 border-radius: 14px; padding: 12px 14px; margin-bottom: 14px;
@@ -1493,10 +1493,8 @@ border-color: rgba(0,207,255,.4);
 <script>
 'use strict';
 
-/* ╔══════════════════════════════════════════════════════════════╗
-   ║  FoilSpot v6 — Visual spot cards · Swipe-to-dismiss ·        ║
-   ║  Haptic feedback · Spring sheet physics                      ║
-   ╚══════════════════════════════════════════════════════════════╝ */
+/* FoilSpot v7 - Visual spot cards, Swipe-to-dismiss,
+   Haptic feedback, Spring sheet physics */
 
 const Config = {
   MAX_MS: 20,
@@ -1510,7 +1508,7 @@ const Config = {
   PLAY_INTERVAL_MS: 800,
 };
 
-/* ── HAPTICS ──────────────────────────────────────────────────── */
+/* -- HAPTICS ---------------------------------------------------- */
 const Haptics = {
   _ctx: null,
   _unlocked: false,
@@ -1554,7 +1552,7 @@ const Haptics = {
   error() { try { if (navigator.vibrate) navigator.vibrate([20,10,20]); } catch(e) {} }
 };
 
-/* ── SWIPE-TO-DISMISS — Reusable for any bottom sheet ─────────── */
+/* -- SWIPE-TO-DISMISS — Reusable for any bottom sheet ----------- */
 function makeSwipeable(sheetEl, onDismiss, opts) {
   const o = Object.assign({ threshold: 100, velocityThreshold: 0.4 }, opts || {});
   let startY = 0, currentY = 0, isDragging = false, startScrollTop = 0;
@@ -1628,7 +1626,7 @@ function makeSwipeable(sheetEl, onDismiss, opts) {
   }, { passive: true });
 }
 
-/* ── UNITS ────────────────────────────────────────────────────── */
+/* -- UNITS ------------------------------------------------------ */
 const Units = {
   _active: 'ms',
   _defs: {
@@ -1671,7 +1669,7 @@ const Units = {
   fmtUnit(ms) { return this.fmt(ms) + ' ' + this.label(); }
 };
 
-/* ── COLOUR RAMP ──────────────────────────────────────────────── */
+/* -- COLOUR RAMP ------------------------------------------------ */
 const ColorRamp = (() => {
   const RAMP = [
     { t: 0.00, r: 10,  g: 20,  b: 80  },  /* 0 m/s   tumma sininen */
@@ -1735,7 +1733,7 @@ const ColorRamp = (() => {
   return { rgb, css, msToT };
 })();
 
-/* ── SPOTS ───────────────────────────────────────────────────── */
+/* -- SPOTS ----------------------------------------------------- */
 const SPOTS = [
   { name: 'Hanko',             lat: 59.824,  lng: 22.972,  desc: 'Paras etelä-lounas',            bestDirs: ['S','SW','W']          },
   { name: 'Haukilahti',        lat: 60.1552, lng: 24.7800, desc: 'Klassikko – etelätuulet',        bestDirs: ['SE','S','SW']         },
@@ -1755,7 +1753,7 @@ const SPOTS = [
   { name: 'Lohja',             lat: 60.243,  lng: 23.998,  desc: 'Sisäjärvi',                      bestDirs: ['S','SW','W','NW','N'] }
 ];
 
-/* ── VIEWPORT GRID ────────────────────────────────────────────── */
+/* -- VIEWPORT GRID ---------------------------------------------- */
 const ViewportGrid = {
   _points: new Map(),
   _globalBase: new Map(),
@@ -1954,7 +1952,7 @@ const ViewportGrid = {
   }
 };
 
-/* ═══════════════════════════════════════════════════════════════
+/* ---------------------------------------------------------------
    Double-tap zoom + Double-tap-hold-drag zoom
    Yksi yhtenäinen handler — ei konfliktia preventDefault:n kanssa.
    
@@ -1966,7 +1964,7 @@ const ViewportGrid = {
        → Jos touchmove ennen touchend: drag-zoom mode
    - touchmove drag-zoom: preventDefault + map._move() 60fps
    - touchend drag-zoom: snap + Leaflet animateZoom
-   ═══════════════════════════════════════════════════════════════ */
+   --------------------------------------------------------------- */
 (function() {
   /* Asennetaan VASTA kartan luomisen jälkeen map-init hookissa */
   L.Map.addInitHook(function() {
@@ -2104,7 +2102,7 @@ const ViewportGrid = {
 
 
 
-/* ── STATE ────────────────────────────────────────────────────── */
+/* -- STATE ------------------------------------------------------ */
 const State = {
   map: null,
   heatmapOverlay: null,
@@ -2126,7 +2124,7 @@ const State = {
   _lastTlHour: -1,
 };
 
-/* ── TOAST ────────────────────────────────────────────────────── */
+/* -- TOAST ------------------------------------------------------ */
 const Toast = {
   _timer: null,
   show(msg, dur) {
@@ -2137,7 +2135,7 @@ const Toast = {
   }
 };
 
-/* ── LEGEND ───────────────────────────────────────────────────── */
+/* -- LEGEND ----------------------------------------------------- */
 function buildLegend() {
   const bar = document.getElementById('wind-scale-bar');
   const ticks = document.getElementById('wind-scale-ticks');
@@ -2152,7 +2150,7 @@ function buildLegend() {
   }).join('');
 }
 
-/* ── MAP ──────────────────────────────────────────────────────── */
+/* -- MAP -------------------------------------------------------- */
 function initMap() {
   const map = L.map('map', {
     center: [62.5, 25.5], zoom: 5, zoomControl: false, attributionControl: true,
@@ -2266,7 +2264,7 @@ function initMap() {
   GeoProject.update(map);
 }
 
-/* ── CANVAS ───────────────────────────────────────────────────── */
+/* -- CANVAS ----------------------------------------------------- */
 function initCanvases() {
   State.windCvs = document.getElementById('c-wind');
   State.windCtx = State.windCvs.getContext('2d');
@@ -2284,7 +2282,7 @@ function resizeCanvases() {
   cvs.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-/* ── SPATIAL INDEX ────────────────────────────────────────────── */
+/* -- SPATIAL INDEX ---------------------------------------------- */
 const SpatialIndex = {
   cells: {}, cellSize: 0.35,
   build(wf) {
@@ -2317,7 +2315,7 @@ const SpatialIndex = {
   }
 };
 
-/* ── SURFACE TYPE ─────────────────────────────────────────────── */
+/* -- SURFACE TYPE ----------------------------------------------- */
 function isMarine(lat, lng) {
   function coastGrad(pos, coastVal, seaDir) {
     const d = (pos - coastVal) * seaDir;
@@ -2398,7 +2396,7 @@ function idw(lat, lng) {
 
 function px2ll(x, y) { const ll = State.map.containerPointToLatLng(L.point(x, y)); return { lat: ll.lat, lng: ll.lng }; }
 
-/* ── WIND TEXTURE ─────────────────────────────────────────────── */
+/* -- WIND TEXTURE ----------------------------------------------- */
 const WindTexture = {
   canvas: null, ctx: null,
   uData: null, vData: null, msData: null,
@@ -2486,7 +2484,7 @@ const WindTexture = {
   }
 };
 
-/* ── HEATMAP ──────────────────────────────────────────────────── */
+/* -- HEATMAP ---------------------------------------------------- */
 function drawColorField() {
   if (!WindTexture.canvas || !State.map || !WindTexture.msData) return;
   const bounds = L.latLngBounds(
@@ -2525,7 +2523,7 @@ function updateHeatmapBlur() {
   });
 }
 
-/* ── PARTICLE SYSTEM ──────────────────────────────────────────── */
+/* -- PARTICLE SYSTEM -------------------------------------------- */
 const PerfTracker = {
   _frames: [], _targetParticles: 400, _lastAdj: 0,
   frame(ts) {
@@ -2615,7 +2613,7 @@ function respawn(p) {
   p.vlat = 0; p.vlng = 0; p.age = 0; p.sampleTimer = 0;
 }
 
-/* ── RENDER LOOP ──────────────────────────────────────────────── */
+/* -- RENDER LOOP ------------------------------------------------ */
 let _renderLoopRunning = false;
 function startRenderLoop() {
   if (_renderLoopRunning) return;
@@ -2685,7 +2683,7 @@ function renderLoop(ts) {
   }
 }
 
-/* ── WEATHER BATCH API ────────────────────────────────────────── */
+/* -- WEATHER BATCH API ------------------------------------------ */
 /* HARMONIE 2.5km proxy per piste, Open-Meteo fallback batchina */
 const HARMONIE_BASE = 'https://foilwind.vercel.app/api/harmonie';
 const OM_BASE       = 'https://api.open-meteo.com/v1/forecast';
@@ -2823,7 +2821,7 @@ function loadBatch(points, forecastDays, forceOM) {
     });
 }
 
-/* ── WIND FIELD BUILDER ───────────────────────────────────────── */
+/* -- WIND FIELD BUILDER ----------------------------------------- */
 function buildWindField(hourIdx) {
   State.windField = [];
   const all = ViewportGrid.getAllPoints();
@@ -2855,11 +2853,11 @@ function buildWindField(hourIdx) {
   return WindTexture.build(State.windField, vb).then(() => { Crosshair.refresh(); WeatherWidget.refresh(); }).catch(e => console.error('[WindTexture]', e));
 }
 
-/* ── SPOT MARKERS ─────────────────────────────────────────────── */
-/* ── SPOT INDEX — 1.0–10.0 score combining wind speed + direction ─
+/* -- SPOT MARKERS ----------------------------------------------- */
+/* -- SPOT INDEX — 1.0–10.0 score combining wind speed + direction -
    Wind speed: 0–5 m/s → 0–4 pts, 5–8 → 4–6, 8–12 → 6–9, 12–15 → 9–10, >15 → drops
    Direction bonus: optimal dir → full speed score, 45° off → 70%, 90° off → 30%
-   ──────────────────────────────────────────────────────────────────── */
+   -------------------------------------------------------------------- */
 const DIR_DEG = { N:0, NE:45, E:90, SE:135, S:180, SW:225, W:270, NW:315 };
 
 function dirMatchScore(windDeg, bestDirs) {
@@ -2876,14 +2874,14 @@ function dirMatchScore(windDeg, bestDirs) {
   return best;
 }
 
-/* ── SPOT INDEX 0–100 ─────────────────────────────────────────────
+/* -- SPOT INDEX 0–100 ---------------------------------------------
    Components:
    • Speed (50 pts)  — bell curve peaking at 10–14 m/s
    • Direction (30 pts) — how well wind matches spot's best dirs
    • Gust penalty (−20 pts max) — high gust/ms ratio reduces score
-   ────────────────────────────────────────────────────────────────── */
+   ------------------------------------------------------------------ */
 function spotIndex(ms, windDeg, bestDirs, gustMs) {
-  /* ── NOPEUS 0–60 pts (enemmän painoa) ────────────────────────
+  /* -- NOPEUS 0–60 pts (enemmän painoa) ------------------------
      Huippu 11–14 m/s = 60 pts. Alle 2 nolla. Yli 22 nolla.  */
   let speedPts;
   if (ms < 2)        speedPts = 0;
@@ -2896,7 +2894,7 @@ function spotIndex(ms, windDeg, bestDirs, gustMs) {
   else               speedPts = 0;
   speedPts = Math.max(0, speedPts);
 
-  /* ── SUUNTA 0–30 pts ──────────────────────────────────────────
+  /* -- SUUNTA 0–30 pts ------------------------------------------
      cos²-käyrä, cutoff 80°. Painotetaan nopeudella.          */
   const speedWeight = ms <= 8 ? ms / 8 : ms <= 14 ? 1.0 : Math.max(0, 1 - (ms - 14) / 10);
   let dirPts = 0;
@@ -2917,7 +2915,7 @@ function spotIndex(ms, windDeg, bestDirs, gustMs) {
   }
   dirPts *= speedWeight;
 
-  /* ── PUUSKAISUUS −0…−5 pts (pieni vaikutus) ──────────────────
+  /* -- PUUSKAISUUS −0…−5 pts (pieni vaikutus) ------------------
      Helsingissä aina puuskaista — vain äärimmäiset rangaistaan
      1.0–1.4 → ei rangaistusta
      1.4–2.5 → −0…−5                                           */
@@ -3079,7 +3077,7 @@ function renderSpots(hourIdx) {
   }
 }
 
-/* ── BOTTOM SHEET — v6 redesigned spot card ───────────────────── */
+/* -- BOTTOM SHEET — v6 redesigned spot card --------------------- */
 function fmtHour(iso) { if (!iso) return '--'; const d = new Date(iso); return ('0'+d.getHours()).slice(-2)+':00'; }
 function fmtDateTime(iso) {
   if (!iso) return '--';
@@ -3098,11 +3096,11 @@ function isNightHour(iso) {
 
 
 
-/* ═══════════════════════════════════════════════════════════════
+/* ---------------------------------------------------------------
    UiRas — Helsingin uimarantojen vedenlämpötila
    Asemat hardkoodattu — koordinaatit tiedossa etukäteen.
    API haetaan vain reaaliaikaiseen lämpötilaan.
-   ═══════════════════════════════════════════════════════════════ */
+   --------------------------------------------------------------- */
 
 /* Tunnetut UiRas-asemat PKS:ssa koordinaatteineen */
 const UIRAS_STATIONS = [
@@ -3192,10 +3190,10 @@ const UiRas = {
 /* PKS-rajaus */
 function _isPKS(spot){return spot.lat>=59.9&&spot.lat<=60.5&&spot.lng>=24.3&&spot.lng<=25.5;}
 
-/* ═══════════════════════════════════════════════════════
+/* -------------------------------------------------------
    UiRas — event delegation jottei innerHTML tuhoa listeneriä
    Yksi click-handler sheet-content-tasolla, tunnistaa data-uiras-btn
-   ═══════════════════════════════════════════════════════ */
+   ------------------------------------------------------- */
 
 /* Rekisteröi delegoitu handler kerran */
 (function() {
@@ -3358,266 +3356,233 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   var period = el._period || '7d';
   var pMs = {'7d':7*864e5,'30d':30*864e5,'90d':90*864e5};
   var now = Date.now();
-  var pts = period === 'all' ? allPts : allPts.filter(function(p){ return new Date(p.t).getTime() >= now - pMs[period]; });
-  if (pts.length < 5) pts = allPts;
-  if (!pts.length) { el.innerHTML = '<div style="text-align:center;font-size:10px;color:var(--muted);padding:20px">Ei dataa</div>'; return; }
+  var pts = period==='all' ? allPts : allPts.filter(function(p){ return new Date(p.t).getTime()>=now-pMs[period]; });
+  if (pts.length<5) pts=allPts;
+  if (!pts.length){ el.innerHTML='<div style="text-align:center;font-size:10px;color:var(--muted);padding:20px">Ei dataa</div>'; return; }
 
-  function ds(data, max) {
-    if (data.length <= max) return data;
-    var step = data.length / max, out = [];
-    for (var i = 0; i < max; i++) out.push(data[Math.round(i * step)]);
-    return out;
-  }
-  var draw = ds(pts, 300);
-  var n = draw.length;
-  var vals = draw.map(function(p){ return p.v; });
-  var minV = Math.min.apply(null, vals);
-  var maxV = Math.max.apply(null, vals);
-  var range = maxV - minV || 1;
-  var padV = range * 0.18;
-  var lo = minV - padV, hi = maxV + padV;
+  function ds(data,max){ if(data.length<=max)return data; var step=data.length/max,out=[]; for(var i=0;i<max;i++)out.push(data[Math.round(i*step)]); return out; }
+  var draw=ds(pts,300), n=draw.length;
+  var vals=draw.map(function(p){return p.v;});
+  var minV=Math.min.apply(null,vals), maxV=Math.max.apply(null,vals);
+  var range=maxV-minV||1, padV=range*0.2;
+  var lo=minV-padV, hi=maxV+padV;
 
-  var W=300, H=110, padX=2, padY=8, labH=18, TH=H+labH;
-  function xOf(i){ return padX + i/(n-1||1)*(W-padX*2); }
-  function yOf(v){ return padY + (1-(v-lo)/(hi-lo))*(H-padY*2); }
-  function iOf(xPx){ return Math.max(0,Math.min(n-1,Math.round((xPx-padX)/(W-padX*2)*(n-1)))); }
+  var W=300, H=108, padX=36, padY=10, labH=20, TH=H+labH;
+  function xOf(i){ return padX+i/(n-1||1)*(W-padX-8); }
+  function yOf(v){ return padY+(1-(v-lo)/(hi-lo))*(H-padY*2); }
+  function iOf(xPx){ return Math.max(0,Math.min(n-1,Math.round((xPx-padX)/(W-padX-8)*(n-1)))); }
 
-  function smoothPath(pts2) {
-    if (pts2.length < 2) return '';
-    var d = 'M'+xOf(0).toFixed(1)+','+yOf(pts2[0].v).toFixed(1);
-    for (var i = 1; i < pts2.length; i++) {
+  /* Bezier */
+  function smoothPath(pts2){
+    if(pts2.length<2)return '';
+    var d='M'+xOf(0).toFixed(1)+','+yOf(pts2[0].v).toFixed(1);
+    for(var i=1;i<pts2.length;i++){
       var x0=xOf(i-1),y0=yOf(pts2[i-1].v),x1=xOf(i),y1=yOf(pts2[i].v),cx=(x0+x1)/2;
-      d += ' C'+cx.toFixed(1)+','+y0.toFixed(1)+' '+cx.toFixed(1)+','+y1.toFixed(1)+' '+x1.toFixed(1)+','+y1.toFixed(1);
+      d+=' C'+cx.toFixed(1)+','+y0.toFixed(1)+' '+cx.toFixed(1)+','+y1.toFixed(1)+' '+x1.toFixed(1)+','+y1.toFixed(1);
     }
     return d;
   }
-
-  var linePath = smoothPath(draw);
-  var areaPath = linePath + ' L'+xOf(n-1).toFixed(1)+','+H+' L'+xOf(0).toFixed(1)+','+H+' Z';
-
-  var minIdx = vals.indexOf(Math.min.apply(null,vals));
-  var maxIdx = vals.indexOf(Math.max.apply(null,vals));
-
-  function mkLabel(idx, isMax) {
-    var lx=xOf(idx), ly=yOf(draw[idx].v);
-    var anchor = lx < W*0.15 ? 'start' : lx > W*0.85 ? 'end' : 'middle';
-    var dy = isMax ? -10 : 12;
-    return '<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="2.5" fill="'+(isMax?'rgba(0,220,255,.9)':'rgba(0,160,220,.6)')+'" pointer-events="none"/>'
-      +'<text x="'+lx.toFixed(1)+'" y="'+(ly+dy).toFixed(1)+'" font-family="DM Mono,monospace" font-size="8" fill="'+(isMax?'rgba(0,220,255,.8)':'rgba(0,180,220,.55)')+'" text-anchor="'+anchor+'" pointer-events="none">'+draw[idx].v.toFixed(1)+'°</text>';
-  }
-  var minMaxLabels = (maxV - minV > 0.5) ? (mkLabel(maxIdx,true) + mkLabel(minIdx,false)) : '';
-
-  var ms0=new Date(draw[0].t).getTime(), ms1=new Date(draw[n-1].t).getTime();
-  var stp = (ms1-ms0) > 14*864e5 ? 7*864e5 : 864e5;
-  var t0=new Date(ms0); t0.setHours(0,0,0,0);
-  var xl='';
-  for (var tt=t0.getTime(); tt<=ms1; tt+=stp) {
-    if (tt<ms0) continue;
-    var fd=new Date(tt);
-    var xi=iOf(padX+(tt-ms0)/(ms1-ms0||1)*(W-padX*2));
-    var lx=xOf(xi);
-    if (lx<14||lx>W-14) continue;
-    xl+='<text x="'+lx.toFixed(1)+'" y="'+(TH-3)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.22)" text-anchor="middle">'+fd.getDate()+'.'+( fd.getMonth()+1)+'.</text>';
-  }
+  var linePath=smoothPath(draw);
+  var areaPath=linePath+' L'+xOf(n-1).toFixed(1)+','+(H-padY)+' L'+xOf(0).toFixed(1)+','+(H-padY)+' Z';
 
   var lastVal=draw[n-1].v, lastX=xOf(n-1), lastY=yOf(lastVal);
-  var svgId='uw-'+Math.random().toString(36).slice(2,7);
-  var gradId=svgId+'-gr';
+  var minIdx=vals.indexOf(minV), maxIdx=vals.indexOf(maxV);
 
-  var pbtn=function(p,lbl){
-    var a=p===period;
-    return '<button data-up="'+p+'" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 10px;border-radius:20px;border:1px solid rgba(0,180,255,'+(a?.35:.15)+');background:'+(a?'rgba(0,207,255,.12)':'transparent')+';color:'+(a?'rgba(0,220,255,.9)':'rgba(255,255,255,.3)')+';cursor:pointer;-webkit-user-select:none;user-select:none">'+lbl+'</button>';
-  };
+  /* Y-akseli: 3–4 lukemaa */
+  var yLabels='';
+  var yStep = range>4 ? 2 : range>2 ? 1 : 0.5;
+  var yStart = Math.ceil(minV/yStep)*yStep;
+  for(var yv=yStart; yv<=maxV+0.01; yv+=yStep){
+    if(yv<lo+padV*0.5||yv>hi-padV*0.5) continue;
+    var gy=yOf(yv);
+    yLabels+='<text x="'+(padX-6)+'" y="'+gy.toFixed(1)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.3)" text-anchor="end" dominant-baseline="middle">'+yv.toFixed(yStep<1?1:0)+'°</text>';
+    yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
+  }
+
+  /* X-akseli */
+  var xl='';
+  var ms0=new Date(draw[0].t).getTime(), ms1=new Date(draw[n-1].t).getTime();
+  var stp=(ms1-ms0)>14*864e5?7*864e5:864e5;
+  var t0=new Date(ms0); t0.setHours(0,0,0,0);
+  for(var tt=t0.getTime(); tt<=ms1; tt+=stp){
+    if(tt<ms0) continue;
+    var fd=new Date(tt);
+    var xi=iOf(padX+(tt-ms0)/(ms1-ms0||1)*(W-padX-8));
+    var lx=xOf(xi);
+    if(lx<padX+8||lx>W-16) continue;
+    xl+='<text x="'+lx.toFixed(1)+'" y="'+(TH-4)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.25)" text-anchor="middle">'+fd.getDate()+'.'+( fd.getMonth()+1)+'.</text>';
+  }
+
+  /* Min/max callout */
+  function mkCallout(idx,isMax){
+    var lx=xOf(idx), ly=yOf(draw[idx].v);
+    var anchor=lx<padX+30?'start':lx>W-30?'end':'middle';
+    var oy=isMax?-13:13;
+    return '<circle cx="'+lx.toFixed(1)+'" cy="'+ly.toFixed(1)+'" r="2.5" fill="'+(isMax?'rgba(0,220,255,.9)':'rgba(0,150,210,.6)')+'" pointer-events="none"/>'
+      +'<text x="'+lx.toFixed(1)+'" y="'+(ly+oy).toFixed(1)+'" font-family="DM Mono,monospace" font-size="8" fill="'+(isMax?'rgba(0,220,255,.8)':'rgba(0,170,210,.55)')+'" text-anchor="'+anchor+'" pointer-events="none">'+draw[idx].v.toFixed(1)+'°</text>';
+  }
+  var minMaxLabels=(maxV-minV>0.5)?(mkCallout(maxIdx,true)+mkCallout(minIdx,false)):'';
+
+  var svgId='uw-'+Math.random().toString(36).slice(2,7);
+  var gradId=svgId+'-gr', bandId=svgId+'-band';
+
+  /* Period napit — segmented control */
+  var periods=[['7d','7 vrk'],['30d','30 vrk'],['all','Max']];
+  var segBtns=periods.map(function(pv){
+    var a=pv[0]===period;
+    return '<button data-up="'+pv[0]+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:5px 0;border:none;'
+      +'background:'+(a?'rgba(0,210,255,.18)':'transparent')+';'
+      +'color:'+(a?'rgba(0,220,255,.95)':'rgba(255,255,255,.35)')+';'
+      +'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+pv[1]+'</button>';
+  }).join('');
 
   el.innerHTML=
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
-      +'<div id="'+svgId+'-dd"></div>'
-      +'<div style="display:flex;gap:4px">'+pbtn('7d','7 vrk')+pbtn('30d','30 vrk')+pbtn('all','Kaikki')+'</div>'
+    /* Header */
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+      +'<div id="'+svgId+'-dd" style="min-width:0"></div>'
+      +'<div style="display:flex;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
+        +segBtns
+      +'</div>'
     +'</div>'
-    +'<div style="position:relative;margin:0 -4px">'
-      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(6,10,24,.96);border:1px solid rgba(0,207,255,.2);border-radius:10px;padding:7px 12px;font-family:DM Mono,monospace;font-size:10px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 24px rgba(0,0,0,.6);z-index:100;transform:translateX(-50%)"></div>'
+
+    /* SVG */
+    +'<div style="position:relative;margin:0 0 0 0">'
+      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid rgba(0,207,255,.25);border-radius:12px;padding:8px 14px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;transform:translateX(-50%);transition:left .05s,top .05s"></div>'
       +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block;touch-action:none;overflow:visible">'
         +'<defs>'
           +'<linearGradient id="'+gradId+'" x1="0" y1="0" x2="0" y2="1">'
-            +'<stop offset="0%" stop-color="rgba(0,207,255,.28)"/>'
-            +'<stop offset="60%" stop-color="rgba(0,160,220,.08)"/>'
+            +'<stop offset="0%" stop-color="rgba(0,207,255,.3)"/>'
+            +'<stop offset="55%" stop-color="rgba(0,160,220,.1)"/>'
             +'<stop offset="100%" stop-color="rgba(0,120,200,.0)"/>'
           +'</linearGradient>'
         +'</defs>'
-        +'<line x1="'+padX+'" y1="'+(padY+(H-padY*2)/2).toFixed(1)+'" x2="'+(W-padX)+'" y2="'+(padY+(H-padY*2)/2).toFixed(1)+'" stroke="rgba(255,255,255,.04)" stroke-width="1"/>'
+        /* Y-akseli + grid */
+        +yLabels
+        /* Aluegradietti */
         +'<path d="'+areaPath+'" fill="url(#'+gradId+')" />'
-        +'<path d="'+linePath+'" fill="none" stroke="rgba(0,210,255,.9)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        /* Viiva */
+        +'<path d="'+linePath+'" fill="none" stroke="rgba(0,210,255,.95)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+        /* Min/max */
         +minMaxLabels
-        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="4" fill="rgba(0,220,255,.2)" pointer-events="none"><animate attributeName="r" values="3;6;3" dur="2.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.5s" repeatCount="indefinite"/></circle>'
-        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="3.5" fill="rgba(0,220,255,.95)" stroke="rgba(0,0,0,.4)" stroke-width="1.5" pointer-events="none"/>'
-        +'<line id="'+svgId+'-vl" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-dasharray="3,3" pointer-events="none"/>'
-        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="4" fill="rgba(0,220,255,.9)" stroke="rgba(255,255,255,.4)" stroke-width="1.5" pointer-events="none"/>'
-        +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX*2)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
+        /* Viimeisin piste */
+        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="5" fill="rgba(0,207,255,.15)" pointer-events="none"><animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/></circle>'
+        +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="3.5" fill="rgba(0,220,255,1)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none"/>'
+        /* Crosshair */
+        +'<line id="'+svgId+'-vl" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="rgba(0,207,255,.4)" stroke-width="1" stroke-dasharray="3,3" pointer-events="none"/>'
+        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="4.5" fill="rgba(0,220,255,.95)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none"/>'
+        /* Hit */
+        +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX-8)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
+        /* X-akseli */
         +xl
       +'</svg>'
     +'</div>'
-    +'<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between">'
-      +'<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.18)">UiRas / FVH &middot; '+(stationName||'')+'</div>'
-      +'<div style="font-family:DM Mono,monospace;font-size:11px;color:rgba(0,210,255,.8);font-weight:700">'+lastVal.toFixed(1)+'°</div>'
+
+    /* Footer */
+    +'<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;padding:0 2px">'
+      +'<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2)">UiRas · '+(stationName||'')+'</div>'
+      +'<div style="font-family:DM Mono,monospace;font-size:13px;color:rgba(0,210,255,.9);font-weight:700;letter-spacing:-.3px">'+lastVal.toFixed(1)+'<span style="font-size:9px;font-weight:400;color:rgba(0,210,255,.5)"> °C</span></div>'
     +'</div>';
 
-  /* Tooltip */
-  var svg=document.getElementById(svgId), hit=document.getElementById(svgId+'-hit');
-  var vl=document.getElementById(svgId+'-vl'), dot=document.getElementById(svgId+'-dot');
+  /* Tooltip interaktio */
+  var svg=document.getElementById(svgId),hit=document.getElementById(svgId+'-hit');
+  var vl=document.getElementById(svgId+'-vl'),dot=document.getElementById(svgId+'-dot');
   var tip=document.getElementById(svgId+'-tip');
-  if (!hit) return;
-  function svgXpx(cx){ var r=svg.getBoundingClientRect(); return (cx-r.left)/r.width*W; }
+  if(!hit)return;
+  function svgXpx(cx){var r=svg.getBoundingClientRect();return(cx-r.left)/r.width*W;}
   function showTip(cx){
-    var sx=svgXpx(cx), idx=iOf(sx), x=xOf(idx), y=yOf(draw[idx].v);
-    vl.setAttribute('x1',x.toFixed(1)); vl.setAttribute('x2',x.toFixed(1));
-    dot.setAttribute('cx',x.toFixed(1)); dot.setAttribute('cy',y.toFixed(1));
+    var sx=svgXpx(cx),idx=iOf(sx),x=xOf(idx),y=yOf(draw[idx].v);
+    vl.setAttribute('x1',x.toFixed(1));vl.setAttribute('x2',x.toFixed(1));
+    dot.setAttribute('cx',x.toFixed(1));dot.setAttribute('cy',y.toFixed(1));
     var d=new Date(draw[idx].t);
     var dstr=d.getDate()+'.'+(d.getMonth()+1)+'. '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
-    tip.innerHTML='<div style="color:rgba(0,210,255,.9);font-size:14px;font-weight:700;letter-spacing:-.3px">'+draw[idx].v.toFixed(1)+'°</div>'
-      +'<div style="color:rgba(255,255,255,.35);font-size:8px;margin-top:2px">'+dstr+'</div>';
-    var r=svg.getBoundingClientRect(), relX=(x/W)*r.width;
-    tip.style.left=relX+'px';
-    tip.style.top=Math.max(2,(y/TH)*r.height-52)+'px';
-    tip.style.display='block';
+    var val=draw[idx].v.toFixed(1);
+    tip.innerHTML='<div style="font-size:18px;font-weight:700;color:rgba(0,215,255,.95);letter-spacing:-.5px;line-height:1">'+val+'<span style="font-size:11px;font-weight:400;color:rgba(0,200,255,.55)"> °C</span></div>'
+      +'<div style="color:rgba(255,255,255,.3);font-size:9px;margin-top:4px;font-family:DM Mono,monospace">'+dstr+'</div>';
+    var r=svg.getBoundingClientRect(),relX=(x/W)*r.width;
+    var tipTop=Math.max(2,(y/TH)*r.height-58);
+    tip.style.left=relX+'px';tip.style.top=tipTop+'px';tip.style.display='block';
   }
   function hideTip(){
     tip.style.display='none';
-    vl.setAttribute('x1','-1'); vl.setAttribute('x2','-1');
-    dot.setAttribute('cx','-1'); dot.setAttribute('cy','-1');
+    vl.setAttribute('x1','-1');vl.setAttribute('x2','-1');
+    dot.setAttribute('cx','-1');dot.setAttribute('cy','-1');
   }
-  hit.addEventListener('mousemove',function(e){ showTip(e.clientX); },{passive:true});
+  hit.addEventListener('mousemove',function(e){showTip(e.clientX);},{passive:true});
   hit.addEventListener('mouseleave',hideTip,{passive:true});
-  hit.addEventListener('touchstart',function(e){ if(e.touches[0]) showTip(e.touches[0].clientX); },{passive:true});
-  hit.addEventListener('touchmove',function(e){ e.preventDefault(); if(e.touches[0]) showTip(e.touches[0].clientX); },{passive:false});
-  hit.addEventListener('touchend',function(){ setTimeout(hideTip,1500); },{passive:true});
+  hit.addEventListener('touchstart',function(e){if(e.touches[0])showTip(e.touches[0].clientX);},{passive:true});
+  hit.addEventListener('touchmove',function(e){e.preventDefault();if(e.touches[0])showTip(e.touches[0].clientX);},{passive:false});
+  hit.addEventListener('touchend',function(){setTimeout(hideTip,2000);},{passive:true});
 
-  /* Period napit */
+  /* Segment control */
   el.querySelectorAll('[data-up]').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      el._period = btn.dataset.up;
-      _uirasChartInteractive(el, allPts, stationName);
-    }, { passive: true });
+    btn.addEventListener('click',function(){
+      el._period=btn.dataset.up;
+      _uirasChartInteractive(el,allPts,stationName,uirasStation,spotLat,spotLng);
+    },{passive:true});
   });
 
   /* Asemavalitsin dropdown */
-  var ddEl = document.getElementById(svgId+'-dd');
-  if (ddEl && uirasStation && spotLat != null) {
-    /* Laske kaikki asemat jarjestyksessa */
+  var ddEl=document.getElementById(svgId+'-dd');
+  if(ddEl&&uirasStation&&spotLat!=null){
     function uiKm(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
-    var sorted = UIRAS_STATIONS.map(function(s){ return Object.assign({},s,{km:uiKm(spotLat,spotLng,s.lat,s.lng)}); })
-      .filter(function(s){ return s.km <= 20; })
-      .sort(function(a,b){ return a.km-b.km; })
-      .slice(0,6);
-
-    /* Trigger */
-    var tr = document.createElement('button');
-    tr.style.cssText = 'display:flex;align-items:center;gap:5px;background:none;border:none;font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.6);cursor:pointer;padding:0;-webkit-user-select:none;user-select:none';
-    function setTr(st) {
-      tr.innerHTML = '<span style="color:rgba(255,255,255,.3)">Asema</span>'
+    var sorted=UIRAS_STATIONS.map(function(s){return Object.assign({},s,{km:uiKm(spotLat,spotLng,s.lat,s.lng)});})
+      .filter(function(s){return s.km<=20;}).sort(function(a,b){return a.km-b.km;}).slice(0,6);
+    var tr=document.createElement('button');
+    tr.style.cssText='display:flex;align-items:center;gap:5px;background:none;border:none;font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.6);cursor:pointer;padding:0;-webkit-user-select:none;user-select:none';
+    function setTr(st){
+      tr.innerHTML='<span style="color:rgba(255,255,255,.25)">📍</span>'
         +'<span style="color:rgba(0,207,255,.85);font-weight:700">'+st.name+'</span>'
-        +'<span style="color:rgba(255,255,255,.25)">'+st.km.toFixed(1)+'km</span>'
-        +'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="2,3 5,7 8,3" fill="none" stroke="rgba(0,207,255,.5)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        +'<span style="color:rgba(255,255,255,.2);font-size:8px">'+st.km.toFixed(1)+'km</span>'
+        +'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="2,3 5,7 8,3" fill="none" stroke="rgba(0,207,255,.4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     }
-    var curSt = sorted.find(function(s){ return s.id===uirasStation.id; }) || sorted[0];
+    var curSt=sorted.find(function(s){return s.id===uirasStation.id;})||sorted[0];
     setTr(curSt);
-
-    /* Menu */
-    var menu = document.createElement('div');
-    menu.style.cssText = 'display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:180px;background:rgba(12,18,36,.98);border:1px solid rgba(0,180,255,.2);border-radius:12px;overflow:hidden;z-index:200;box-shadow:0 8px 32px rgba(0,0,0,.6);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)';
-    sorted.forEach(function(st) {
-      var item = document.createElement('div');
-      item.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 14px;cursor:pointer;font-family:DM Mono,monospace;font-size:10px;border-bottom:1px solid rgba(255,255,255,.04);-webkit-user-select:none;user-select:none'+(st.id===curSt.id?';background:rgba(0,180,255,.08)':'');
-      item.innerHTML = '<span style="color:rgba(255,255,255,.85);font-weight:700">'+st.name+'</span>'
+    var menu=document.createElement('div');
+    menu.style.cssText='display:none;position:absolute;top:calc(100% + 6px);left:0;min-width:190px;background:rgba(10,14,28,.98);border:1px solid rgba(0,180,255,.18);border-radius:14px;overflow:hidden;z-index:200;box-shadow:0 12px 40px rgba(0,0,0,.7);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)';
+    sorted.forEach(function(st){
+      var item=document.createElement('div');
+      var active=st.id===curSt.id;
+      item.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:11px 16px;cursor:pointer;font-family:system-ui,sans-serif;font-size:11px;border-bottom:1px solid rgba(255,255,255,.04);-webkit-user-select:none;user-select:none'+(active?';background:rgba(0,180,255,.1)':'');
+      item.innerHTML='<span style="color:rgba(255,255,255,'+(active?.95:.7)+');font-weight:'+(active?700:400)+'">'+st.name+'</span>'
         +'<div style="display:flex;align-items:center;gap:8px">'
-          +'<span style="color:rgba(255,255,255,.3);font-size:9px">'+st.km.toFixed(1)+'km</span>'
-          +(st.id===curSt.id?'<span style="color:rgba(0,207,255,.8)">✓</span>':'')
+          +'<span style="color:rgba(255,255,255,.3);font-size:10px">'+st.km.toFixed(1)+' km</span>'
+          +(active?'<span style="color:rgba(0,207,255,.8);font-size:12px">✓</span>':'')
         +'</div>';
-      item.addEventListener('click', function(e){
+      item.addEventListener('click',function(e){
         e.stopPropagation();
         menu.style.display='none';
-        if (st.id===curSt.id) return;
-        curSt=st; setTr(st);
-        el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:12px">Ladataan '+st.name+'...</div>';
-        /* Hae historia + latest rinnakkain */
-        var spotRef3 = State.sheetSpot;
-        var wsIdRef = spotRef3 ? ('ws-'+spotRef3.name.replace(/[^a-z0-9]/gi,'_')) : null;
-        Promise.allSettled([
-          UiRas.history(st.id),
-          UiRas.loadLatest()
-        ]).then(function(results){
-          var pts2   = results[0].status==='fulfilled' ? results[0].value : null;
-          var latest = results[1].status==='fulfilled' ? results[1].value : null;
-          /* Päivitä vesi-linkki-kortti */
-          if (latest && latest[st.id] && latest[st.id].temp != null && wsIdRef) {
-            _updateUirasCard(wsIdRef, latest[st.id].temp, st.name);
-          }
-          /* Päivitä kaavio */
-          el._period = period;
-          if (pts2 && pts2.length) _uirasChartInteractive(el, pts2, st.name, st, spotLat, spotLng);
-          else el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Ei dataa</div>';
-        }).catch(function(){
-          el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.7);text-align:center;padding:12px">Ei dataa</div>';
-        });
-      }, {passive:true});
+        if(st.id===curSt.id)return;
+        curSt=st;setTr(st);
+        el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan '+st.name+'...</div>';
+        var spotRef3=State.sheetSpot;
+        var wsIdRef=spotRef3?('ws-'+spotRef3.name.replace(/[^a-z0-9]/gi,'_')):null;
+        Promise.allSettled([UiRas.history(st.id),UiRas.loadLatest()]).then(function(results){
+          var pts2=results[0].status==='fulfilled'?results[0].value:null;
+          var latest=results[1].status==='fulfilled'?results[1].value:null;
+          if(latest&&latest[st.id]&&latest[st.id].temp!=null&&wsIdRef)_updateUirasCard(wsIdRef,latest[st.id].temp,st.name);
+          el._period=period;
+          if(pts2&&pts2.length)_uirasChartInteractive(el,pts2,st.name,st,spotLat,spotLng);
+          else el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);text-align:center;padding:16px">Ei dataa</div>';
+        }).catch(function(){ el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);text-align:center;padding:16px">Ei dataa</div>'; });
+      },{passive:true});
       menu.appendChild(item);
     });
-    tr.addEventListener('click', function(e){
+    tr.addEventListener('click',function(e){
       e.stopPropagation();
-      var open = menu.style.display==='block';
-      document.querySelectorAll('.uiras-menu-open').forEach(function(m){ m.style.display='none'; m.classList.remove('uiras-menu-open'); });
-      if (!open) { menu.style.display='block'; menu.classList.add('uiras-menu-open'); if(typeof Haptics!=='undefined')Haptics.light(); }
-    }, {passive:true});
-    document.addEventListener('click', function(){ menu.style.display='none'; }, {once:true,passive:true});
-
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'position:relative;display:inline-block';
-    wrap.appendChild(tr);
-    wrap.appendChild(menu);
+      var open=menu.style.display==='block';
+      document.querySelectorAll('.uiras-menu-open').forEach(function(m){m.style.display='none';m.classList.remove('uiras-menu-open');});
+      if(!open){menu.style.display='block';menu.classList.add('uiras-menu-open');if(typeof Haptics!=='undefined')Haptics.light();}
+    },{passive:true});
+    document.addEventListener('click',function(){menu.style.display='none';},{once:true,passive:true});
+    var wrap=document.createElement('div');
+    wrap.style.cssText='position:relative;display:inline-block';
+    wrap.appendChild(tr);wrap.appendChild(menu);
     ddEl.appendChild(wrap);
-  } else if (ddEl) {
-    ddEl.innerHTML = '<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.5)">🌡 '+( stationName||'Vedenlämpö')+'</span>';
+  } else if(ddEl){
+    ddEl.innerHTML='<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.5)">🌊 '+(stationName||'Vedenlämpö')+'</span>';
   }
 
-  /* Tooltip */
-  var svg  = document.getElementById(svgId);
-  var hit  = document.getElementById(svgId+'-hit');
-  var vl   = document.getElementById(svgId+'-vl');
-  var dot  = document.getElementById(svgId+'-dot');
-  var tip  = document.getElementById(svgId+'-tip');
-  if (!hit) return;
-
-  function svgXpx(cx) {
-    var r = svg.getBoundingClientRect();
-    return (cx - r.left) / r.width * W;
-  }
-  function showTip(cx) {
-    var sx = svgXpx(cx);
-    var idx = iOf(sx);
-    var x = xOf(idx), y = yOf(draw[idx].v);
-    vl.setAttribute('x1',x.toFixed(1)); vl.setAttribute('x2',x.toFixed(1));
-    dot.setAttribute('cx',x.toFixed(1)); dot.setAttribute('cy',y.toFixed(1));
-    var t = times[idx] || '';
-    var d = new Date(draw[idx].t);
-    var dstr = d.getDate()+'.'+(d.getMonth()+1)+'. '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
-    tip.innerHTML = '<div style="color:rgba(255,255,255,.4);margin-bottom:3px">'+dstr+'</div>'
-      +'<div style="color:rgba(0,220,255,.9)">'+draw[idx].v.toFixed(1)+' °C</div>';
-    var r = svg.getBoundingClientRect(), relX = cx - r.left, tipW = 100;
-    tip.style.left = (relX > r.width/2 ? relX - tipW - 8 : relX + 8) + 'px';
-    tip.style.top = '4px';
-    tip.style.display = 'block';
-  }
-  function hideTip() {
-    tip.style.display='none';
-    vl.setAttribute('x1','-1'); vl.setAttribute('x2','-1');
-    dot.setAttribute('cx','-1'); dot.setAttribute('cy','-1');
-  }
-  hit.addEventListener('mousemove',  function(e){ showTip(e.clientX); }, { passive: true });
-  hit.addEventListener('mouseleave', hideTip, { passive: true });
-  hit.addEventListener('touchstart', function(e){ if(e.touches[0]) showTip(e.touches[0].clientX); }, { passive: true });
-  hit.addEventListener('touchmove',  function(e){ e.preventDefault(); if(e.touches[0]) showTip(e.touches[0].clientX); }, { passive: false });
-  hit.addEventListener('touchend',   function(){ setTimeout(hideTip,1500); }, { passive: true });
 }
-
 /* Vanha _uirasChart — pidetaan vanhoille kutsupaikoille */
 function _uirasChart(el,allPts,period,avgWin){ _uirasChartInteractive(el,allPts,'Vedenlämpö',null,null,null); }
 
@@ -3660,91 +3625,114 @@ function _addObsMarkers(map) {
 }
 
 function _openObsSheet(type, station) {
-  if (typeof Haptics !== 'undefined') Haptics.medium();
-  var sheet = document.getElementById('sheet');
-  var sc    = document.getElementById('sheet-content');
-  if (!sheet || !sc) return;
-  State.sheetSpot = null;
+  if(typeof Haptics!=='undefined') Haptics.medium();
+  var sheet=document.getElementById('sheet');
+  var sc=document.getElementById('sheet-content');
+  if(!sheet||!sc) return;
+  State.sheetSpot=null;
 
-  var FC = '#64ffaa', UC = '#00cfff';
-  var color    = type==='fmi' ? FC : UC;
-  var title    = type==='fmi' ? ('📡 '+station.name) : ('🏊 '+station.name);
-  var subtitle = type==='fmi' ? 'Ilmatieteenlaitos · tuulihavainnot' : 'UiRas · uimaveden lämpötila';
-  var valId = 'obs-val-'+Math.random().toString(36).slice(2,6);
-  var subId = 'obs-sub-'+Math.random().toString(36).slice(2,6);
-  var cid   = 'obs-ch-' +Math.random().toString(36).slice(2,6);
+  var isWater=(type==='uiras');
+  var accent=isWater?'rgba(0,215,185,1)':'rgba(100,255,160,1)';
+  var accentFaint=isWater?'rgba(0,215,185,.12)':'rgba(100,255,160,.12)';
+  var accentBorder=isWater?'rgba(0,215,185,.2)':'rgba(100,255,160,.2)';
+  var icon=isWater?'🌊':'🛰';
+  var typeLabel=isWater?'Uimaveden lämpötila':'Tuulihavainto';
+  var srcLabel=isWater?'UiRas · Forum Virium Helsinki':'Ilmatieteenlaitos · FMI';
+  var unit=isWater?'°C':Units.label();
 
-  sc.innerHTML =
-    /* Hero */
-    '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">'
-      +'<div>'
-        +'<div style="font-size:18px;font-weight:800;color:var(--text);margin-bottom:3px">'+title+'</div>'
-        +'<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted)">'+subtitle+'</div>'
+  var valId='obs-val-'+Math.random().toString(36).slice(2,6);
+  var subId='obs-sub-'+Math.random().toString(36).slice(2,6);
+  var cid='obs-ch-'+Math.random().toString(36).slice(2,6);
+  var chipId='obs-chip-'+Math.random().toString(36).slice(2,6);
+
+  sc.innerHTML=
+    /* -- Hero -- */
+    '<div style="margin-bottom:20px">'
+      /* Tyyppichip */
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">'
+        +'<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;background:'+accentFaint+';border:1px solid '+accentBorder+'">'
+          +'<span style="font-size:13px">'+icon+'</span>'
+          +'<span style="font-family:DM Mono,monospace;font-size:9px;color:'+accent+';letter-spacing:.5px;text-transform:uppercase">'+typeLabel+'</span>'
+        +'</div>'
       +'</div>'
-      +'<div style="text-align:right">'
-        +'<div id="'+valId+'" style="font-family:DM Mono,monospace;font-size:40px;font-weight:500;line-height:1;color:'+color+';opacity:.35">—</div>'
-        +'<div id="'+subId+'" style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);margin-top:2px">'
-          +(type==='fmi' ? Units.label() : '°C')
+      /* Nimi + arvo rinnakkain */
+      +'<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px">'
+        +'<div style="flex:1;min-width:0">'
+          +'<div style="font-size:22px;font-weight:800;color:rgba(255,255,255,.95);letter-spacing:-.5px;line-height:1.1;margin-bottom:4px;word-break:break-word">'+station.name+'</div>'
+          +'<div id="'+chipId+'" style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,255,255,.35)">'+srcLabel+'</div>'
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0">'
+          +'<div id="'+valId+'" style="font-family:DM Mono,monospace;font-size:48px;font-weight:200;line-height:1;color:'+accent+';opacity:.2;letter-spacing:-2px;transition:opacity .4s,color .4s">—</div>'
+          +'<div id="'+subId+'" style="font-family:DM Mono,monospace;font-size:11px;color:rgba(255,255,255,.3);margin-top:2px">'+unit+'</div>'
         +'</div>'
       +'</div>'
     +'</div>'
-    /* Kaavio */
-    +'<div id="'+cid+'" class="sh-stat-live-panel open">'
-      +'<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan...</div>'
+
+    /* -- Graafi -- */
+    +'<div id="'+cid+'" style="min-height:40px">'
+      +'<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:20px;color:rgba(255,255,255,.2);font-family:DM Mono,monospace;font-size:10px">'
+        +'<svg width="14" height="14" viewBox="0 0 14 14" style="animation:spin 1.2s linear infinite"><circle cx="7" cy="7" r="5" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1.5"/><path d="M7 2 A5 5 0 0 1 12 7" fill="none" stroke="'+accent+'" stroke-width="1.5" stroke-linecap="round"/></svg>'
+        +'Ladataan...'
+      +'</div>'
     +'</div>'
-    +'<div style="margin-top:10px;font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.2)">'
-      +(type==='fmi'?'Lahde: Ilmatieteenlaitos avoin data':'Lahde: UiRas / Forum Virium Helsinki')
+
+    /* -- Footer -- */
+    +'<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06);font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.18);text-align:center">'
+      +(isWater?'UiRas avoin data · Forum Virium Helsinki':'Ilmatieteenlaitos · avoin data')
     +'</div>';
 
   sheet.classList.add('open');
   document.getElementById('sheet-overlay').classList.add('open');
-  var el = document.getElementById(cid);
+  var el=document.getElementById(cid);
 
-  function updateHero(val, sub) {
-    var ve = document.getElementById(valId);
-    var se = document.getElementById(subId);
-    if (ve) { ve.textContent = val; ve.style.opacity = '1'; }
-    if (se && sub) se.textContent = sub;
+  function updateHero(val, sub, color) {
+    var ve=document.getElementById(valId);
+    var se=document.getElementById(subId);
+    if(ve){ ve.textContent=val; ve.style.opacity='1'; if(color)ve.style.color=color; }
+    if(se&&sub) se.textContent=sub;
   }
 
-  if (type==='fmi') {
-    /* Hae latest + historia rinnakkain */
-    var latUrl  = 'https://foilwind.vercel.app/api/fmi?place='+station.place;
-    var histUrl = 'https://foilwind.vercel.app/api/fmi?history=1&place='+station.place;
+  if(type==='fmi'){
+    var latUrl='https://foilwind.vercel.app/api/fmi?place='+station.place;
+    var histUrl='https://foilwind.vercel.app/api/fmi?history=1&place='+station.place;
     Promise.allSettled([
       fetch(latUrl).then(function(r){return r.json();}),
       fetch(histUrl).then(function(r){return r.json();})
     ]).then(function(results){
-      var lat  = results[0].status==='fulfilled' ? results[0].value : null;
-      var hist = results[1].status==='fulfilled' ? results[1].value : null;
-      if (lat && lat.ws != null) {
-        var cc = ColorRamp.rgb(lat.ws);
-        var ve = document.getElementById(valId);
-        if (ve) ve.style.color = 'rgb('+cc.r+','+cc.g+','+cc.b+')';
-        updateHero(Units.fmt(lat.ws), Units.label() + (lat.wd != null ? '  '+dirArrow(lat.wd)+' '+Math.round(lat.wd)+'°' : '') + (lat.time ? '  '+lat.time : ''));
+      var lat=results[0].status==='fulfilled'?results[0].value:null;
+      var hist=results[1].status==='fulfilled'?results[1].value:null;
+      if(lat&&lat.ws!=null){
+        var cc=ColorRamp.rgb(lat.ws);
+        var wc='rgb('+cc.r+','+cc.g+','+cc.b+')';
+        var sub=Units.label();
+        if(lat.wd!=null) sub+='\u2002'+dirArrow(lat.wd)+' '+Math.round(lat.wd)+'°';
+        if(lat.time) sub+='\u2002'+lat.time;
+        updateHero(Units.fmt(lat.ws),sub,wc);
       }
-      if (el && hist) _renderLiveHistory(el, hist, lat);
+      if(el&&hist) _renderLiveHistory(el,hist,lat);
     }).catch(function(){
       if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
     });
   } else {
-    /* Hae UiRas latest + historia rinnakkain */
     Promise.allSettled([
       UiRas.loadLatest(),
       UiRas.history(station.id)
     ]).then(function(results){
-      var latest = results[0].status==='fulfilled' ? results[0].value : null;
-      var pts    = results[1].status==='fulfilled' ? results[1].value : null;
-      if (latest && latest[station.id] && latest[station.id].temp != null) {
-        updateHero(latest[station.id].temp.toFixed(1), '°C  ' + (latest[station.id].time ? new Date(latest[station.id].time).toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit'}) : ''));
+      var latest=results[0].status==='fulfilled'?results[0].value:null;
+      var pts=results[1].status==='fulfilled'?results[1].value:null;
+      if(latest&&latest[station.id]&&latest[station.id].temp!=null){
+        var t=latest[station.id].temp;
+        var timeStr=latest[station.id].time?new Date(latest[station.id].time).toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit'}):'';
+        updateHero(t.toFixed(1),'°C'+(timeStr?'  ·  '+timeStr:''),accent);
       }
-      if (el && pts && pts.length) _uirasChartInteractive(el,pts,station.name,station,station.lat,station.lng);
-      else if (el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+      if(el&&pts&&pts.length) _uirasChartInteractive(el,pts,station.name,station,station.lat,station.lng);
+      else if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
     }).catch(function(){
       if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
     });
   }
 }
+
 
 function openSheet(spot, hourIdx) {
   if (!spot.wx || !spot.wx.hourly) return;
@@ -3762,7 +3750,7 @@ function openSheet(spot, hourIdx) {
   const _uirasStation = _isPKS(spot) ? UiRas.nearest(spot.lat, spot.lng) : null;
   const _waterStatId = 'ws-' + spot.name.replace(/[^a-z0-9]/gi,'_');
 
-  /* ── SUN BAR ─────────────────────────────────────────────────── */
+  /* -- SUN BAR --------------------------------------------------- */
   function buildSunBar() {
     /* Jean Meeus auringonnousu/lasku + siviilihämärä (aurinko -6°)
        cosH-kynnys: aurinko  = sin(-0.833°) = -0.0145
@@ -3842,7 +3830,7 @@ function openSheet(spot, hourIdx) {
     + '</div>';
   }
 
-  /* ── 24H SVG LINE CHART — menneet harmaat, nykyhetki-viiva, tiheät labels ── */
+  /* -- 24H SVG LINE CHART — menneet harmaat, nykyhetki-viiva, tiheät labels -- */
   function build24hChart() {
     const allVals  = h.windspeed_10m || [];
     const allTimes = h.time || [];
@@ -4307,7 +4295,7 @@ function openSheet(spot, hourIdx) {
     return section;
   }
 
-    /* ── FMI NEAREST STATION ─────────────────────────────────────── */
+    /* -- FMI NEAREST STATION --------------------------------------- */
   function buildFmiCard(elId) {
     /* Use Open-Meteo current conditions as proxy — FMI WFS is XML,
        loaded async and injected after sheet opens */
@@ -4355,7 +4343,7 @@ function openSheet(spot, hourIdx) {
     + '</div>';
   }
 
-  /* ── NAVIGATION BUTTONS ──────────────────────────────────────── */
+  /* -- NAVIGATION BUTTONS ---------------------------------------- */
   function buildNavButtons() {
     const lat = spot.lat, lng = spot.lng, name = encodeURIComponent(spot.name);
     const mapsUrl  = 'https://maps.google.com/?daddr=' + lat + ',' + lng + '&travelmode=driving';
@@ -4888,7 +4876,7 @@ function _fmiDropdown(panelEl, stations, selected, onSelect) {
 
 function _renderLiveHistory(el, data, wx) {
   const wsData=data.ws||[], wgData=data.wg||[];
-  if (!wsData.length) { el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:20px">Ei historiadataa</div>'; return; }
+  if(!wsData.length){ el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:20px">Ei historiadataa</div>'; return; }
   var hours=el._fmiHours||12;
   var cutIdx=Math.max(0,wsData.length-Math.round(wsData.length*hours/24));
   var wsSlice=wsData.slice(cutIdx), wgSlice=wgData.length?wgData.slice(cutIdx):[];
@@ -4896,14 +4884,17 @@ function _renderLiveHistory(el, data, wx) {
   const wsU=wsSlice.map(function(p){return Units.convert(p.v);});
   const wgU=wgSlice.map(function(p){return Units.convert(p.v);});
   const times=wsSlice.map(function(p){return p.t;});
+  const wsDirs=wsSlice.map(function(p){return p.d!=null?p.d:null;});
   var allV=wsU.concat(wgU).filter(function(v){return !isNaN(v);});
   var minV=Math.max(0,Math.min.apply(null,allV)-0.5);
   var maxV=Math.max.apply(null,allV)+1;
   if(!isFinite(minV))minV=0; if(!isFinite(maxV))maxV=10;
-  const W=300,H=110,padX=2,padY=8,labH=18,TH=H+labH;
-  function xOf(i){return padX+i/(n-1||1)*(W-padX*2);}
+
+  const W=300,H=108,padX=32,padY=10,labH=20,TH=H+labH;
+  function xOf(i){return padX+i/(n-1||1)*(W-padX-8);}
   function yOf(v){return padY+(1-(v-minV)/(maxV-minV||1))*(H-padY*2);}
-  function iOf(x){return Math.max(0,Math.min(n-1,Math.round((x-padX)/(W-padX*2)*(n-1))));}
+  function iOf(x){return Math.max(0,Math.min(n-1,Math.round((x-padX)/(W-padX-8)*(n-1))));}
+
   function smoothPath(vals){
     if(vals.length<2)return '';
     var d='M'+xOf(0).toFixed(1)+','+yOf(vals[0]).toFixed(1);
@@ -4914,59 +4905,95 @@ function _renderLiveHistory(el, data, wx) {
     return d;
   }
   var wsPath=smoothPath(wsU), wgPath=wgU.length?smoothPath(wgU):'';
-  var wsArea=wsPath?wsPath+' L'+xOf(n-1).toFixed(1)+','+H+' L'+xOf(0).toFixed(1)+','+H+' Z':'';
-  var wgArea=wgPath?wgPath+' L'+xOf(n-1).toFixed(1)+','+H+' L'+xOf(0).toFixed(1)+','+H+' Z':'';
+  var wsArea=wsPath?wsPath+' L'+xOf(n-1).toFixed(1)+','+(H-padY)+' L'+xOf(0).toFixed(1)+','+(H-padY)+' Z':'';
+  var wgArea=wgPath?wgPath+' L'+xOf(n-1).toFixed(1)+','+(H-padY)+' L'+xOf(0).toFixed(1)+','+(H-padY)+' Z':'';
   var latWs=wsU.length?wsU[wsU.length-1]:null, latWg=wgU.length?wgU[wgU.length-1]:null;
   var lastX=xOf(n-1), lastYws=latWs!=null?yOf(latWs):null, lastYwg=latWg!=null?yOf(latWg):null;
+
+  /* Y-akseli */
+  var yLabels='';
+  var yRange=maxV-minV||1;
+  var yStep=yRange>8?4:yRange>4?2:1;
+  var yStart=Math.ceil(minV/yStep)*yStep;
+  for(var yv=yStart; yv<=maxV+0.01; yv+=yStep){
+    if(yv<minV+0.3||yv>maxV-0.3) continue;
+    var gy=yOf(yv);
+    yLabels+='<text x="'+(padX-6)+'" y="'+gy.toFixed(1)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.28)" text-anchor="end" dominant-baseline="middle">'+yv.toFixed(0)+'</text>';
+    yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
+  }
+
+  /* X-akseli — tasatunnit */
   var xlbls='';
   for(var xi=0;xi<times.length;xi++){
     if(times[xi]&&times[xi].slice(3,5)==='00'){
-      var lx=xOf(xi); if(lx<12||lx>W-12) continue;
-      xlbls+='<text x="'+lx.toFixed(1)+'" y="'+(TH-3)+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.22)" text-anchor="middle">'+times[xi].slice(0,2)+'</text>';
+      var lx=xOf(xi); if(lx<padX+8||lx>W-16) continue;
+      xlbls+='<text x="'+lx.toFixed(1)+'" y="'+(TH-4)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.25)" text-anchor="middle">'+times[xi].slice(0,2)+'</text>';
     }
   }
+
   var svgId='fmi-svg-'+Math.random().toString(36).slice(2,7);
   var wsGId=svgId+'-wsg', wgGId=svgId+'-wgg';
-  var pbtn=function(p){
+
+  /* ColorRamp viivaan — gradient stops tuulen mukaan */
+  function colorStop(val){var c=ColorRamp.rgb(Units.deconvert?Units.deconvert(val):val);return 'rgb('+c.r+','+c.g+','+c.b+')';}
+  var windGradStops='';
+  var sampleN=Math.min(n,16);
+  for(var si=0;si<sampleN;si++){
+    var pct=(si/(sampleN-1)*100).toFixed(1);
+    var vi=Math.round(si/(sampleN-1)*(n-1));
+    windGradStops+='<stop offset="'+pct+'%" stop-color="'+colorStop(wsU[vi])+'"/>';
+  }
+
+  /* Segment control */
+  var segBtns=['12h','24h'].map(function(p){
     var a=(p==='12h'&&hours===12)||(p==='24h'&&hours===24);
-    return '<button data-fmi-period="'+p+'" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 10px;border-radius:20px;border:1px solid rgba(100,255,160,'+(a?.35:.15)+');background:'+(a?'rgba(100,255,160,.1)':'transparent')+';color:'+(a?'rgba(100,255,160,.9)':'rgba(255,255,255,.3)')+';cursor:pointer;-webkit-user-select:none;user-select:none">'+p+'</button>';
-  };
+    return '<button data-fmi-period="'+p+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:5px 0;border:none;background:'+(a?'rgba(100,255,160,.15)':'transparent')+';color:'+(a?'rgba(100,255,160,.95)':'rgba(255,255,255,.35)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p+'</button>';
+  }).join('');
+
   el.innerHTML=
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
       +'<div id="'+svgId+'-fmidd"></div>'
-      +'<div style="display:flex;gap:4px">'+pbtn('12h')+pbtn('24h')+'</div>'
+      +'<div style="display:flex;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
+        +segBtns
+      +'</div>'
     +'</div>'
-    +'<div style="position:relative;margin:0 -4px">'
-      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(6,10,24,.96);border:1px solid rgba(100,255,160,.2);border-radius:10px;padding:7px 12px;font-family:DM Mono,monospace;font-size:10px;pointer-events:none;white-space:nowrap;box-shadow:0 6px 24px rgba(0,0,0,.6);z-index:100;transform:translateX(-50%)"></div>'
+    +'<div style="position:relative;margin:0">'
+      +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid rgba(100,255,160,.2);border-radius:12px;padding:8px 14px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;transform:translateX(-50%)"></div>'
       +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block;touch-action:none;overflow:visible">'
         +'<defs>'
-          +'<linearGradient id="'+wsGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(100,255,160,.22)"/><stop offset="100%" stop-color="rgba(100,255,160,.0)"/></linearGradient>'
-          +(wgArea?'<linearGradient id="'+wgGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(255,200,100,.14)"/><stop offset="100%" stop-color="rgba(255,200,100,.0)"/></linearGradient>':'')
+          +'<linearGradient id="'+wsGId+'-wind" x1="0" y1="0" x2="1" y2="0">'
+            +windGradStops
+          +'</linearGradient>'
+          +'<linearGradient id="'+wsGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(100,255,160,.2)"/><stop offset="100%" stop-color="rgba(100,255,160,.0)"/></linearGradient>'
+          +(wgArea?'<linearGradient id="'+wgGId+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(255,200,100,.12)"/><stop offset="100%" stop-color="rgba(255,200,100,.0)"/></linearGradient>':'')
         +'</defs>'
-        +'<line x1="'+padX+'" y1="'+(padY+(H-padY*2)/2).toFixed(1)+'" x2="'+(W-padX)+'" y2="'+(padY+(H-padY*2)/2).toFixed(1)+'" stroke="rgba(255,255,255,.04)" stroke-width="1"/>'
+        +yLabels
         +(wgArea?'<path d="'+wgArea+'" fill="url(#'+wgGId+')" />':'')
-        +(wgPath?'<path d="'+wgPath+'" fill="none" stroke="rgba(255,200,100,.45)" stroke-width="1.5" stroke-linecap="round"/>':'')
+        +(wgPath?'<path d="'+wgPath+'" fill="none" stroke="rgba(255,200,100,.4)" stroke-width="1.5" stroke-linecap="round"/>':'')
         +(wsArea?'<path d="'+wsArea+'" fill="url(#'+wsGId+')" />':'')
-        +(wsPath?'<path d="'+wsPath+'" fill="none" stroke="rgba(100,255,160,.9)" stroke-width="2" stroke-linecap="round"/>':'')
+        /* Tuuliviiva ColorRamp-gradientilla */
+        +(wsPath?'<path d="'+wsPath+'" fill="none" stroke="url(#'+wsGId+'-wind)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>':'')
         +(lastYws!=null?
-          '<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYws.toFixed(1)+'" r="4" fill="rgba(100,255,160,.2)" pointer-events="none"><animate attributeName="r" values="3;6;3" dur="2.5s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.5;0.1;0.5" dur="2.5s" repeatCount="indefinite"/></circle>'
-          +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYws.toFixed(1)+'" r="3.5" fill="rgba(100,255,160,.95)" stroke="rgba(0,0,0,.4)" stroke-width="1.5" pointer-events="none"/>'
+          '<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYws.toFixed(1)+'" r="5" fill="rgba(100,255,160,.15)" pointer-events="none"><animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/></circle>'
+          +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYws.toFixed(1)+'" r="3.5" fill="rgba(100,255,160,1)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none"/>'
           :'')
-        +(lastYwg!=null?'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYwg.toFixed(1)+'" r="3" fill="rgba(255,200,100,.9)" stroke="rgba(0,0,0,.3)" stroke-width="1" pointer-events="none"/>':'')
-        +'<line id="'+svgId+'-vline" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="rgba(255,255,255,.3)" stroke-width="1" stroke-dasharray="3,3" pointer-events="none"/>'
-        +'<circle id="'+svgId+'-dot-ws" cx="-1" cy="-1" r="4" fill="rgba(100,255,160,.9)" stroke="rgba(255,255,255,.4)" stroke-width="1.5" pointer-events="none"/>'
+        +(lastYwg!=null?'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYwg.toFixed(1)+'" r="3" fill="rgba(255,200,100,.9)" stroke="rgba(255,255,255,.3)" stroke-width="1" pointer-events="none"/>':'')
+        +'<line id="'+svgId+'-vline" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="3,3" pointer-events="none"/>'
+        +'<circle id="'+svgId+'-dot-ws" cx="-1" cy="-1" r="4.5" fill="rgba(100,255,160,.95)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none"/>'
         +(wgU.length?'<circle id="'+svgId+'-dot-wg" cx="-1" cy="-1" r="3.5" fill="rgba(255,200,100,.9)" stroke="rgba(255,255,255,.3)" stroke-width="1" pointer-events="none"/>':'')
-        +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX*2)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
+        +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX-8)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
         +xlbls
       +'</svg>'
     +'</div>'
-    +'<div style="margin-top:6px;display:flex;align-items:center;justify-content:space-between">'
-      +'<div style="display:flex;gap:12px;font-family:DM Mono,monospace;font-size:8px">'
-        +'<span><span style="color:rgba(100,255,160,.5)">&#9632;</span> Tuuli'+(latWs!=null?' <b style="color:rgba(100,255,160,.85)">'+latWs.toFixed(1)+'</b> '+Units.label():'')+'</span>'
-        +(wgU.length?'<span><span style="color:rgba(255,200,100,.5)">&#9632;</span> Puuska'+(latWg!=null?' <b style="color:rgba(255,200,100,.85)">'+latWg.toFixed(1)+'</b>':'')+'</span>':'')
+    +'<div style="margin-top:4px;display:flex;align-items:center;justify-content:space-between;padding:0 2px">'
+      +'<div style="display:flex;gap:10px;font-family:DM Mono,monospace;font-size:8px">'
+        +'<span style="color:rgba(100,255,160,.5)">▬ Tuuli'+(latWs!=null?' <b style="color:rgba(100,255,160,.9)">'+latWs.toFixed(1)+'</b> '+Units.label():'')+'</span>'
+        +(wgU.length?'<span style="color:rgba(255,200,100,.5)">▬ Puuska'+(latWg!=null?' <b style="color:rgba(255,200,100,.85)">'+latWg.toFixed(1)+'</b>':'')+'</span>':'')
       +'</div>'
       +'<div style="font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.18)">'+(data.station||'FMI')+'</div>'
     +'</div>';
+
+  /* Tooltip + crosshair */
   var svg=document.getElementById(svgId),hit=document.getElementById(svgId+'-hit');
   var vl=document.getElementById(svgId+'-vline');
   var dotWs=document.getElementById(svgId+'-dot-ws'),dotWg=document.getElementById(svgId+'-dot-wg');
@@ -4981,12 +5008,16 @@ function _renderLiveHistory(el, data, wx) {
     if(dotWg&&yg!=null){dotWg.setAttribute('cx',x.toFixed(1));dotWg.setAttribute('cy',yg.toFixed(1));}
     var wsVal=wsU[idx]!=null?wsU[idx].toFixed(1):'--';
     var wgVal=wgU[idx]!=null?wgU[idx].toFixed(1):null;
-    tip.innerHTML='<div style="font-size:14px;font-weight:700;color:rgba(100,255,160,.9);letter-spacing:-.3px">'+wsVal+' <span style="font-size:10px;font-weight:400;color:rgba(100,255,160,.5)">'+Units.label()+'</span></div>'
-      +(wgVal?'<div style="font-size:10px;color:rgba(255,200,100,.7);margin-top:1px">Puuska '+wgVal+'</div>':'')
-      +'<div style="color:rgba(255,255,255,.3);font-size:8px;margin-top:3px">'+(times[idx]||'')+'</div>';
+    var dir=wsDirs&&wsDirs[idx]!=null?wsDirs[idx]:null;
+    var dirHtml=dir!=null?'<span style="display:inline-block;transform:rotate('+(dir+180)+'deg);font-size:12px;line-height:1">↑</span> ':'' ;
+    var cc=ColorRamp.rgb(wsU[idx]||0);
+    var wColor='rgb('+cc.r+','+cc.g+','+cc.b+')';
+    tip.innerHTML='<div style="font-size:18px;font-weight:700;color:'+wColor+';letter-spacing:-.5px;line-height:1">'+dirHtml+wsVal+' <span style="font-size:11px;font-weight:400;opacity:.6">'+Units.label()+'</span></div>'
+      +(wgVal?'<div style="font-size:10px;color:rgba(255,200,100,.75);margin-top:3px">Puuska '+wgVal+' '+Units.label()+'</div>':'')
+      +'<div style="color:rgba(255,255,255,.28);font-size:9px;margin-top:4px;font-family:DM Mono,monospace">'+(times[idx]||'')+'</div>';
     var r=svg.getBoundingClientRect(),relX=(x/W)*r.width;
     tip.style.left=relX+'px';
-    tip.style.top=(yw!=null?Math.max(2,(yw/TH)*r.height-60):4)+'px';
+    tip.style.top=(yw!=null?Math.max(2,(yw/TH)*r.height-62):4)+'px';
     tip.style.display='block';
   }
   function hideTip(){
@@ -4999,13 +5030,14 @@ function _renderLiveHistory(el, data, wx) {
   hit.addEventListener('mouseleave',hideTip,{passive:true});
   hit.addEventListener('touchstart',function(e){if(e.touches[0])showTip(e.touches[0].clientX);},{passive:true});
   hit.addEventListener('touchmove',function(e){e.preventDefault();if(e.touches[0])showTip(e.touches[0].clientX);},{passive:false});
-  hit.addEventListener('touchend',function(){setTimeout(hideTip,1500);},{passive:true});
+  hit.addEventListener('touchend',function(){setTimeout(hideTip,2000);},{passive:true});
   el.querySelectorAll('[data-fmi-period]').forEach(function(btn){
     btn.addEventListener('click',function(){
       el._fmiHours=btn.dataset.fmiPeriod==='24h'?24:12;
       _renderLiveHistory(el,data,wx);
     },{passive:true});
   });
+
 
   /* Lisää dropdown */
   const spotRef = State.sheetSpot;
@@ -5131,7 +5163,7 @@ document.getElementById('sheet-overlay').addEventListener('click', () => {
 }, { passive: true });
 document.getElementById('sheet-handle').addEventListener('click', closeSheet, { passive: true });
 
-/* ── TIMELINE ─────────────────────────────────────────────────── */
+/* -- TIMELINE --------------------------------------------------- */
 function bestTimelineRef() {
   let best = null, bestLen = 0;
   for (const s of SPOTS) {
@@ -5327,7 +5359,7 @@ function scrollTimelineTo(idx) {
   tl.scrollTo({ left: target.offsetLeft - tl.offsetWidth / 2 + 10, behavior: 'smooth' });
 }
 
-/* ── PLAY ─────────────────────────────────────────────────────── */
+/* -- PLAY ------------------------------------------------------- */
 function togglePlay() {
   const btn = document.getElementById('btn-play'), icon = document.getElementById('play-icon');
   if (State.isPlaying) { stopPlay(); return; }
@@ -5344,7 +5376,7 @@ function stopPlay() {
   document.getElementById('play-icon').innerHTML = '<path d="M7 4.5v15l12-7.5z" fill="white"/>';
 }
 
-/* ── WEATHER WIDGET ───────────────────────────────────────────── */
+/* -- WEATHER WIDGET --------------------------------------------- */
 const WeatherWidget = {
   _el: null, _iconEl: null, _tempEl: null, _descEl: null,
   _cache: {}, _fetchTimer: null,
@@ -5416,7 +5448,7 @@ const WeatherWidget = {
   }
 };
 
-/* ── CROSSHAIR ────────────────────────────────────────────────── */
+/* -- CROSSHAIR -------------------------------------------------- */
 const Crosshair = {
   _el: null, _speedEl: null, _arrowEl: null, _degEl: null, _gustEl: null,
   _chEl: null, _windArrow: null, _updateTimer: null,
@@ -5477,7 +5509,7 @@ const Crosshair = {
   refresh() { this._update(); }
 };
 
-/* ── WIND ROSE ────────────────────────────────────────────────── */
+/* -- WIND ROSE -------------------------------------------------- */
 function buildWindRoseSVG(h, idx) {
   const DIRS = 16;
   const bins = new Array(DIRS).fill(0);
@@ -5514,7 +5546,7 @@ function buildWindRoseSVG(h, idx) {
   return '<div class="sh-windrose"><svg width="160" height="160" viewBox="0 0 140 140">'+rings+paths+dots+lbls+'</svg></div>';
 }
 
-/* ── MARINE API ───────────────────────────────────────────────── */
+/* -- MARINE API ------------------------------------------------- */
 async function loadMarineTemp() {
   const MARINE_TTL = 60 * 60 * 1000; /* 60 min — vedenlämpö ei muutu nopeasti */
   /* Skipataan jos kaikilla spoteilla on tuore data */
@@ -5542,7 +5574,7 @@ async function loadMarineTemp() {
   } catch(e) { console.log('[Marine]', e.message); }
 }
 
-/* ── CONTROLS ─────────────────────────────────────────────────── */
+/* -- CONTROLS --------------------------------------------------- */
 document.getElementById('btn-settings').addEventListener('click', (e) => {
   e.stopPropagation();
   Haptics.light();
@@ -5578,7 +5610,7 @@ document.getElementById('btn-loc').addEventListener('click', () => {
 
 document.getElementById('btn-play').addEventListener('click', togglePlay, { passive: true });
 
-/* ── SPOT LIST ────────────────────────────────────────────────── */
+/* -- SPOT LIST -------------------------------------------------- */
 const SpotList = {
   _open: false,
   toggle() {},
@@ -5588,11 +5620,11 @@ const SpotList = {
 
 /* btn-spots removed — fc-btn handles ForecastPanel */
 
-/* ── FORECAST PANEL — Best 3h windows over 5 days ─────────────────
+/* -- FORECAST PANEL — Best 3h windows over 5 days -----------------
    Uses already-loaded spot hourly data — zero extra API calls.
    Algorithm: sliding 3h window, median spotIndex, filtered by
    user's time preferences.
-   ────────────────────────────────────────────────────────────────── */
+   ------------------------------------------------------------------ */
 const ForecastPanel = {
   _open: false,
 
@@ -5799,7 +5831,7 @@ document.getElementById('fc-btn').addEventListener('click', (e) => {
   });
 });
 
-/* ── UNITS PICKER ────────────────────────────────────────────────
+/* -- UNITS PICKER ------------------------------------------------
    Opens on cr-speed tap, closes on outside tap. Pill-style menu.  */
 const UnitsPicker = {
   _open: false,
@@ -5871,7 +5903,7 @@ document.getElementById('units').addEventListener('click', e => {
   applyUnit(chip.dataset.unit);
 }, { passive: true });
 
-/* ── HOURLY WEATHER PANEL ─────────────────────────────────────────
+/* -- HOURLY WEATHER PANEL -----------------------------------------
    Opens on wx-widget tap. Shows today + rest of today hourly.
    Uses already-cached WeatherWidget data — 0 extra API calls.    */
 const WxPanel = {
@@ -5954,7 +5986,7 @@ document.getElementById('wx-widget').addEventListener('click', (e) => {
 
 document.getElementById('wx-panel-close').addEventListener('click', () => WxPanel.close(), { passive: true });
 
-/* ── WX-PANEL swipe up to dismiss ──────────────────────────────── */
+/* -- WX-PANEL swipe up to dismiss -------------------------------- */
 (function() {
   const panel = document.getElementById('wx-panel');
   let startY = 0, dragging = false;
@@ -5977,7 +6009,7 @@ document.getElementById('wx-panel-close').addEventListener('click', () => WxPane
   }, { passive: true });
 })();
 
-/* ── FORECAST PANEL — swipe down to dismiss ───────────────────── */
+/* -- FORECAST PANEL — swipe down to dismiss --------------------- */
 (function() {
   const panel = document.getElementById('forecast-panel');
   let startY = 0, currentY = 0, dragging = false;
@@ -6070,7 +6102,7 @@ const tlScroll = document.getElementById('tl-scroll');
 tlScroll.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
 tlScroll.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
 
-/* ── LOADING & REFRESH ────────────────────────────────────────── */
+/* -- LOADING & REFRESH ------------------------------------------ */
 function updateLoadText(msg, progress) {
   const el = document.getElementById('load-txt');
   if (el) el.textContent = msg;
@@ -6147,7 +6179,7 @@ function scheduleRefresh() {
   }, Config.DATA_REFRESH_MS);
 }
 
-/* ── MAIN ─────────────────────────────────────────────────────── */
+/* -- MAIN ------------------------------------------------------- */
 function main() {
   buildLegend(); initMap(); initCanvases();
   Crosshair.init(); WeatherWidget.init(); Units.init();
