@@ -649,20 +649,21 @@ margin-top: 0;
 
 /* Asemavalitsin dropdown */
 .fmi-station-trigger {
-display: flex; align-items: center; gap: 6px;
+display: inline-flex; align-items: center; gap: 7px;
 font-family: ‘DM Mono’, monospace; font-size: 9px;
-color: rgba(100,255,160,.6); cursor: pointer;
-background: none; border: none; padding: 0;
-margin-bottom: 10px; -webkit-user-select: none; user-select: none;
-width: 100%;
+color: rgba(100,255,160,.9); cursor: pointer;
+background: rgba(100,255,160,.07); border: 1px solid rgba(100,255,160,.2);
+border-radius: 8px; padding: 4px 10px;
+-webkit-user-select: none; user-select: none;
+transition: background .15s;
 }
 .fmi-station-trigger-name {
-font-weight: 700; color: rgba(100,255,160,.85);
+font-weight: 700; color: rgba(100,255,160,.95);
 }
-.fmi-station-trigger-dist { color: rgba(255,255,255,.3); }
+.fmi-station-trigger-dist { color: rgba(255,255,255,.4); font-size: 8px; }
 .fmi-station-trigger-arrow {
-margin-left: auto; color: rgba(100,255,160,.4);
-transition: transform .2s;
+margin-left: 2px; color: rgba(100,255,160,.85);
+transition: transform .2s; font-size: 11px;
 }
 .fmi-station-trigger.open .fmi-station-trigger-arrow { transform: rotate(180deg); }
 
@@ -1183,9 +1184,9 @@ background: #ffd700; box-shadow: 0 0 6px #ffd700;
 .sh-24h-section { margin-bottom: 16px; }
 .sh-24h-header {
 display: flex; justify-content: space-between; align-items: baseline;
-margin-bottom: 6px;
+margin-bottom: 8px;
 }
-.sh-24h-title { font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 600;
+.sh-24h-title { font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 600; color: rgba(255,255,255,.7); margin-bottom: 2px;
 color: rgba(255,255,255,.6); letter-spacing: .5px; }
 .sh-24h-peak { font-family: ‘DM Mono’, monospace; font-size: 9px; color: var(–accent); }
 .sh-24h-svg { width: 100%; display: block; }
@@ -3446,7 +3447,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     +'</div>'
 
     /* SVG */
-    +'<div style="position:relative;margin:0 0 0 0">'
+    +'<div style="position:relative;margin:0 0 0 -36px;padding-left:36px">'
       +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid rgba(0,207,255,.25);border-radius:12px;padding:8px 14px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;transform:translateX(-50%);transition:left .05s,top .05s"></div>'
       +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block;touch-action:none;overflow:visible">'
         +'<defs>'
@@ -3469,7 +3470,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastY.toFixed(1)+'" r="3.5" fill="rgba(0,220,255,1)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none"/>'
         /* Crosshair */
         +'<line id="'+svgId+'-vl" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="rgba(0,207,255,.4)" stroke-width="1" stroke-dasharray="3,3" pointer-events="none"/>'
-        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="4.5" fill="rgba(0,220,255,.95)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none"/>'
+        +'<circle id="'+svgId+'-dot" cx="-1" cy="-1" r="4.5" fill="rgba(0,220,255,.95)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none" visibility="hidden"/>'
         /* Hit */
         +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX-8)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
         /* X-akseli */
@@ -3491,8 +3492,8 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   function svgXpx(cx){var r=svg.getBoundingClientRect();return(cx-r.left)/r.width*W;}
   function showTip(cx){
     var sx=svgXpx(cx),idx=iOf(sx),x=xOf(idx),y=yOf(draw[idx].v);
-    vl.setAttribute('x1',x.toFixed(1));vl.setAttribute('x2',x.toFixed(1));
-    dot.setAttribute('cx',x.toFixed(1));dot.setAttribute('cy',y.toFixed(1));
+    vl.setAttribute('x1',x.toFixed(1));vl.setAttribute('x2',x.toFixed(1));vl.setAttribute('visibility','visible');
+    dot.setAttribute('cx',x.toFixed(1));dot.setAttribute('cy',y.toFixed(1));dot.setAttribute('visibility','visible');
     var d=new Date(draw[idx].t);
     var dstr=d.getDate()+'.'+(d.getMonth()+1)+'. '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
     var val=draw[idx].v.toFixed(1);
@@ -3504,8 +3505,8 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   }
   function hideTip(){
     tip.style.display='none';
-    vl.setAttribute('x1','-1');vl.setAttribute('x2','-1');
-    dot.setAttribute('cx','-1');dot.setAttribute('cy','-1');
+    vl.setAttribute('visibility','hidden');vl.setAttribute('x1','-1');vl.setAttribute('x2','-1');
+    dot.setAttribute('visibility','hidden');dot.setAttribute('cx','-1');dot.setAttribute('cy','-1');
   }
   hit.addEventListener('mousemove',function(e){showTip(e.clientX);},{passive:true});
   hit.addEventListener('mouseleave',hideTip,{passive:true});
@@ -3528,12 +3529,11 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     var sorted=UIRAS_STATIONS.map(function(s){return Object.assign({},s,{km:uiKm(spotLat,spotLng,s.lat,s.lng)});})
       .filter(function(s){return s.km<=20;}).sort(function(a,b){return a.km-b.km;}).slice(0,6);
     var tr=document.createElement('button');
-    tr.style.cssText='display:flex;align-items:center;gap:5px;background:none;border:none;font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.6);cursor:pointer;padding:0;-webkit-user-select:none;user-select:none';
+    tr.style.cssText='display:flex;align-items:center;gap:6px;background:rgba(0,180,255,.08);border:1px solid rgba(0,180,255,.2);border-radius:8px;font-family:DM Mono,monospace;font-size:9px;color:rgba(0,220,255,.9);cursor:pointer;padding:4px 10px;-webkit-user-select:none;user-select:none;transition:background .15s';
     function setTr(st){
-      tr.innerHTML='<span style="color:rgba(255,255,255,.25)">📍</span>'
-        +'<span style="color:rgba(0,207,255,.85);font-weight:700">'+st.name+'</span>'
-        +'<span style="color:rgba(255,255,255,.2);font-size:8px">'+st.km.toFixed(1)+'km</span>'
-        +'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="2,3 5,7 8,3" fill="none" stroke="rgba(0,207,255,.4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      tr.innerHTML='<span style="font-weight:700;color:rgba(0,220,255,.95)">'+st.name+'</span>'
+        +'<span style="color:rgba(255,255,255,.38);font-size:8px;margin-left:2px">'+st.km.toFixed(1)+'km</span>'
+        +'<svg width="12" height="12" viewBox="0 0 12 12" style="flex-shrink:0;margin-left:2px"><polyline points="2,4 6,8 10,4" fill="none" stroke="rgba(0,220,255,.85)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     }
     var curSt=sorted.find(function(s){return s.id===uirasStation.id;})||sorted[0];
     setTr(curSt);
@@ -3852,6 +3852,7 @@ function openSheet(spot, hourIdx) {
     /* SVG-dimensiot */
     const CHART_H    = 120;  /* SVG viewBox korkeus */
     const PAD = 4, LABEL_H = 16, TH = CHART_H + LABEL_H;
+    const Y_PAD = 32; /* Y-akselin leveys vasemmalla */
     /* 24h: fluid (100% leveys), muut: kiintea px + vaakascroll */
     const PERIOD_W = { '24h': null, '5d': 600, 'all': 1200 };
 
@@ -3898,7 +3899,7 @@ function openSheet(spot, hourIdx) {
       var dataMax = Math.max.apply(null, vals.concat([1]));
       var maxV = Math.max(8, Math.ceil(dataMax / 2) * 2);
 
-      var xOf = function(i){ return PAD + i/(n-1||1)*(W-PAD*2); };
+      var xOf = function(i){ return Y_PAD + i/(n-1||1)*(W-Y_PAD-PAD); };
       var yOf = function(v,mx){ return CHART_H - PAD - (v/((mx||maxV)||1))*(CHART_H-PAD*2); };
 
       /* nowSlot: lahin piste nykyhetkeen, selectedSlot: valittu hetki */
@@ -3941,19 +3942,32 @@ function openSheet(spot, hourIdx) {
       }
       var bgDefs = '<linearGradient id="'+bgGradId+'" x1="0" y1="0" x2="0" y2="1">'+bgStopStr+'</linearGradient>';
       /* Koko taustarect yhdella gradientilla */
-      var bgRects = '<rect x="'+PAD+'" y="'+PAD+'" width="'+(W-PAD*2)+'" height="'+(CHART_H-PAD*2)+'" fill="url(#'+bgGradId+')"/>';
+      var bgRects = '<rect x="'+Y_PAD+'" y="'+PAD+'" width="'+(W-Y_PAD-PAD)+'" height="'+(CHART_H-PAD*2)+'" fill="url(#'+bgGradId+')"/>';
 
       /* Paaviiva: yksivärinen valkoinen, selkeä */
       var pastSegs='';
-      var pastPts=vals.slice(0,nowSlot+1).map(function(v,i){
-        return xOf(i).toFixed(1)+','+yOf(v).toFixed(1);
-      }).join(' ');
-      if(pastPts) pastSegs='<polyline points="'+pastPts+'" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+      /* Rakennetaan viiva ColorRamp-gradientilla — lineaarigradientti vaakasuunnassa */
+      var windLinGradId = svgId+'-wlg';
+      var gradSampleN = Math.min(vals.length, 20);
+      var windGradStops = '';
+      for(var wsi=0;wsi<gradSampleN;wsi++){
+        var wpct = (wsi/(gradSampleN-1)*100).toFixed(1);
+        var wvi = Math.round(wsi/(gradSampleN-1)*(vals.length-1));
+        var wcc = ColorRamp.rgb(vals[wvi]||0);
+        windGradStops += '<stop offset="'+wpct+'%" stop-color="rgb('+wcc.r+','+wcc.g+','+wcc.b+')"/>';
+      }
+      var windLinGrad = '<linearGradient id="'+windLinGradId+'" x1="0" y1="0" x2="1" y2="0">'+windGradStops+'</linearGradient>';
+
+      /* Yhdistetty viiva: mennyt himmeänä, tuleva täytenä */
+      var allPts=vals.map(function(v,i){ return xOf(i).toFixed(1)+','+yOf(v).toFixed(1); }).join(' ');
+      var pastPts=vals.slice(0,nowSlot+1).map(function(v,i){ return xOf(i).toFixed(1)+','+yOf(v).toFixed(1); }).join(' ');
+      /* Mennyt: sama gradient mutta läpinäkyvämpi clip-pathilla simuloituna */
+      if(pastPts) pastSegs='<polyline points="'+pastPts+'" fill="none" stroke="url(#'+windLinGradId+')" stroke-width="1.8" stroke-opacity="0.35" stroke-linejoin="round" stroke-linecap="round"/>';
 
       var futurePts=vals.slice(nowSlot).map(function(v,i){
         return xOf(nowSlot+i).toFixed(1)+','+yOf(v).toFixed(1);
       }).join(' ');
-      var colorSegs=futurePts?'<polyline points="'+futurePts+'" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>':'';
+      var colorSegs=futurePts?'<polyline points="'+futurePts+'" fill="none" stroke="url(#'+windLinGradId+')" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>':'';
       var areaFill='';
 
       /* X-akseli */
@@ -3984,13 +3998,14 @@ function openSheet(spot, hourIdx) {
       var yStep = maxV>15?4:maxV>8?2:1;
       for(var yv=yStep;yv<=Math.ceil(maxV);yv+=yStep){
         var yy=yOf(yv).toFixed(1);
-        ylbls+='<line x1="'+PAD+'" y1="'+yy+'" x2="'+(W-PAD)+'" y2="'+yy+'" stroke="rgba(255,255,255,.05)" stroke-width="0.5"/>'
-          +'<text x="'+(PAD+2)+'" y="'+yy+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.2)" dominant-baseline="middle">'+yv+'</text>';
+        ylbls+='<text x="'+(Y_PAD-6)+'" y="'+yy+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.28)" text-anchor="end" dominant-baseline="middle">'+yv+'</text>';
+        ylbls+='<line x1="'+Y_PAD+'" y1="'+yy+'" x2="'+(W-PAD)+'" y2="'+yy+'" stroke="rgba(255,255,255,.05)" stroke-width="0.5"/>';
       }
-      /* 6 m/s raja-teksti */
+      /* 6 m/s foilausalue-viiva */
       if(6 < maxV) {
         var fyBot6 = yOf(6).toFixed(1);
-        ylbls+='<text x="'+(W-PAD-2)+'" y="'+fyBot6+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(255,255,255,.35)" text-anchor="end" dominant-baseline="auto" dy="-2">6</text>';
+        ylbls+='<line x1="'+Y_PAD+'" y1="'+fyBot6+'" x2="'+(W-PAD)+'" y2="'+fyBot6+'" stroke="rgba(100,220,255,.12)" stroke-width="1" stroke-dasharray="4,3"/>';
+        ylbls+='<text x="'+(W-PAD-2)+'" y="'+fyBot6+'" font-family="DM Mono,monospace" font-size="7" fill="rgba(100,220,255,.35)" text-anchor="end" dominant-baseline="auto" dy="-2">6</text>';
       }
 
       /* HARMONIE raja */
@@ -4011,7 +4026,7 @@ function openSheet(spot, hourIdx) {
 
       var svg='<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" '
         + 'preserveAspectRatio="none" style="display:block;'+(isFluid?'width:100%':'width:'+W+'px')+';height:'+(CHART_H+LABEL_H)+'px;touch-action:none">'
-        + '<defs>'+bgDefs+'</defs>'
+        + '<defs>'+bgDefs+windLinGrad+'</defs>'
         /* Gradientti ensin taustalle, sitten grid-viivat päälle */
         + bgRects
         + ylbls
@@ -4025,9 +4040,9 @@ function openSheet(spot, hourIdx) {
         + '<line x1="'+selX+'" y1="'+PAD+'" x2="'+selX+'" y2="'+(CHART_H-PAD)+'" stroke="rgba(255,255,255,.85)" stroke-width="1.5" stroke-dasharray="3,2"/>'
         + labels
         /* Tooltip pystyviiva + pisteet */
-        + '<line id="'+svgId+'-vl" x1="-10" y1="'+PAD+'" x2="-10" y2="'+(CHART_H-PAD)+'" stroke="rgba(255,255,255,.5)" stroke-width="1" stroke-dasharray="3,2" pointer-events="none"/>'
+        + '<line id="'+svgId+'-vl" x1="-10" y1="'+PAD+'" x2="-10" y2="'+(CHART_H-PAD)+'" stroke="rgba(255,255,255,.5)" stroke-width="1" stroke-dasharray="3,2" pointer-events="none" visibility="hidden"/>'
         + dotEls
-        + '<rect id="'+svgId+'-hit" x="'+PAD+'" y="'+PAD+'" width="'+(W-PAD*2)+'" height="'+(CHART_H-PAD*2)+'" fill="transparent" style="cursor:crosshair"/>'
+        + '<rect id="'+svgId+'-hit" x="'+Y_PAD+'" y="'+PAD+'" width="'+(W-Y_PAD-PAD)+'" height="'+(CHART_H-PAD*2)+'" fill="transparent" style="cursor:crosshair"/>'
         + '</svg>';
 
       return {svg:svg,svgId:svgId,vals:vals,times:times,n:n,maxV:maxV,xOf:xOf,yOf:yOf,nowSlot:nowSlot,W:W,harmCutX:harmCutX};
@@ -4044,35 +4059,36 @@ function openSheet(spot, hourIdx) {
       if(peakSl.vals[jj]>peakMs2){peakMs2=peakSl.vals[jj];peakH2=fmtHour(peakSl.times[jj]);}
     }
 
-    /* Period-napit */
-    var periodBtns='<div style="display:flex;gap:5px">'
+    /* Period-napit — segmented control */
+    var periodBtns='<div style="display:flex;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
       +PERIODS.map(function(p){
         var a=p.key===activePeriod;
-        return '<button data-cp="'+p.key+'" style="font-family:DM Mono,monospace;font-size:9px;padding:3px 9px;border-radius:7px;border:1px solid rgba(100,220,255,'+(a?.45:.15)+');background:'+(a?'rgba(100,220,255,.1)':'none')+';color:'+(a?'rgba(100,220,255,.9)':'rgba(100,220,255,.35)')+';cursor:pointer">'+p.label+'</button>';
+        return '<button data-cp="'+p.key+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:5px 0;border:none;background:'+(a?'rgba(100,220,255,.18)':'transparent')+';color:'+(a?'rgba(100,220,255,.95)':'rgba(255,255,255,.35)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p.label+'</button>';
       }).join('')+'</div>';
 
     /* Legenda -- paivitetaan kun mallit latautuu */
-    var legendHtml='<div id="'+sectionId+'-leg" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:5px;margin-bottom:6px;font-family:DM Mono,monospace;font-size:8px">'
+    var legendHtml='<div id="'+sectionId+'-leg" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:6px;font-family:DM Mono,monospace;font-size:8px">'
       +'<span><span id="'+sectionId+'-leg-main-dot" style="color:rgba(100,220,255,.85)">&#9632;</span> '+activeLabel+'</span>'
       +COMPARE_MODELS.map(function(m){
         return '<span id="'+sectionId+'-leg-'+m.key+'" style="color:rgba(255,255,255,.2)"><span style="font-size:10px">&#8212;</span> '+m.label+'</span>';
       }).join('')
       +'</div>';
 
-    var tipHtml='<div id="'+sectionId+'-tip" style="display:none;position:absolute;background:rgba(8,12,26,.96);border:1px solid rgba(100,200,255,.2);border-radius:10px;padding:7px 11px;font-family:DM Mono,monospace;font-size:9px;pointer-events:none;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.6);z-index:100;min-width:110px"></div>';
+    var tipHtml='<div id="'+sectionId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid rgba(100,200,255,.2);border-radius:12px;padding:8px 14px;font-family:DM Mono,monospace;font-size:9px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;min-width:110px;transform:translateX(-50%)"></div>';
 
     var firstDraw=buildSvg(activePeriod);
 
     var section='<div class="sh-24h-section" id="'+sectionId+'">'
-      +'<div class="sh-24h-header">'
-        +'<span class="sh-24h-title">Tuuliennuste</span>'
-        +(peakMs2>0?'<span class="sh-24h-peak">&#8593; '+Units.fmt(peakMs2)+' '+Units.label()+' klo '+peakH2+'</span>':'')
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+        +'<div>'
+          +'<div class="sh-24h-title">Tuuliennuste</div>'
+          +(peakMs2>0?'<div class="sh-24h-peak">&#8593; '+Units.fmt(peakMs2)+' '+Units.label()+' klo '+peakH2+'</div>':'')
+        +'</div>'
+        +periodBtns
       +'</div>'
-      +'<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap">'
-        +legendHtml+periodBtns
-      +'</div>'
+      +legendHtml
       /* Scroll-wrapper: 24h ei scrollaa, pidemmissa vaakaScroll */
-      +'<div id="'+sectionId+'-wrap" style="position:relative;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -4px;padding:0 4px">'
+      +'<div id="'+sectionId+'-wrap" style="position:relative;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 0 0 -'+Y_PAD+'px;padding:0 0 0 '+Y_PAD+'px">'
         +tipHtml
         +firstDraw.svg
       +'</div>'
@@ -4150,9 +4166,8 @@ function openSheet(spot, hourIdx) {
         /* Napit */
         secEl.querySelectorAll('[data-cp]').forEach(function(btn){
           var a=btn.dataset.cp===periodKey;
-          btn.style.borderColor=a?'rgba(100,220,255,.45)':'rgba(100,220,255,.15)';
-          btn.style.background=a?'rgba(100,220,255,.1)':'none';
-          btn.style.color=a?'rgba(100,220,255,.9)':'rgba(100,220,255,.35)';
+          btn.style.background=a?'rgba(100,220,255,.18)':'transparent';
+          btn.style.color=a?'rgba(100,220,255,.95)':'rgba(255,255,255,.35)';
         });
         var wrap=document.getElementById(sectionId+'-wrap');
         if(!wrap) return;
@@ -4178,13 +4193,13 @@ function openSheet(spot, hourIdx) {
         function px2i(cx){
           var r=svgEl.getBoundingClientRect();
           var sx=(cx-r.left)/r.width*d.W;
-          return Math.max(0,Math.min(d.n-1,Math.round((sx-PAD)/(d.W-PAD*2)*(d.n-1))));
+          return Math.max(0,Math.min(d.n-1,Math.round((sx-Y_PAD)/(d.W-Y_PAD-PAD)*(d.n-1))));
         }
 
         function showTip(cx){
           var i=px2i(cx);
           var x=d.xOf(i);
-          vlEl.setAttribute('x1',x.toFixed(1));vlEl.setAttribute('x2',x.toFixed(1));
+          vlEl.setAttribute('visibility','visible');vlEl.setAttribute('x1',x.toFixed(1));vlEl.setAttribute('x2',x.toFixed(1));
 
           var mainV=d.vals[i];
           var mainCc=ColorRamp.rgb(mainV);
@@ -4236,15 +4251,15 @@ function openSheet(spot, hourIdx) {
               +'</div>';
           });
           tipEl.innerHTML=html;
-          var r2=svgEl.getBoundingClientRect(),relX=cx-r2.left,tipW=125;
-          tipEl.style.left=(relX>r2.width/2?relX-tipW-10:relX+10)+'px';
+          var r2=svgEl.getBoundingClientRect(),relX=cx-r2.left;
+          tipEl.style.left=relX+'px';
           tipEl.style.top='4px';
           tipEl.style.display='block';
         }
 
         function hideTip(){
           tipEl.style.display='none';
-          vlEl.setAttribute('x1','-10');vlEl.setAttribute('x2','-10');
+          vlEl.setAttribute('visibility','hidden');vlEl.setAttribute('x1','-10');vlEl.setAttribute('x2','-10');
           if(dotMain){dotMain.setAttribute('cx','-10');dotMain.setAttribute('cy','-10');}
           COMPARE_MODELS.forEach(function(m){
             var dot=modelDots[m.key];
@@ -4957,7 +4972,7 @@ function _renderLiveHistory(el, data, wx) {
         +segBtns
       +'</div>'
     +'</div>'
-    +'<div style="position:relative;margin:0">'
+    +'<div style="position:relative;margin:0 0 0 -32px;padding-left:32px">'
       +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid rgba(100,255,160,.2);border-radius:12px;padding:8px 14px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;transform:translateX(-50%)"></div>'
       +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block;touch-action:none;overflow:visible">'
         +'<defs>'
@@ -4978,8 +4993,8 @@ function _renderLiveHistory(el, data, wx) {
           +'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYws.toFixed(1)+'" r="3.5" fill="rgba(100,255,160,1)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none"/>'
           :'')
         +(lastYwg!=null?'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYwg.toFixed(1)+'" r="3" fill="rgba(255,200,100,.9)" stroke="rgba(255,255,255,.3)" stroke-width="1" pointer-events="none"/>':'')
-        +'<line id="'+svgId+'-vline" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="3,3" pointer-events="none"/>'
-        +'<circle id="'+svgId+'-dot-ws" cx="-1" cy="-1" r="4.5" fill="rgba(100,255,160,.95)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none"/>'
+        +'<line id="'+svgId+'-vline" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="3,3" pointer-events="none" visibility="hidden"/>'
+        +'<circle id="'+svgId+'-dot-ws" cx="-1" cy="-1" r="4.5" fill="rgba(100,255,160,.95)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none" visibility="hidden"/>'
         +(wgU.length?'<circle id="'+svgId+'-dot-wg" cx="-1" cy="-1" r="3.5" fill="rgba(255,200,100,.9)" stroke="rgba(255,255,255,.3)" stroke-width="1" pointer-events="none"/>':'')
         +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX-8)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
         +xlbls
@@ -5003,8 +5018,8 @@ function _renderLiveHistory(el, data, wx) {
   function showTip(cx){
     var sx=svgXpx(cx),idx=iOf(sx),x=xOf(idx);
     var yw=wsU[idx]!=null?yOf(wsU[idx]):null,yg=wgU[idx]!=null?yOf(wgU[idx]):null;
-    vl.setAttribute('x1',x.toFixed(1));vl.setAttribute('x2',x.toFixed(1));
-    if(dotWs&&yw!=null){dotWs.setAttribute('cx',x.toFixed(1));dotWs.setAttribute('cy',yw.toFixed(1));}
+    vl.setAttribute('x1',x.toFixed(1));vl.setAttribute('x2',x.toFixed(1));vl.setAttribute('visibility','visible');
+    if(dotWs&&yw!=null){dotWs.setAttribute('cx',x.toFixed(1));dotWs.setAttribute('cy',yw.toFixed(1));dotWs.setAttribute('visibility','visible');}
     if(dotWg&&yg!=null){dotWg.setAttribute('cx',x.toFixed(1));dotWg.setAttribute('cy',yg.toFixed(1));}
     var wsVal=wsU[idx]!=null?wsU[idx].toFixed(1):'--';
     var wgVal=wgU[idx]!=null?wgU[idx].toFixed(1):null;
@@ -5022,8 +5037,8 @@ function _renderLiveHistory(el, data, wx) {
   }
   function hideTip(){
     tip.style.display='none';
-    vl.setAttribute('x1','-1');vl.setAttribute('x2','-1');
-    if(dotWs){dotWs.setAttribute('cx','-1');dotWs.setAttribute('cy','-1');}
+    vl.setAttribute('visibility','hidden');vl.setAttribute('x1','-1');vl.setAttribute('x2','-1');
+    if(dotWs){dotWs.setAttribute('visibility','hidden');dotWs.setAttribute('cx','-1');dotWs.setAttribute('cy','-1');}
     if(dotWg){dotWg.setAttribute('cx','-1');dotWg.setAttribute('cy','-1');}
   }
   hit.addEventListener('mousemove',function(e){showTip(e.clientX);},{passive:true});
