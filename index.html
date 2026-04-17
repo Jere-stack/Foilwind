@@ -3476,18 +3476,28 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
   }
 
-  /* X-akseli — max 4 labelia, stp dynaamisesti */
+  /* X-akseli — pikselileveys-perusteinen tiheys, ei päällekkäisyyttä */
   var xl='';
   var ms0=new Date(draw[0].t).getTime(), ms1=new Date(draw[n-1].t).getTime();
   var totalDays=(ms1-ms0)/864e5;
-  var stp=totalDays>120?30*864e5:totalDays>60?14*864e5:totalDays>21?7*864e5:totalDays>7?3*864e5:864e5;
+  var chartPx=W-padX-8; /* käytettävissä oleva pikselileveys viewBox-koordinaateissa */
+  var minPxBetween=44;  /* minimietäisyys labelien välillä (px viewBox) */
+  var maxLabels=Math.max(1,Math.floor(chartPx/minPxBetween));
+  /* Siistit askelvälit päivissä */
+  var niceStepsDays=[1,2,3,7,14,30,60,90,180,365];
+  var idealDaysPerLabel=totalDays/maxLabels;
+  var stpDays=niceStepsDays.find(function(d){return d>=idealDaysPerLabel;})||365;
+  var stp=stpDays*864e5;
   var t0=new Date(ms0); t0.setHours(0,0,0,0);
+  var lastLx=-999;
   for(var tt=t0.getTime(); tt<=ms1; tt+=stp){
     if(tt<ms0) continue;
     var fd=new Date(tt);
     var xi=iOf(padX+(tt-ms0)/(ms1-ms0||1)*(W-padX-8));
     var lx=xOf(xi);
     if(lx<padX+8||lx>W-16) continue;
+    if(lx-lastLx<minPxBetween) continue; /* varmuustarkistus päällekkäisyydelle */
+    lastLx=lx;
     xl+='<text x="'+lx.toFixed(1)+'" y="'+(TH-4)+'" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(255,255,255,.25)" text-anchor="middle">'+fd.getDate()+'.'+( fd.getMonth()+1)+'.</text>';
   }
 
@@ -3683,10 +3693,15 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
         menu.style.display='none';
         /* Päivitä trigger */
         ddEl.querySelector('div').innerHTML=makeTriggerHtml(st)+makeMenuHtml();
-        /* Lataa uusi data */
-        el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan '+st.name+'...</div>';
+        /* Päivitä otsikko heti */
         var spotRef3=State.sheetSpot;
         var wsIdRef=spotRef3?('ws-'+spotRef3.name.replace(/[^a-z0-9]/gi,'_')):null;
+        if(wsIdRef){
+          var uiLbl=document.getElementById('uiras-chart-lbl-'+wsIdRef);
+          if(uiLbl) uiLbl.textContent='Uimaveden lämpötila · '+st.name;
+        }
+        /* Lataa uusi data */
+        el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan '+st.name+'...</div>';
         Promise.allSettled([UiRas.history(st.id),UiRas.loadLatest()]).then(function(results){
           var pts2=results[0].status==='fulfilled'?results[0].value:null;
           var latest=results[1].status==='fulfilled'?results[1].value:null;
@@ -5510,6 +5525,11 @@ function _renderLiveHistory(el, data, wx) {
     const selected = stations.find(function(s){ return s.place===curPlace; }) || stations[0];
     var fmiIdRef = spotRef ? ('fmi-'+spotRef.name.replace(/\s/g,'_')) : null;
     const dropdown = _fmiDropdown(el, stations, selected, function(st) {
+      /* Päivitä otsikko heti */
+      if (fmiIdRef) {
+        var lbl = document.getElementById(fmiIdRef + '-chart-lbl');
+        if (lbl) lbl.textContent = 'Tuulihavainto · ' + st.name;
+      }
       el.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:10px">Ladataan '+st.name+'...</div>';
       Promise.allSettled([
         fetch('https://foilwind.vercel.app/api/fmi?place='+st.place).then(function(r){return r.json();}),
