@@ -549,61 +549,95 @@ display: flex; align-items: flex-start; justify-content: space-between; gap: 12p
 }
 .sh-hero-left { flex: 1; min-width: 0; }
 .sh-datetime { display: none; } /* korvattu pillillä */
+/* – Time picker slider –––––––––––––––––––– */
 .sh-timepill {
-display: flex; align-items: center;
-margin: 2px 0 10px;
-background: none;
-border: none;
-border-radius: 0;
-overflow: visible;
 -webkit-user-select: none; user-select: none;
 }
-.sh-timepill-arrow {
-flex-shrink: 0;
-width: 36px; height: 44px;
+.sh-tp-track {
+display: flex; align-items: stretch;
+height: 68px;
+background: rgba(255,255,255,.04);
+border-top: 1px solid rgba(255,255,255,.07);
+border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.sh-tp-prev-zone, .sh-tp-next-zone {
+flex-shrink: 0; width: 32px;
 display: flex; align-items: center; justify-content: center;
-color: rgba(255,255,255,.4);
-cursor: pointer;
-transition: color .12s;
+color: rgba(255,255,255,.3); cursor: pointer;
 -webkit-tap-highlight-color: transparent;
+transition: color .12s, background .12s;
 }
-.sh-timepill-arrow:active { color: rgba(255,255,255,.9); }
-.sh-timepill-center {
-flex: 1; text-align: center;
-padding: 0 2px;
+.sh-tp-prev-zone:active, .sh-tp-next-zone:active {
+color: rgba(255,255,255,.8);
+background: rgba(255,255,255,.06);
+}
+.sh-tp-slots {
+flex: 1; display: flex; align-items: center; justify-content: center;
+gap: 0; overflow: hidden;
+}
+/* Yksittäinen aikaslotti */
+.sh-tpslot {
+flex: 1; display: flex; flex-direction: column;
+align-items: center; justify-content: flex-end;
+padding: 8px 2px 0;
 cursor: pointer;
 -webkit-tap-highlight-color: transparent;
+transition: opacity .15s;
+height: 68px; box-sizing: border-box;
 }
-.sh-timepill-time {
+.sh-tpslot-empty { flex: 1; }
+/* Menneisyys ja tulevaisuus — haaleat */
+.sh-tpslot-past { opacity: .35; }
+.sh-tpslot:not(.sh-tpslot-active):not(.sh-tpslot-past):not(.sh-tpslot-empty) { opacity: .5; }
+/* Valittu — kirkas */
+.sh-tpslot-active { opacity: 1; position: relative; }
+.sh-tpslot-active::before {
+content: ‘’; position: absolute;
+top: 0; left: 2px; right: 2px; bottom: 0;
+background: rgba(255,255,255,.06);
+border-radius: 8px;
+pointer-events: none;
+}
+/* Ylä-osa: päivä + palkki */
+.sh-tpslot-top {
+display: flex; flex-direction: column; align-items: center;
+flex: 1; justify-content: flex-end; width: 100%;
+}
+.sh-tpslot-day {
 font-family: ‘DM Mono’, monospace;
-font-size: 20px; font-weight: 700;
-color: rgba(255,255,255,.95);
-letter-spacing: -.3px; line-height: 1.1;
+font-size: 7px; color: rgba(255,255,255,.4);
+letter-spacing: .3px; height: 10px; line-height: 10px;
+margin-bottom: 2px;
 }
-.sh-timepill-date {
+.sh-tpslot-active .sh-tpslot-day { color: rgba(255,255,255,.65); }
+.sh-tpslot-bar-wrap {
+width: 100%; display: flex; align-items: flex-end; justify-content: center;
+height: 24px;
+}
+.sh-tpslot-bar {
+width: 3px; border-radius: 2px 2px 0 0;
+min-height: 2px;
+background: rgba(255,255,255,.3);
+transition: height .2s ease;
+}
+.sh-tpslot-active .sh-tpslot-bar { width: 4px; }
+/* Kellonaika + NYT */
+.sh-tpslot-time {
 font-family: ‘DM Mono’, monospace;
-font-size: 10px; color: rgba(255,255,255,.4);
-letter-spacing: .3px; margin-top: 1px;
+font-size: 8.5px; color: rgba(255,255,255,.35);
+margin-top: 4px; padding-bottom: 8px;
+white-space: nowrap; line-height: 1;
+text-align: center; width: 100%;
 }
-.sh-timepill-now {
+.sh-tpslot-active .sh-tpslot-time {
+font-size: 11px; font-weight: 700;
+color: rgba(255,255,255,.92);
+}
+.sh-tpslot-now {
 display: inline-block;
 font-family: ‘DM Mono’, monospace;
-font-size: 8px; font-weight: 700; letter-spacing: 1px;
-color: rgba(100,255,160,.85);
-background: rgba(100,255,160,.1);
-border: 1px solid rgba(100,255,160,.2);
-border-radius: 6px; padding: 1px 6px;
-margin-bottom: 3px;
-}
-.sh-timepill-forecast {
-display: inline-block;
-font-family: ‘DM Mono’, monospace;
-font-size: 8px; font-weight: 700; letter-spacing: 1px;
-color: rgba(0,207,255,.7);
-background: rgba(0,207,255,.08);
-border: 1px solid rgba(0,207,255,.15);
-border-radius: 6px; padding: 1px 6px;
-margin-bottom: 3px;
+font-size: 7.5px; font-weight: 700; letter-spacing: .5px;
+color: rgba(100,255,160,.9);
 }
 .sh-name {
 font-size: 20px; font-weight: 800; letter-spacing: -.4px;
@@ -4588,10 +4622,56 @@ function openSheet(spot, hourIdx) {
             var dateStr = DAY[d.getDay()]+' '+d.getDate()+'. '+MON[d.getMonth()];
             var canPrev = (State.currentHourIdx||0) > 0;
             var canNext = (State.currentHourIdx||0) < tLen - 1;
-            var badge = isNow
-              ? '<div class="sh-timepill-now">NYT</div>'
-              : '<div class="sh-timepill-forecast">ENNUSTE</div>';
-            return '<div class="sh-timepill" id="sh-timepill">'              + '<div class="sh-timepill-arrow" id="sh-tp-prev" style="opacity:'+(canPrev?'1':'.25')+'">'                + '<svg width="9" height="15" viewBox="0 0 9 15"><polyline points="7,1 1,7.5 7,14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'              + '</div>'              + '<div class="sh-timepill-center" id="sh-tp-center">'                + badge                + '<div class="sh-timepill-time">'+timeStr+'</div>'                + '<div class="sh-timepill-date">'+dateStr+'</div>'              + '</div>'              + '<div class="sh-timepill-arrow" id="sh-tp-next" style="opacity:'+(canNext?'1':'.25')+'">'                + '<svg width="9" height="15" viewBox="0 0 9 15"><polyline points="2,1 8,7.5 2,14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'              + '</div>'            + '</div>';          })()
+            var badge = isNow ? '<div class="sh-timepill-now">NYT</div>' : '';
+            /* -- AIKASIIRRIN ---------------------------------------- */
+            /* Haetaan ajat State._tlTimes:stä, spot.wx.hourly.time fallback */
+            var times = State._tlTimes || tArr;
+            var speeds = State._tlSpeeds || h.windspeed_10m || [];
+            var maxMs2 = 1;
+            for (var si2 = 0; si2 < speeds.length; si2++) {
+              if ((speeds[si2]||0) > maxMs2) maxMs2 = speeds[si2];
+            }
+            var curIdx = State.currentHourIdx || 0;
+            /* Näytetään 9 aikaa: 4 ennen, valittu, 4 jälkeen */
+            var VISIBLE = 9, HALF = 4;
+            var slots = [];
+            for (var si = -HALF; si <= HALF; si++) {
+              var ri = curIdx + si;
+              slots.push({ offset: si, idx: ri, valid: ri >= 0 && ri < times.length });
+            }
+            /* SVG-liuku: item-leveys 36px, valittu 56px, koko leveys dynaamisesti */
+            /* Rakennetaan inline HTML — ei SVG (teksti ei skaalaudu hyvin) */
+            var ticksHtml = slots.map(function(sl) {
+              if (!sl.valid) return '<div class="sh-tpslot sh-tpslot-empty"></div>';
+              var d2 = sl.idx < times.length ? new Date(times[sl.idx]) : null;
+              var spd = sl.idx < speeds.length ? (speeds[sl.idx]||0) : 0;
+              var cc2 = ColorRamp.rgb(spd);
+              var isActive = sl.offset === 0;
+              var isPast = sl.idx < (curIdx);
+              var barH = Math.max(2, Math.round((spd / maxMs2) * 22));
+              var hStr = d2 ? ('0'+d2.getHours()).slice(-2)+':00' : '';
+              var dayStr = '';
+              if (d2) {
+                var DAY3=['Su','Ma','Ti','Ke','To','Pe','La'];
+                /* Näytä päivä jos ensimmäinen tämän päivän aika */
+                var prevD = sl.idx > 0 && (sl.idx-1) < times.length ? new Date(times[sl.idx-1]) : null;
+                if (!prevD || prevD.getDate() !== d2.getDate()) dayStr = DAY3[d2.getDay()];
+              }
+              return '<div class="sh-tpslot'+(isActive?' sh-tpslot-active':'')+(isPast?' sh-tpslot-past':'')+'" data-tpidx="'+sl.idx+'">'
+                + '<div class="sh-tpslot-top">'
+                  + (dayStr ? '<div class="sh-tpslot-day">'+dayStr+'</div>' : '<div class="sh-tpslot-day"></div>')
+                  + '<div class="sh-tpslot-bar-wrap"><div class="sh-tpslot-bar" style="height:'+barH+'px;background:rgb('+cc2.r+','+cc2.g+','+cc2.b+')"></div></div>'
+                + '</div>'
+                + '<div class="sh-tpslot-time">'+(isActive&&isNow?'<span class="sh-tpslot-now">NYT</span>':hStr)+'</div>'
+              + '</div>';
+            }).join('');
+            return '<div id="sh-timepill" class="sh-timepill" style="margin:6px -20px 14px">'
+              + '<div class="sh-tp-track">'
+                + '<div class="sh-tp-prev-zone" id="sh-tp-prev"><svg width="8" height="14" viewBox="0 0 8 14"><polyline points="6,1 1,7 6,13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'
+                + '<div class="sh-tp-slots" id="sh-tp-slots">' + ticksHtml + '</div>'
+                + '<div class="sh-tp-next-zone" id="sh-tp-next"><svg width="8" height="14" viewBox="0 0 8 14"><polyline points="2,1 7,7 2,13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'
+              + '</div>'
+            + '</div>';          })()
         + (()=>{
             const si = spotIndex(ms, dir, spot.bestDirs, gst);
             const sc = spotIndexColor(si);
@@ -4678,14 +4758,14 @@ function openSheet(spot, hourIdx) {
   document.getElementById('sheet-overlay').classList.add('open');
   Haptics.medium();
 
-  /* ── Time pill: prev/next ────────────────────────────────────── */
+  /* ── Time slider ─────────────────────────────────────────────── */
   (function() {
-    function _tpGo(delta) {
-      var newIdx = (State.currentHourIdx || 0) + delta;
+    function _tpGoTo(newIdx) {
       var maxIdx = State._tlTimes ? State._tlTimes.length - 1 : 0;
       if (newIdx < 0 || newIdx > maxIdx) return;
       if (typeof Haptics !== 'undefined') Haptics.selection();
       State.currentHourIdx = newIdx;
+      /* Synkronoi timeline */
       var tl = document.getElementById('tl-scroll');
       if (tl && State._tlTicks && State._tlTicks[newIdx]) {
         var tick = State._tlTicks[newIdx];
@@ -4698,29 +4778,40 @@ function openSheet(spot, hourIdx) {
       if (typeof renderSpots === 'function') renderSpots(newIdx);
       if (State.sheetSpot) openSheet(State.sheetSpot, newIdx);
     }
-    /* Käytä setTimeout 0 jotta DOM on päivittynyt */
+
     setTimeout(function() {
       var prev = document.getElementById('sh-tp-prev');
       var next = document.getElementById('sh-tp-next');
-      if (prev) prev.addEventListener('click', function(e){
-        e.stopPropagation(); _tpGo(-1);
-      }, { passive: true });
-      if (next) next.addEventListener('click', function(e){
-        e.stopPropagation(); _tpGo(+1);
-      }, { passive: true });
-      /* Swipe pill vasemmalle/oikealle */
-      var pill = document.getElementById('sh-timepill');
+      var slots = document.getElementById('sh-tp-slots');
+      var pill  = document.getElementById('sh-timepill');
+
+      if (prev) prev.addEventListener('click', function(e){ e.stopPropagation(); _tpGoTo((State.currentHourIdx||0)-1); }, { passive: true });
+      if (next) next.addEventListener('click', function(e){ e.stopPropagation(); _tpGoTo((State.currentHourIdx||0)+1); }, { passive: true });
+
+      /* Klikkaus slottiin */
+      if (slots) {
+        slots.addEventListener('click', function(e) {
+          var sl = e.target.closest('[data-tpidx]');
+          if (!sl) return;
+          var ni = parseInt(sl.dataset.tpidx);
+          if (!isNaN(ni)) _tpGoTo(ni);
+        }, { passive: true });
+      }
+
+      /* Swipe koko pillillä */
       if (pill) {
-        var _sx = null;
+        var _sx = null, _moved = false;
         pill.addEventListener('touchstart', function(e){
-          if (e.target.closest('.sh-timepill-arrow')) return;
-          _sx = e.touches[0].clientX;
+          _sx = e.touches[0].clientX; _moved = false;
+        }, { passive: true });
+        pill.addEventListener('touchmove', function(e){
+          if (_sx !== null && Math.abs(e.touches[0].clientX - _sx) > 8) _moved = true;
         }, { passive: true });
         pill.addEventListener('touchend', function(e){
           if (_sx === null) return;
           var dx = e.changedTouches[0].clientX - _sx;
           _sx = null;
-          if (Math.abs(dx) > 36) _tpGo(dx < 0 ? 1 : -1);
+          if (_moved && Math.abs(dx) > 30) _tpGoTo((State.currentHourIdx||0) + (dx < 0 ? 1 : -1));
         }, { passive: true });
       }
     }, 0);
