@@ -499,6 +499,7 @@ padding: 12px 0 10px;
 flex-shrink: 0;
 cursor: grab;
 touch-action: none;
+background: transparent;  /* saman värinen kuin #sheet */
 }
 #sheet-handle:active { cursor: grabbing; }
 #sheet-handle::after {
@@ -3460,9 +3461,13 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   var lastVal=draw[n-1].v, lastX=xOf(n-1), lastY=yOf(lastVal);
   var minIdx=vals.indexOf(minV), maxIdx=vals.indexOf(maxV);
 
-  /* Y-akseli: 3–4 lukemaa */
+  /* Y-akseli: max 5 labelia — yStep lasketaan rangestä dynaamisesti */
   var yLabels='';
-  var yStep = range>4 ? 2 : range>2 ? 1 : 0.5;
+  var maxLabels = 5;
+  var rawStep = range / maxLabels;
+  /* Pyöristä step siistiin arvoon: 0.5, 1, 2, 5, 10 */
+  var niceSteps = [0.5, 1, 2, 5, 10, 20];
+  var yStep = niceSteps.find(function(s){ return s >= rawStep; }) || 20;
   var yStart = Math.ceil(minV/yStep)*yStep;
   for(var yv=yStart; yv<=maxV+0.01; yv+=yStep){
     if(yv<lo+padV*0.5||yv>hi-padV*0.5) continue;
@@ -3644,7 +3649,14 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
       document.querySelectorAll('.uiras-menu-open').forEach(function(m){m.style.display='none';m.classList.remove('uiras-menu-open');});
       if(!open){menu.style.display='block';menu.classList.add('uiras-menu-open');if(typeof Haptics!=='undefined')Haptics.light();}
     },{passive:true});
-    document.addEventListener('click',function(){menu.style.display='none';},{once:true,passive:true});
+    setTimeout(function() {
+      document.addEventListener('click', function _closeUirasDd(e) {
+        if (wrap.contains(e.target)) return;
+        menu.style.display='none';
+        menu.classList.remove('uiras-menu-open');
+        document.removeEventListener('click', _closeUirasDd, true);
+      }, { capture: true, passive: true });
+    }, 0);
     var wrap=document.createElement('div');
     wrap.style.cssText='position:relative;display:inline-block';
     wrap.appendChild(tr);wrap.appendChild(menu);
@@ -4309,7 +4321,7 @@ function openSheet(spot, hourIdx) {
       +'</div>'
       +legendHtml
       /* Scroll-wrapper: 24h ei scrollaa, pidemmissa vaakaScroll */
-      +'<div id="'+sectionId+'-wrap" style="position:relative;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none">'
+      +'<div id="'+sectionId+'-wrap" style="position:relative;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-left:-'+Y_PAD+'px;padding-left:'+Y_PAD+'px">'
         +tipHtml
         +firstDraw.svg
       +'</div>'
@@ -4856,12 +4868,12 @@ function openSheet(spot, hourIdx) {
   })();
       /* Tausta hivelee tuulen mukaan */
   (function() {
-    var sc = document.getElementById('sheet-content');
-    if (!sc) return;
+    /* Väri-hehku: aseta #sheet-scroll-elementille jotta kattaa myös handle-alueen */
+    var scrollEl = document.getElementById('sheet-scroll');
+    if (!scrollEl) return;
     var cc = ColorRamp.rgb(ms);
     var r = cc.r, g = cc.g, b = cc.b;
-    /* Hienovarainen vari-hehku ylareunassa */
-    sc.style.background = 'linear-gradient(180deg, rgba('+r+','+g+','+b+',.04) 0%, transparent 180px)';
+    scrollEl.style.background = 'linear-gradient(180deg, rgba('+r+','+g+','+b+',.05) 0%, transparent 200px)';
   })();
 
   /* Lataa FMI latest + historia — 2 kutsua, ei Open-Meteo -kutsuja */
@@ -5263,11 +5275,15 @@ function _fmiDropdown(panelEl, stations, selected, onSelect) {
     }
   }, { passive: true });
 
-  /* Sulje klikkaamalla muualle */
-  document.addEventListener('click', function() {
-    menu.classList.remove('open');
-    trigger.classList.remove('open');
-  }, { once: true, passive: true });
+  /* Sulje klikkaamalla muualle — setTimeout estää saman klikkauksen laukaisun */
+  setTimeout(function() {
+    document.addEventListener('click', function _closeFmiDd(e) {
+      if (wrap.contains(e.target)) return; /* klikkaus dropdownin sisällä → ei sulje */
+      menu.classList.remove('open');
+      trigger.classList.remove('open');
+      document.removeEventListener('click', _closeFmiDd, true);
+    }, { capture: true, passive: true });
+  }, 0);
 
   wrap.appendChild(trigger);
   wrap.appendChild(menu);
