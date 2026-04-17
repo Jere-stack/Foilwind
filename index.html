@@ -555,61 +555,79 @@ display: flex; align-items: flex-start; justify-content: space-between; gap: 12p
 -webkit-user-select: none; user-select: none;
 margin: 4px -20px 14px;
 display: flex; align-items: center;
-height: 58px;
+height: 56px;
 }
 .sh-tp-arrow {
-flex-shrink: 0; width: 32px; height: 58px;
+flex-shrink: 0; width: 32px; height: 56px;
 display: flex; align-items: center; justify-content: center;
 color: rgba(255,255,255,.4); cursor: pointer;
 -webkit-tap-highlight-color: transparent;
-transition: color .1s;
+transition: color .1s; z-index: 1;
 }
 .sh-tp-arrow:active { color: rgba(255,255,255,.9); }
+/* Native-scroll ikkuna */
 .sh-tp-window {
-flex: 1; overflow: hidden; height: 58px; position: relative;
+flex: 1;
+overflow-x: scroll;
+overflow-y: hidden;
+/* iOS inertia + snap */
+-webkit-overflow-scrolling: touch;
+scroll-snap-type: x mandatory;
+scrollbar-width: none;
+height: 56px;
 }
+.sh-tp-window::-webkit-scrollbar { display: none; }
+/* Inner ei tarvitse will-change — selain hoitaa */
 .sh-tp-inner {
-display: flex; align-items: center; height: 58px;
-will-change: transform;
+display: flex; align-items: center;
+height: 56px;
 }
-/* Slotti — leveys asetetaan JS:ssä */
+/* Slotit — kaikki sama leveys snap-toimivuuden takaamiseksi */
 .sh-tpslot {
 flex-shrink: 0;
 display: flex; flex-direction: column;
 align-items: center; justify-content: center;
-gap: 1px; height: 58px; cursor: pointer;
+gap: 2px;
+width: var(–tp-slot-w, 52px);
+height: 56px;
+scroll-snap-align: center;
+cursor: pointer;
 -webkit-tap-highlight-color: transparent;
+transition: none;
 }
-/* Päivämäärä — piilotettu oletuksena */
+/* Päivämäärä */
 .sh-tpslot-day {
 font-family: ‘DM Mono’, monospace;
 font-size: 8px; letter-spacing: .3px;
 color: rgba(255,255,255,.0);
 height: 11px; line-height: 11px; white-space: nowrap;
+transition: color .15s;
 }
 .sh-tpslot-day.vis { color: rgba(255,255,255,.38); }
 /* Kellonaika */
 .sh-tpslot-time {
 font-family: ‘DM Mono’, monospace;
 font-size: 11px; font-weight: 400;
-color: rgba(255,255,255,.22); white-space: nowrap; line-height: 1;
+color: rgba(255,255,255,.22);
+white-space: nowrap; line-height: 1;
+transition: color .15s, transform .15s;
+transform-origin: center;
 }
-/* Mennyt */
-.sh-tpslot.past .sh-tpslot-time   { color: rgba(255,255,255,.14); }
-.sh-tpslot.past .sh-tpslot-day.vis{ color: rgba(255,255,255,.2); }
-/* Valittu — kirkas, iso */
+.sh-tpslot.past .sh-tpslot-time    { color: rgba(255,255,255,.13); }
+.sh-tpslot.past .sh-tpslot-day.vis { color: rgba(255,255,255,.18); }
+/* Valittu: scale() ei aiheuta layout-reflow’ta */
 .sh-tpslot.active .sh-tpslot-time {
-font-size: 20px; font-weight: 700;
-color: rgba(255,255,255,.95); letter-spacing: -.5px;
+color: rgba(255,255,255,.95); font-weight: 700;
+transform: scale(1.7);
 }
 .sh-tpslot.active .sh-tpslot-day.vis { color: rgba(255,255,255,.6); }
-/* Hover-tila dragin aikana (JS lisää .hover) */
-.sh-tpslot.hover .sh-tpslot-time {
-font-size: 16px; font-weight: 600;
-color: rgba(0,207,255,.9);
+/* Hover-like dragin aikana */
+.sh-tpslot.near .sh-tpslot-time {
+color: rgba(0,207,255,.85); font-weight: 600;
+transform: scale(1.3);
 }
-.sh-tpslot.hover .sh-tpslot-day.vis { color: rgba(0,207,255,.6); }
-/* NYT-badge */
+.sh-tpslot.near .sh-tpslot-day.vis { color: rgba(0,207,255,.55); }
+/* NYT */
 .sh-tpslot-now {
 font-family: ‘DM Mono’, monospace;
 font-size: 7px; font-weight: 700; letter-spacing: .8px;
@@ -4589,30 +4607,27 @@ function openSheet(spot, hourIdx) {
         + (()=>{
             var tIdx  = idx;
             var tArr  = h.time || [];
-            var tLen  = State._tlTimes ? State._tlTimes.length : tArr.length;
             var isNow = Math.abs(new Date(tArr[tIdx]||0).getTime() - Date.now()) < 3600000;
             var times = State._tlTimes || tArr;
             var curIdx = State.currentHourIdx || 0;
             var DAY3 = ['Su','Ma','Ti','Ke','To','Pe','La'];
             var MON3 = ['tam','hel','maa','huh','tou','kes','hei','elo','syy','lok','mar','jou'];
-            /* Kaikki slotit — näytetään joka 1h (kaikki) */
+            /* Rakennetaan kaikki slotit — padding lisätään JS:ssä scrollaukseen */
             var allSlots = times.map(function(t, ri) {
               var d2 = new Date(t);
               var isActive = ri === curIdx;
               var isPast   = ri < curIdx;
-              /* Kellonaika */
               var hStr = ('0'+d2.getHours()).slice(-2)+':00';
-              /* Päivä: näkyy JOKA slotissa jolla on päivänvaihdos tai aktiiviinen */
+              /* Päivämäärä: aktiiviisella aina, muilla päivänvaihdoksessa */
               var prevD = ri > 0 ? new Date(times[ri-1]) : null;
               var isNewDay = !prevD || prevD.getDate() !== d2.getDate();
-              /* Aktiivisella näytetään aina päivä+kk */
-              var dayStr = '';
-              if (isActive || isNewDay) {
-                dayStr = DAY3[d2.getDay()]+' '+d2.getDate()+'. '+MON3[d2.getMonth()];
-              }
+              var showDay = isActive || isNewDay;
+              var dayStr = showDay
+                ? DAY3[d2.getDay()]+' '+d2.getDate()+'. '+MON3[d2.getMonth()]
+                : '';
               var cls = 'sh-tpslot'+(isActive?' active':'')+(isPast?' past':'');
               return '<div class="'+cls+'" data-tpidx="'+ri+'">'
-                + '<div class="sh-tpslot-day'+(dayStr?' vis':'')+'">'+dayStr+'</div>'
+                + '<div class="sh-tpslot-day'+(showDay?' vis':'')+'">'+dayStr+'</div>'
                 + (isActive && isNow
                     ? '<span class="sh-tpslot-now">NYT</span><div class="sh-tpslot-time">'+hStr+'</div>'
                     : '<div class="sh-tpslot-time">'+hStr+'</div>')
@@ -4620,16 +4635,16 @@ function openSheet(spot, hourIdx) {
             }).join('');
             return '<div id="sh-timepill" class="sh-timepill">'
               + '<div class="sh-tp-arrow" id="sh-tp-prev">'
-                + '<svg width="9" height="16" viewBox="0 0 9 16" fill="none">'
-                  + '<polyline points="7,1 1,8 7,15" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
+                + '<svg width="9" height="15" viewBox="0 0 9 15" fill="none">'
+                  + '<polyline points="7,1 1,7.5 7,14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
                 + '</svg>'
               + '</div>'
               + '<div class="sh-tp-window" id="sh-tp-window">'
                 + '<div class="sh-tp-inner" id="sh-tp-inner">'+allSlots+'</div>'
               + '</div>'
               + '<div class="sh-tp-arrow" id="sh-tp-next">'
-                + '<svg width="9" height="16" viewBox="0 0 9 16" fill="none">'
-                  + '<polyline points="2,1 8,8 2,15" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
+                + '<svg width="9" height="15" viewBox="0 0 9 15" fill="none">'
+                  + '<polyline points="2,1 8,7.5 2,14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
                 + '</svg>'
               + '</div>'
             + '</div>';
@@ -4720,16 +4735,15 @@ function openSheet(spot, hourIdx) {
   document.getElementById('sheet-overlay').classList.add('open');
   Haptics.medium();
 
-  /* ── Time slider ────────────────────────────────────────────── */
+  /* ── Time slider — native scroll snap ───────────────────────── */
   (function() {
-    var SLOT_W = 44;    /* ei-aktiivinen slotti px */
-    var ACT_W  = 88;    /* aktiivinen slotti px */
-    var HOV_W  = 64;    /* hover-slotti dragin aikana px */
+    var SLOT_W = 52;   /* kaikki slotit saman levyisiä → snap toimii */
 
-    /* Päivitä data — vasta touchend jälkeen */
+    /* Datapäivitys — kutsutaan vasta scrollin pysähdyttyä */
     function _tpGoTo(newIdx) {
       var maxIdx = State._tlTimes ? State._tlTimes.length - 1 : 0;
       if (newIdx < 0 || newIdx > maxIdx) return;
+      if (newIdx === (State.currentHourIdx || 0)) return;
       if (typeof Haptics !== 'undefined') Haptics.selection();
       State.currentHourIdx = newIdx;
       var tl = document.getElementById('tl-scroll');
@@ -4751,211 +4765,117 @@ function openSheet(spot, hourIdx) {
       var next  = document.getElementById('sh-tp-next');
       if (!win || !inner) return;
 
-      var times  = State._tlTimes || [];
-      var maxIdx = times.length - 1;
-      var els    = Array.prototype.slice.call(inner.querySelectorAll('.sh-tpslot'));
-      var curIdx = State.currentHourIdx || 0;
-      var hovIdx = -1;
-      var offset = 0;
-      var _startX = null, _startOff = null, _dragged = false, _lastX = null, _velX = 0;
+      var times   = State._tlTimes || [];
+      var maxIdx  = times.length - 1;
+      var els     = Array.prototype.slice.call(inner.querySelectorAll('.sh-tpslot'));
+      var curIdx  = State.currentHourIdx || 0;
+      var DAY4    = ['Su','Ma','Ti','Ke','To','Pe','La'];
+      var MON4    = ['tam','hel','maa','huh','tou','kes','hei','elo','syy','lok','mar','jou'];
 
-      /* Slottileveys indeksin mukaan */
-      function _w(ei, actI, hovI) {
-        if (ei === actI) return ACT_W;
-        if (ei === hovI) return HOV_W;
-        return SLOT_W;
+      /* Aseta slottien leveys CSS-muuttujana */
+      win.style.setProperty('--tp-slot-w', SLOT_W + 'px');
+      els.forEach(function(el) { el.style.width = SLOT_W + 'px'; });
+
+      /* Padding: ensimmäinen ja viimeinen slotti snäppää keskelle */
+      var winW = win.offsetWidth;
+      var pad  = Math.max(0, Math.floor((winW - SLOT_W) / 2));
+      inner.style.paddingLeft  = pad + 'px';
+      inner.style.paddingRight = pad + 'px';
+
+      /* Scroll slotti idx:lle — behavior smooth tai instant */
+      function _scrollTo(idx, smooth) {
+        var target = idx * SLOT_W;  /* inner-koordinaatti ilman paddingia */
+        win.scrollTo({ left: target, behavior: smooth ? 'smooth' : 'instant' });
       }
 
-      /* Aseta slottien leveydet DOM:iin */
-      function _applyWidths(actI, hovI) {
-        els.forEach(function(el) {
-          el.style.width = _w(parseInt(el.dataset.tpidx), actI, hovI) + 'px';
-        });
+      /* Alku-scroll ilman animaatiota */
+      _scrollTo(curIdx, false);
+
+      /* Laske mikä slotti on lähimpänä scrollin keskipistettä */
+      function _idxFromScroll() {
+        var center = win.scrollLeft;
+        var ni = Math.round(center / SLOT_W);
+        return Math.max(0, Math.min(maxIdx, ni));
       }
 
-      /* Laske translateX niin että slotti targetI on tasan ikkunan keskellä.
-         Lasketaan kumulatiivinen x summaamalla kaikkien ennen targetI olevien
-         slottien leveydet, sitten poistetaan ikkunan puolikas ja myW/2. */
-      function _calcOffset(targetI, actI, hovI) {
-        var winW = win.offsetWidth;
-        var x = 0;
-        for (var i = 0; i < els.length; i++) {
-          var ei = parseInt(els[i].dataset.tpidx);
-          if (ei === targetI) {
-            var myW = _w(ei, actI, hovI);
-            return winW / 2 - (x + myW / 2);
-          }
-          x += _w(ei, actI, hovI);
-        }
-        return 0;
-      }
-
-      /* Löydä slotti joka on lähimpänä ikkunan keskipistettä nykyisellä offsetilla */
-      function _nearestIdx(actI, hovI) {
-        var winW = win.offsetWidth;
-        var cx = winW / 2 - offset;  /* cursor x inner-koordinaatistossa */
-        var x = 0, best = curIdx, bestD = Infinity;
-        for (var i = 0; i < els.length; i++) {
-          var ei = parseInt(els[i].dataset.tpidx);
-          var w  = _w(ei, actI, hovI);
-          var d  = Math.abs(cx - (x + w / 2));
-          if (d < bestD) { bestD = d; best = ei; }
-          x += w;
-        }
-        return best;
-      }
-
-      /* Hover dragin aikana — vain visuaalinen, ei datapäivitystä */
-      function _applyHover(newHov) {
-        if (newHov === hovIdx) return;
-        hovIdx = newHov;
+      /* Päivitä active/past/near -luokat ja päivätekstit */
+      function _updateClasses(activeI, nearI) {
         els.forEach(function(el) {
           var ei = parseInt(el.dataset.tpidx);
-          el.classList.toggle('hover', ei === hovIdx && ei !== curIdx);
-          el.style.width = _w(ei, curIdx, hovIdx) + 'px';
-        });
-        /* Päivitä offset hoverin leveysmuutoksen jälkeen ilman animaatiota */
-        if (hovIdx >= 0) {
-          offset = _calcOffset(hovIdx !== curIdx ? hovIdx : curIdx, curIdx, hovIdx);
-          inner.style.transform = 'translateX(' + offset.toFixed(1) + 'px)';
-        }
-      }
-
-      /* Snap: aseta active-luokat + animoi offset + kutsu datapäivitys */
-      function _snapTo(idx) {
-        /* Puhdista hover */
-        hovIdx = -1;
-        els.forEach(function(el) { el.classList.remove('hover'); });
-
-        /* Active/past luokat + päiväteksti */
-        var DAY4 = ['Su','Ma','Ti','Ke','To','Pe','La'];
-        var MON4 = ['tam','hel','maa','huh','tou','kes','hei','elo','syy','lok','mar','jou'];
-        var times2 = State._tlTimes || [];
-        els.forEach(function(el) {
-          var ei = parseInt(el.dataset.tpidx);
-          var isAct = ei === idx;
-          var isPst = ei < idx;
-          el.classList.toggle('active', isAct);
-          el.classList.toggle('past',   isPst);
-          el.style.width = _w(ei, idx, -1) + 'px';
-          /* Päiväteksti: aktiivisella aina, muilla vain päivänvaihdos */
-          var dayEl = el.querySelector('.sh-tpslot-day');
+          el.classList.toggle('active', ei === activeI);
+          el.classList.toggle('past',   ei < activeI);
+          el.classList.toggle('near',   ei === nearI && ei !== activeI);
+          /* Päivämäärä-teksti: aktiiviselle aina, muille päivänvaihdos */
+          var dayEl  = el.querySelector('.sh-tpslot-day');
           var timeEl = el.querySelector('.sh-tpslot-time');
-          if (dayEl && times2[ei]) {
-            var d2 = new Date(times2[ei]);
-            var prevD2 = ei > 0 && times2[ei-1] ? new Date(times2[ei-1]) : null;
+          if (dayEl && times[ei]) {
+            var d2 = new Date(times[ei]);
+            var prevD2 = ei > 0 && times[ei-1] ? new Date(times[ei-1]) : null;
             var isNewDay = !prevD2 || prevD2.getDate() !== d2.getDate();
-            var showDay = isAct || isNewDay;
+            var showDay  = (ei === activeI) || isNewDay;
             if (showDay) {
-              dayEl.textContent = DAY4[d2.getDay()] + ' ' + d2.getDate() + '. ' + MON4[d2.getMonth()];
+              dayEl.textContent = DAY4[d2.getDay()]+' '+d2.getDate()+'. '+MON4[d2.getMonth()];
               dayEl.classList.add('vis');
             } else {
               dayEl.textContent = '';
               dayEl.classList.remove('vis');
             }
-            /* Kellonaika */
-            if (timeEl) {
-              timeEl.textContent = ('0' + d2.getHours()).slice(-2) + ':00';
-            }
+            if (timeEl) timeEl.textContent = ('0'+d2.getHours()).slice(-2)+':00';
           }
         });
-
-        curIdx = idx;
-        offset = _calcOffset(idx, idx, -1);
-        inner.style.transition = 'transform .2s cubic-bezier(.25,.46,.45,.94)';
-        inner.style.transform  = 'translateX(' + offset.toFixed(1) + 'px)';
-        _tpGoTo(idx);
       }
 
-      /* ── Alustus ─────────────────────────────────────────────── */
-      _applyWidths(curIdx, -1);
-      /* Pakota layout ennen offset-laskua */
-      requestAnimationFrame(function() {
-        offset = _calcOffset(curIdx, curIdx, -1);
-        inner.style.transition = 'none';
-        inner.style.transform  = 'translateX(' + offset.toFixed(1) + 'px)';
-      });
+      /* ── scroll-event: reaaliaikainen near-korostus ───────────
+         Tämä pyörii natiivisti selaimen compositorissa — ei JS blokkaa */
+      var _scrollDebounce = null;
+      win.addEventListener('scroll', function() {
+        var ni = _idxFromScroll();
+        /* Near = snap-kandidaatti, active = vahvistettu */
+        _updateClasses(curIdx, ni);
+        /* Debounce scrollin loppumiselle (fallback scrollend:lle) */
+        clearTimeout(_scrollDebounce);
+        _scrollDebounce = setTimeout(function() {
+          var settled = _idxFromScroll();
+          if (settled !== curIdx) {
+            curIdx = settled;
+            _updateClasses(curIdx, -1);
+            _tpGoTo(curIdx);
+          }
+        }, 120);
+      }, { passive: true });
+
+      /* scrollend = moderni Safari 16.4+ tarkka event */
+      if ('onscrollend' in win) {
+        win.addEventListener('scrollend', function() {
+          clearTimeout(_scrollDebounce);
+          var settled = _idxFromScroll();
+          if (settled !== curIdx) {
+            curIdx = settled;
+            _updateClasses(curIdx, -1);
+            _tpGoTo(curIdx);
+          }
+        }, { passive: true });
+      }
 
       /* ── Nuolipainikkeet ─────────────────────────────────────── */
       if (prev) prev.addEventListener('click', function(e) {
         e.stopPropagation();
-        _snapTo(Math.max(0, curIdx - 1));
+        var ni = Math.max(0, curIdx - 1);
+        _scrollTo(ni, true);
       }, { passive: true });
       if (next) next.addEventListener('click', function(e) {
         e.stopPropagation();
-        _snapTo(Math.min(maxIdx, curIdx + 1));
+        var ni = Math.min(maxIdx, curIdx + 1);
+        _scrollTo(ni, true);
       }, { passive: true });
 
-      /* ── Slotti-klikkaus ─────────────────────────────────────── */
+      /* ── Klikkaus slottiin ───────────────────────────────────── */
       inner.addEventListener('click', function(e) {
-        if (_dragged) { _dragged = false; return; }
         var sl = e.target.closest('[data-tpidx]');
         if (!sl) return;
         var ni = parseInt(sl.dataset.tpidx);
-        if (!isNaN(ni) && ni !== curIdx) _snapTo(ni);
+        if (!isNaN(ni)) _scrollTo(ni, true);
       }, { passive: true });
-
-      /* ── Touch drag ──────────────────────────────────────────── */
-      win.addEventListener('touchstart', function(e) {
-        var t = e.touches[0];
-        _startX   = t.clientX;
-        _lastX    = t.clientX;
-        _startOff = offset;
-        _dragged  = false;
-        _velX     = 0;
-        inner.style.transition = 'none';
-      }, { passive: true });
-
-      win.addEventListener('touchmove', function(e) {
-        if (_startX === null) return;
-        var t  = e.touches[0];
-        var dx = t.clientX - _startX;
-        _velX  = t.clientX - _lastX;
-        _lastX = t.clientX;
-        if (!_dragged && Math.abs(dx) > 6) _dragged = true;
-        if (!_dragged) return;
-        e.preventDefault();
-        offset = _startOff + dx;
-        inner.style.transform = 'translateX(' + offset.toFixed(1) + 'px)';
-        /* Hover: mikä slotti on keskellä? */
-        var ni = _nearestIdx(curIdx, hovIdx);
-        if (ni !== curIdx) _applyHover(ni);
-        else if (hovIdx >= 0) { hovIdx = -1; els.forEach(function(el){ el.classList.remove('hover'); el.style.width = _w(parseInt(el.dataset.tpidx), curIdx, -1)+'px'; }); }
-      }, { passive: false });
-
-      win.addEventListener('touchend', function(e) {
-        if (_startX === null) return;
-        _startX = null;
-        if (!_dragged) return;
-        /* Momentum: rajoitettu ±2 slottia */
-        var mom = Math.max(-2, Math.min(2, Math.round(-_velX * 1.8 / SLOT_W)));
-        var ni  = _nearestIdx(curIdx, hovIdx);
-        ni = Math.max(0, Math.min(maxIdx, ni + mom));
-        _snapTo(ni);
-      }, { passive: true });
-
-      /* ── Mouse drag (desktop) ────────────────────────────────── */
-      var _md = false, _msx = null, _msOff = null, _mdr = false;
-      win.addEventListener('mousedown', function(e) {
-        _md = true; _msx = e.clientX; _msOff = offset; _mdr = false;
-        inner.style.transition = 'none'; e.preventDefault();
-      });
-      window.addEventListener('mousemove', function(e) {
-        if (!_md) return;
-        var dx = e.clientX - _msx;
-        if (Math.abs(dx) > 5) _mdr = true;
-        if (!_mdr) return;
-        offset = _msOff + dx;
-        inner.style.transform = 'translateX(' + offset.toFixed(1) + 'px)';
-        var ni = _nearestIdx(curIdx, hovIdx);
-        if (ni !== curIdx) _applyHover(ni);
-      });
-      window.addEventListener('mouseup', function() {
-        if (!_md) return; _md = false;
-        if (!_mdr) { _mdr = false; return; }
-        _mdr = false;
-        _snapTo(Math.max(0, Math.min(maxIdx, _nearestIdx(curIdx, hovIdx))));
-      });
     });
   })();
       /* Tausta hivelee tuulen mukaan */
