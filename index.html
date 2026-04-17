@@ -5263,14 +5263,13 @@ function _fmiDropdown(panelEl, stations, selected, onSelect) {
       item.querySelector('.fmi-dropdown-item-dist').insertAdjacentHTML('afterend','<span class="fmi-dropdown-item-check">✓</span>');
       updateTrigger(st);
       onSelect(st);
-    }, { passive: true });
+    });
     menu.appendChild(item);
   });
 
   trigger.addEventListener('click', function(e) {
     e.stopPropagation();
     const isOpen = menu.classList.contains('open');
-    /* Sulje muut avoimet dropdownit */
     document.querySelectorAll('.fmi-dropdown-menu.open').forEach(function(m){ m.classList.remove('open'); });
     document.querySelectorAll('.fmi-station-trigger.open').forEach(function(t){ t.classList.remove('open'); });
     if (!isOpen) {
@@ -5278,17 +5277,15 @@ function _fmiDropdown(panelEl, stations, selected, onSelect) {
       trigger.classList.add('open');
       if (typeof Haptics !== 'undefined') Haptics.light();
     }
-  }, { passive: true });
+  });
 
-  /* Sulje klikkaamalla muualle — setTimeout estää saman klikkauksen laukaisun */
-  setTimeout(function() {
-    document.addEventListener('click', function _closeFmiDd(e) {
-      if (wrap.contains(e.target)) return; /* klikkaus dropdownin sisällä → ei sulje */
-      menu.classList.remove('open');
-      trigger.classList.remove('open');
-      document.removeEventListener('click', _closeFmiDd, true);
-    }, { capture: true, passive: true });
-  }, 0);
+  /* Sulje klikkaamalla muualle — pysyvä listener */
+  document.addEventListener('click', function _closeFmiDd(e) {
+    if (!menu.classList.contains('open')) return;
+    if (wrap.contains(e.target)) return;
+    menu.classList.remove('open');
+    trigger.classList.remove('open');
+  }, { passive: true });
 
   wrap.appendChild(trigger);
   wrap.appendChild(menu);
@@ -5373,7 +5370,7 @@ function _renderLiveHistory(el, data, wx) {
 
   el.innerHTML=
     '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0">'
-      +'<div id="'+svgId+'-fmidd" style="min-width:0;overflow:hidden"></div>'
+      +'<div id="'+svgId+'-fmidd" style="flex:1;min-width:0;overflow:visible"></div>'
       +'<div style="display:flex;flex-shrink:0;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
         +segBtns
       +'</div>'
