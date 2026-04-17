@@ -4669,30 +4669,14 @@ function openSheet(spot, hourIdx) {
           + '</div>';
         })()
     + '</div>'
-    /* Sun bar */
-    + buildSunBar()
-
-    /* Foil badge — pill */
-    + '<div class="sh-foil-badge ' + badge.cls + '" style="display:inline-flex">'
-      + '<span class="badge-icon">' + badge.icon + '</span>'
-      + badge.text
-    + '</div>'
-
-    /* Stat-rivi: otsikko + Lämpö+Kaste · Vesi · Tuuli · Puuskaisuus */
-    + '<div style="font-family:DM Mono,monospace;font-size:8px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'
-    + '<div class="sh-stats" id="sh-stats-live">'
-      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')
-      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, '°C', null))
-      + _fmiLinkCard(fmiId)
-      + _gustStatCard(gi)
-    + '</div>'
-
-    /* 24h tuuliennuste — heti stat-rivin jälkeen */
+    /* Foil badge */
+    + '<div class="sh-foil-badge ' + badge.cls + '" style="display:inline-flex">'      + '<span class="badge-icon">' + badge.icon + '</span>'      + badge.text    + '</div>'
+    /* 24h tuuliennuste — heti sliderin ja foil-badgen jälkeen */
     + build24hChart()
-
-    /* Wind rose — heti 24h ennusteen jälkeen */
-    + buildWindRoseSVG(h, idx)
-
+    /* Havainnot-rivi */
+    + '<div style="font-family:DM Mono,monospace;font-size:8px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, '°C', null))      + _fmiLinkCard(fmiId)      + (function(){          var fmiGustId = fmiId + '-gust-lnk';          var gstFmt = Units.fmt(gst);          var gcc = ColorRamp.rgb(gst);          var gcol = 'rgb('+gcc.r+','+gcc.g+','+gcc.b+')';          return '<div class="sh-stat" id="'+fmiGustId+'">'            + '<span class="sh-stat-label">💨 Puuska</span>'            + '<span class="sh-stat-value" id="'+fmiGustId+'-val" style="color:'+gcol+'">'+gstFmt+'</span>'            + '<span class="sh-stat-sub" id="'+fmiGustId+'-sub">'+Units.label()+' enn.</span>'          + '</div>';        })()    + '</div>'
+    /* Aurinkokaari — tuuliruusun tilalle */
+    + buildSunBar()
     + '<div style="height:8px"></div>'
 
     /* FMI historia-kaavio */
@@ -5027,6 +5011,14 @@ function _updateFmiCard(fmiId, fmi) {
   if (lv && fmi.ws != null) { lv.textContent = Units.fmt(fmi.ws); lv.style.color = col; }
   if (ln && fmi.station) ln.textContent = fmi.station;
   if (ls) ls.textContent = fmi.time ? fmi.time : '—';
+  /* Päivitä havaintopuuska-kortti */
+  if (fmi.wg != null) {
+    var gv2 = document.getElementById(fmiId+'-gust-lnk-val');
+    var gs2 = document.getElementById(fmiId+'-gust-lnk-sub');
+    var gcc2 = ColorRamp.rgb(fmi.wg || 0);
+    if (gv2) { gv2.textContent = Units.fmt(fmi.wg); gv2.style.color = 'rgb('+gcc2.r+','+gcc2.g+','+gcc2.b+')'; }
+    if (gs2) { gs2.textContent = Units.label()+' hav.'; gs2.style.color = 'rgba(255,255,255,.35)'; }
+  }
 }
 
 function _updateUirasCard(waterStatId, temp, stationName) {
