@@ -3476,10 +3476,11 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
   }
 
-  /* X-akseli */
+  /* X-akseli — max ~6 labelia, stp dynaamisesti */
   var xl='';
   var ms0=new Date(draw[0].t).getTime(), ms1=new Date(draw[n-1].t).getTime();
-  var stp=(ms1-ms0)>14*864e5?7*864e5:864e5;
+  var totalDays=(ms1-ms0)/864e5;
+  var stp=totalDays>60?14*864e5:totalDays>21?7*864e5:totalDays>7?2*864e5:864e5;
   var t0=new Date(ms0); t0.setHours(0,0,0,0);
   for(var tt=t0.getTime(); tt<=ms1; tt+=stp){
     if(tt<ms0) continue;
@@ -3643,24 +3644,28 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
       },{passive:true});
       menu.appendChild(item);
     });
-    tr.addEventListener('click',function(e){
-      e.stopPropagation();
-      var open=menu.style.display==='block';
-      document.querySelectorAll('.uiras-menu-open').forEach(function(m){m.style.display='none';m.classList.remove('uiras-menu-open');});
-      if(!open){menu.style.display='block';menu.classList.add('uiras-menu-open');if(typeof Haptics!=='undefined')Haptics.light();}
-    },{passive:true});
-    setTimeout(function() {
-      document.addEventListener('click', function _closeUirasDd(e) {
-        if (wrap.contains(e.target)) return;
-        menu.style.display='none';
-        menu.classList.remove('uiras-menu-open');
-        document.removeEventListener('click', _closeUirasDd, true);
-      }, { capture: true, passive: true });
-    }, 0);
     var wrap=document.createElement('div');
     wrap.style.cssText='position:relative;display:inline-block';
     wrap.appendChild(tr);wrap.appendChild(menu);
     ddEl.appendChild(wrap);
+    tr.addEventListener('click',function(e){
+      e.stopPropagation();
+      var open=menu.style.display==='block';
+      document.querySelectorAll('.uiras-menu-open').forEach(function(m){m.style.display='none';m.classList.remove('uiras-menu-open');});
+      if(!open){
+        menu.style.display='block';
+        menu.classList.add('uiras-menu-open');
+        if(typeof Haptics!=='undefined')Haptics.light();
+        setTimeout(function(){
+          document.addEventListener('click',function _cUd(e){
+            if(wrap.contains(e.target))return;
+            menu.style.display='none';
+            menu.classList.remove('uiras-menu-open');
+            document.removeEventListener('click',_cUd,true);
+          },{capture:true,passive:true});
+        },0);
+      }
+    },{passive:true});
   } else if(ddEl){
     ddEl.innerHTML='<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.5)">🌊 '+(stationName||'Vedenlämpö')+'</span>';
   }
@@ -4026,8 +4031,8 @@ function openSheet(spot, hourIdx) {
       + (function(){
           var tx = (nowN * VW).toFixed(1);
           /* Tikki: pieni pystyviiva horisontin alla */
-          return '<line x1="'+tx+'" y1="'+HOR_Y+'" x2="'+tx+'" y2="'+(HOR_Y+5)+'"'            + ' stroke="rgba(0,207,255,.7)" stroke-width="2" stroke-linecap="round"/>'            /* Teksti: valittu kellonaika */
-            + '<text x="'+tx+'" y="'+(HOR_Y+14)+'" font-family="DM Mono,monospace" font-size="8"'            + ' fill="rgba(0,207,255,'+(isSelectedNow?'0':'.55')+')" text-anchor="'            + (nowN < 0.15 ? 'start' : nowN > 0.85 ? 'end' : 'middle')+'"'            + '>'+('0'+new Date(nowMs).getHours()).slice(-2)+':00</text>';
+          return '<line x1="'+tx+'" y1="'+HOR_Y+'" x2="'+tx+'" y2="'+(HOR_Y+5)+'"'            + ' stroke="rgba(255,255,255,.45)" stroke-width="1.5" stroke-linecap="round"/>'            /* Teksti: valittu kellonaika */
+            + '<text x="'+tx+'" y="'+(HOR_Y+14)+'" font-family="DM Mono,monospace" font-size="8"'            + ' fill="rgba(255,255,255,'+(isSelectedNow?'0':'.4')+')" text-anchor="'            + (nowN < 0.15 ? 'start' : nowN > 0.85 ? 'end' : 'middle')+'"'            + '>'+('0'+new Date(nowMs).getHours()).slice(-2)+':00</text>';
         })()
 
       /* Kellonajat — piilota jos valittu-merkki liian lähellä */
@@ -4258,7 +4263,7 @@ function openSheet(spot, hourIdx) {
       });
 
       var svg='<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" '
-        + 'preserveAspectRatio="none" style="display:block;'+(isFluid?'width:calc(100% + '+Y_PAD+'px);margin-left:-'+Y_PAD+'px':'width:'+W+'px')+';height:'+(CHART_H+LABEL_H)+'px;touch-action:none">'
+        + 'preserveAspectRatio="none" style="display:block;'+(isFluid?'width:calc(100% + 20px)':'width:'+W+'px')+';height:'+(CHART_H+LABEL_H)+'px;touch-action:none">'
         + '<defs>'+bgDefs+windLinGrad+'</defs>'
         /* Gradientti ensin taustalle, sitten grid-viivat päälle */
         + bgRects
@@ -4285,8 +4290,9 @@ function openSheet(spot, hourIdx) {
     var peakSl=getSlice('24h');
     var peakMs2=0,peakH2='';
     var ns2=0;
+    /* Käytetään selectedTime (valittu aika) eikä nowMs (nykyinen aika) */
     for(var ii=0;ii<peakSl.times.length;ii++){
-      if(peakSl.times[ii]&&new Date(peakSl.times[ii]).getTime()>=nowMs){ns2=ii;break;}
+      if(peakSl.times[ii]&&new Date(peakSl.times[ii]).getTime()>=selectedTime){ns2=ii;break;}
     }
     for(var jj=ns2;jj<peakSl.vals.length;jj++){
       if(peakSl.vals[jj]>peakMs2){peakMs2=peakSl.vals[jj];peakH2=fmtHour(peakSl.times[jj]);}
@@ -4321,7 +4327,7 @@ function openSheet(spot, hourIdx) {
       +'</div>'
       +legendHtml
       /* Scroll-wrapper: 24h ei scrollaa, pidemmissa vaakaScroll */
-      +'<div id="'+sectionId+'-wrap" style="position:relative;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-left:-'+Y_PAD+'px;padding-left:'+Y_PAD+'px">'
+      +'<div id="'+sectionId+'-wrap" style="position:relative;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -20px;padding:0 0 0 '+Y_PAD+'px">'
         +tipHtml
         +firstDraw.svg
       +'</div>'
