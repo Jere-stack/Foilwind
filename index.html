@@ -3431,7 +3431,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   var periods=[['7d','7 vrk'],['30d','30 vrk'],['all','Max']];
   var segBtns=periods.map(function(pv){
     var a=pv[0]===period;
-    return '<button data-up="'+pv[0]+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:5px 0;border:none;'
+    return '<button data-up="'+pv[0]+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:4px 6px;border:none;white-space:nowrap;'
       +'background:'+(a?'rgba(0,210,255,.18)':'transparent')+';'
       +'color:'+(a?'rgba(0,220,255,.95)':'rgba(255,255,255,.35)')+';'
       +'border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+pv[1]+'</button>';
@@ -3439,17 +3439,17 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
 
   el.innerHTML=
     /* Header */
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-      +'<div id="'+svgId+'-dd" style="min-width:0"></div>'
-      +'<div style="display:flex;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0">'
+      +'<div id="'+svgId+'-dd" style="min-width:0;overflow:hidden"></div>'
+      +'<div style="display:flex;flex-shrink:0;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
         +segBtns
       +'</div>'
     +'</div>'
 
     /* SVG */
-    +'<div style="position:relative;margin:0 0 0 -36px;padding-left:36px">'
+    +'<div style="position:relative">'
       +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid rgba(0,207,255,.25);border-radius:12px;padding:8px 14px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;transform:translateX(-50%);transition:left .05s,top .05s"></div>'
-      +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block;touch-action:none;overflow:visible">'
+      +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:calc(100% + 36px);margin-left:-36px;display:block;touch-action:none;overflow:visible">'
         +'<defs>'
           +'<linearGradient id="'+gradId+'" x1="0" y1="0" x2="0" y2="1">'
             +'<stop offset="0%" stop-color="rgba(0,207,255,.3)"/>'
@@ -4025,7 +4025,7 @@ function openSheet(spot, hourIdx) {
       });
 
       var svg='<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" '
-        + 'preserveAspectRatio="none" style="display:block;'+(isFluid?'width:100%':'width:'+W+'px')+';height:'+(CHART_H+LABEL_H)+'px;touch-action:none">'
+        + 'preserveAspectRatio="none" style="display:block;'+(isFluid?'width:calc(100% + '+Y_PAD+'px);margin-left:-'+Y_PAD+'px':'width:'+W+'px')+';height:'+(CHART_H+LABEL_H)+'px;touch-action:none">'
         + '<defs>'+bgDefs+windLinGrad+'</defs>'
         /* Gradientti ensin taustalle, sitten grid-viivat päälle */
         + bgRects
@@ -4060,10 +4060,10 @@ function openSheet(spot, hourIdx) {
     }
 
     /* Period-napit — segmented control */
-    var periodBtns='<div style="display:flex;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
+    var periodBtns='<div style="display:flex;flex-shrink:0;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
       +PERIODS.map(function(p){
         var a=p.key===activePeriod;
-        return '<button data-cp="'+p.key+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:5px 0;border:none;background:'+(a?'rgba(100,220,255,.18)':'transparent')+';color:'+(a?'rgba(100,220,255,.95)':'rgba(255,255,255,.35)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p.label+'</button>';
+        return '<button data-cp="'+p.key+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:4px 6px;border:none;white-space:nowrap;background:'+(a?'rgba(100,220,255,.18)':'transparent')+';color:'+(a?'rgba(100,220,255,.95)':'rgba(255,255,255,.35)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p.label+'</button>';
       }).join('')+'</div>';
 
     /* Legenda -- paivitetaan kun mallit latautuu */
@@ -4079,7 +4079,7 @@ function openSheet(spot, hourIdx) {
     var firstDraw=buildSvg(activePeriod);
 
     var section='<div class="sh-24h-section" id="'+sectionId+'">'
-      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0">'
         +'<div>'
           +'<div class="sh-24h-title">Tuuliennuste</div>'
           +(peakMs2>0?'<div class="sh-24h-peak">&#8593; '+Units.fmt(peakMs2)+' '+Units.label()+' klo '+peakH2+'</div>':'')
@@ -4088,7 +4088,7 @@ function openSheet(spot, hourIdx) {
       +'</div>'
       +legendHtml
       /* Scroll-wrapper: 24h ei scrollaa, pidemmissa vaakaScroll */
-      +'<div id="'+sectionId+'-wrap" style="position:relative;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 0 0 -'+Y_PAD+'px;padding:0 0 0 '+Y_PAD+'px">'
+      +'<div id="'+sectionId+'-wrap" style="position:relative;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none">'
         +tipHtml
         +firstDraw.svg
       +'</div>'
@@ -4962,19 +4962,19 @@ function _renderLiveHistory(el, data, wx) {
   /* Segment control */
   var segBtns=['12h','24h'].map(function(p){
     var a=(p==='12h'&&hours===12)||(p==='24h'&&hours===24);
-    return '<button data-fmi-period="'+p+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:5px 0;border:none;background:'+(a?'rgba(100,255,160,.15)':'transparent')+';color:'+(a?'rgba(100,255,160,.95)':'rgba(255,255,255,.35)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p+'</button>';
+    return '<button data-fmi-period="'+p+'" style="flex:1;font-family:DM Mono,monospace;font-size:9px;padding:4px 8px;border:none;white-space:nowrap;background:'+(a?'rgba(100,255,160,.15)':'transparent')+';color:'+(a?'rgba(100,255,160,.95)':'rgba(255,255,255,.35)')+';border-radius:8px;cursor:pointer;-webkit-user-select:none;user-select:none;transition:all .15s">'+p+'</button>';
   }).join('');
 
   el.innerHTML=
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
-      +'<div id="'+svgId+'-fmidd"></div>'
-      +'<div style="display:flex;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0">'
+      +'<div id="'+svgId+'-fmidd" style="min-width:0;overflow:hidden"></div>'
+      +'<div style="display:flex;flex-shrink:0;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
         +segBtns
       +'</div>'
     +'</div>'
-    +'<div style="position:relative;margin:0 0 0 -32px;padding-left:32px">'
+    +'<div style="position:relative">'
       +'<div id="'+svgId+'-tip" style="display:none;position:absolute;background:rgba(4,8,20,.97);border:1px solid rgba(100,255,160,.2);border-radius:12px;padding:8px 14px;pointer-events:none;white-space:nowrap;box-shadow:0 8px 32px rgba(0,0,0,.7);z-index:100;transform:translateX(-50%)"></div>'
-      +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:100%;display:block;touch-action:none;overflow:visible">'
+      +'<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" style="width:calc(100% + 32px);margin-left:-32px;display:block;touch-action:none;overflow:visible">'
         +'<defs>'
           +'<linearGradient id="'+wsGId+'-wind" x1="0" y1="0" x2="1" y2="0">'
             +windGradStops
@@ -4995,7 +4995,7 @@ function _renderLiveHistory(el, data, wx) {
         +(lastYwg!=null?'<circle cx="'+lastX.toFixed(1)+'" cy="'+lastYwg.toFixed(1)+'" r="3" fill="rgba(255,200,100,.9)" stroke="rgba(255,255,255,.3)" stroke-width="1" pointer-events="none"/>':'')
         +'<line id="'+svgId+'-vline" x1="-1" y1="'+padY+'" x2="-1" y2="'+H+'" stroke="rgba(255,255,255,.35)" stroke-width="1" stroke-dasharray="3,3" pointer-events="none" visibility="hidden"/>'
         +'<circle id="'+svgId+'-dot-ws" cx="-1" cy="-1" r="4.5" fill="rgba(100,255,160,.95)" stroke="rgba(255,255,255,.5)" stroke-width="1.5" pointer-events="none" visibility="hidden"/>'
-        +(wgU.length?'<circle id="'+svgId+'-dot-wg" cx="-1" cy="-1" r="3.5" fill="rgba(255,200,100,.9)" stroke="rgba(255,255,255,.3)" stroke-width="1" pointer-events="none"/>':'')
+        +(wgU.length?'<circle id="'+svgId+'-dot-wg" cx="-1" cy="-1" r="3.5" fill="rgba(255,200,100,.9)" stroke="rgba(255,255,255,.3)" stroke-width="1" pointer-events="none" visibility="hidden"/>':'')
         +'<rect id="'+svgId+'-hit" x="'+padX+'" y="'+padY+'" width="'+(W-padX-8)+'" height="'+(H-padY)+'" fill="transparent" style="cursor:crosshair"/>'
         +xlbls
       +'</svg>'
