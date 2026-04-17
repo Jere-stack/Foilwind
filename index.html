@@ -831,8 +831,6 @@ transition: opacity .3s, transform .3s;
 /* ============================================================
 LOADING  z:9999
 ============================================================ */
-@import url(‘https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap’);
-
 #loading {
 position: fixed; inset: 0; z-index: 9999;
 display: flex; flex-direction: column; align-items: center;
@@ -934,18 +932,6 @@ margin-top: auto;
 margin-bottom: calc(env(safe-area-inset-bottom) + 52px);
 display: flex; flex-direction: column; align-items: center;
 text-align: center; padding: 0 32px;
-}
-
-/* Slogan — kaunokirjoitus */
-#load-slogan {
-font-family: ‘Dancing Script’, cursive;
-font-size: 26px; font-weight: 600;
-background: linear-gradient(135deg, rgba(255,220,140,1) 0%, rgba(255,170,70,1) 50%, rgba(255,130,60,.9) 100%);
--webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-filter: drop-shadow(0 0 12px rgba(255,180,80,.35));
-line-height: 1.3; margin-bottom: 28px;
-animation: loadFadeUp .8s .35s ease both;
-letter-spacing: .3px;
 }
 
 /* Progressbar */
@@ -1280,7 +1266,6 @@ border-color: rgba(0,207,255,.4);
 
 <!-- Alaosa: slogan + latauspalkki -->
 <div id="load-bottom">
-  <div id="load-slogan">Tuuli. Paikka. Hetki.</div>
   <div id="load-progress-wrap">
     <div id="load-progress-bar"></div>
   </div>
