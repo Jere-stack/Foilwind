@@ -3476,11 +3476,11 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     yLabels+='<line x1="'+padX+'" y1="'+gy.toFixed(1)+'" x2="'+(W-8)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(255,255,255,.05)" stroke-width="1"/>';
   }
 
-  /* X-akseli — max ~6 labelia, stp dynaamisesti */
+  /* X-akseli — max 4 labelia, stp dynaamisesti */
   var xl='';
   var ms0=new Date(draw[0].t).getTime(), ms1=new Date(draw[n-1].t).getTime();
   var totalDays=(ms1-ms0)/864e5;
-  var stp=totalDays>60?14*864e5:totalDays>21?7*864e5:totalDays>7?2*864e5:864e5;
+  var stp=totalDays>120?30*864e5:totalDays>60?14*864e5:totalDays>21?7*864e5:totalDays>7?3*864e5:864e5;
   var t0=new Date(ms0); t0.setHours(0,0,0,0);
   for(var tt=t0.getTime(); tt<=ms1; tt+=stp){
     if(tt<ms0) continue;
@@ -3649,23 +3649,22 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     wrap.appendChild(tr);wrap.appendChild(menu);
     ddEl.appendChild(wrap);
     tr.addEventListener('click',function(e){
-      e.stopPropagation();
+      e.stopPropagation();  /* tarvitsee non-passive */
       var open=menu.style.display==='block';
       document.querySelectorAll('.uiras-menu-open').forEach(function(m){m.style.display='none';m.classList.remove('uiras-menu-open');});
       if(!open){
         menu.style.display='block';
         menu.classList.add('uiras-menu-open');
         if(typeof Haptics!=='undefined')Haptics.light();
-        setTimeout(function(){
-          document.addEventListener('click',function _cUd(e){
-            if(wrap.contains(e.target))return;
-            menu.style.display='none';
-            menu.classList.remove('uiras-menu-open');
-            document.removeEventListener('click',_cUd,true);
-          },{capture:true,passive:true});
-        },0);
       }
-    },{passive:true});
+    });  /* ei passive — stopPropagation toimii */
+
+    document.addEventListener('click',function _cUd(e){
+      if(!menu.classList.contains('uiras-menu-open'))return;
+      if(wrap.contains(e.target))return;
+      menu.style.display='none';
+      menu.classList.remove('uiras-menu-open');
+    },{capture:false,passive:true});
   } else if(ddEl){
     ddEl.innerHTML='<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.5)">🌊 '+(stationName||'Vedenlämpö')+'</span>';
   }
@@ -4263,7 +4262,7 @@ function openSheet(spot, hourIdx) {
       });
 
       var svg='<svg id="'+svgId+'" viewBox="0 0 '+W+' '+TH+'" '
-        + 'preserveAspectRatio="none" style="display:block;'+(isFluid?'width:calc(100% + 20px)':'width:'+W+'px')+';height:'+(CHART_H+LABEL_H)+'px;touch-action:none">'
+        + 'preserveAspectRatio="none" style="display:block;'+(isFluid?'width:calc(100% + '+Y_PAD+'px)':'width:'+W+'px')+';height:'+(CHART_H+LABEL_H)+'px;touch-action:none">'
         + '<defs>'+bgDefs+windLinGrad+'</defs>'
         /* Gradientti ensin taustalle, sitten grid-viivat päälle */
         + bgRects
@@ -4327,7 +4326,7 @@ function openSheet(spot, hourIdx) {
       +'</div>'
       +legendHtml
       /* Scroll-wrapper: 24h ei scrollaa, pidemmissa vaakaScroll */
-      +'<div id="'+sectionId+'-wrap" style="position:relative;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -20px;padding:0 0 0 '+Y_PAD+'px">'
+      +'<div id="'+sectionId+'-wrap" style="position:relative;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-left:-'+Y_PAD+'px;margin-right:0">'
         +tipHtml
         +firstDraw.svg
       +'</div>'
