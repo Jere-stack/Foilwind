@@ -545,7 +545,8 @@ to   { opacity: 1; transform: translateX(0); }
 .sh-24h-section { animation: fadeSlideUp .4s .2s ease both; }
 .sh-stat-live-panel.open { animation: chartDraw .4s .25s ease both; }
 .sh-hero-top {
-display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+margin-bottom: 0;
 }
 .sh-hero-left { flex: 1; min-width: 0; }
 .sh-datetime { display: none; } /* korvattu pillillä */
@@ -640,19 +641,19 @@ margin-bottom: 2px; line-height: 1.15; word-break: break-word;
 .sh-desc {
 font-family: ‘DM Mono’, monospace; font-size: 10px; color: var(–muted);
 }
-.sh-hero-right { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.sh-hero-right { text-align: right; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
 .sh-big-wind {
-font-family: ‘DM Mono’, monospace; font-size: 56px; font-weight: 200;
-line-height: 0.85; letter-spacing: -3px;
+font-family: ‘DM Mono’, monospace; font-size: 40px; font-weight: 300;
+line-height: 0.9; letter-spacing: -1px;
 }
 .sh-big-unit {
-font-family: ‘DM Mono’, monospace; font-size: 13px; font-weight: 300;
-color: rgba(255,255,255,.35); letter-spacing: 1px;
-display: inline; margin-left: 3px; vertical-align: 8px;
+font-family: ‘DM Mono’, monospace; font-size: 11px; font-weight: 300;
+color: rgba(255,255,255,.35); letter-spacing: .5px;
+display: inline; margin-left: 2px; vertical-align: 4px;
 }
 .sh-big-gust {
-font-family: ‘DM Mono’, monospace; font-size: 10px; font-weight: 300;
-color: rgba(255,255,255,.3); margin-top: 4px; letter-spacing: 0.3px;
+font-family: ‘DM Mono’, monospace; font-size: 11px; font-weight: 400;
+color: rgba(255,255,255,.45); margin-top: 5px; letter-spacing: 0.2px;
 }
 .sh-hero-tags {
 display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
@@ -4598,85 +4599,76 @@ function openSheet(spot, hourIdx) {
   const fmiId = 'fmi-' + spot.name.replace(/\s/g, '_');
 
   document.getElementById('sheet-content').innerHTML =
-    /* Hero */
+    /* Hero — rakenne:
+       sh-hero
+         sh-hero-top  (flex row: vasen=nimi+desc+spottiindeksi, oikea=tuuli+puuska)
+         sh-timepill  (koko ruudun leveys, margin: 0 -20px)                        */
     '<div class="sh-hero">'
       + '<div class="sh-hero-top">'
-      + '<div class="sh-hero-left">'
-        + '<div class="sh-name">' + spot.name + '</div>'
-        + '<div class="sh-desc">' + spot.desc + '</div>'
-        + (()=>{
-            var tIdx  = idx;
-            var tArr  = h.time || [];
-            var isNow = Math.abs(new Date(tArr[tIdx]||0).getTime() - Date.now()) < 3600000;
-            var times = State._tlTimes || tArr;
-            var curIdx = State.currentHourIdx || 0;
-            var DAY3 = ['Su','Ma','Ti','Ke','To','Pe','La'];
-            var MON3 = ['tam','hel','maa','huh','tou','kes','hei','elo','syy','lok','mar','jou'];
-            /* Rakennetaan kaikki slotit — padding lisätään JS:ssä scrollaukseen */
-            var allSlots = times.map(function(t, ri) {
-              var d2 = new Date(t);
-              var isActive = ri === curIdx;
-              var isPast   = ri < curIdx;
-              var hStr = ('0'+d2.getHours()).slice(-2)+':00';
-              /* Päivämäärä: aktiiviisella aina, muilla päivänvaihdoksessa */
-              var prevD = ri > 0 ? new Date(times[ri-1]) : null;
-              var isNewDay = !prevD || prevD.getDate() !== d2.getDate();
-              var showDay = isActive || isNewDay;
-              var dayStr = showDay
-                ? DAY3[d2.getDay()]+' '+d2.getDate()+'. '+MON3[d2.getMonth()]
-                : '';
-              var cls = 'sh-tpslot'+(isActive?' active':'')+(isPast?' past':'');
-              return '<div class="'+cls+'" data-tpidx="'+ri+'">'
-                + '<div class="sh-tpslot-day'+(showDay?' vis':'')+'">'+dayStr+'</div>'
-                + (isActive && isNow
-                    ? '<span class="sh-tpslot-now">NYT</span><div class="sh-tpslot-time">'+hStr+'</div>'
-                    : '<div class="sh-tpslot-time">'+hStr+'</div>')
-              + '</div>';
-            }).join('');
-            return '<div id="sh-timepill" class="sh-timepill">'
-              + '<div class="sh-tp-arrow" id="sh-tp-prev">'
-                + '<svg width="9" height="15" viewBox="0 0 9 15" fill="none">'
-                  + '<polyline points="7,1 1,7.5 7,14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
-                + '</svg>'
-              + '</div>'
-              + '<div class="sh-tp-window" id="sh-tp-window">'
-                + '<div class="sh-tp-inner" id="sh-tp-inner">'+allSlots+'</div>'
-              + '</div>'
-              + '<div class="sh-tp-arrow" id="sh-tp-next">'
-                + '<svg width="9" height="15" viewBox="0 0 9 15" fill="none">'
-                  + '<polyline points="2,1 8,7.5 2,14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
-                + '</svg>'
-              + '</div>'
-            + '</div>';
-                                        })()
-        + (()=>{
-            const si = spotIndex(ms, dir, spot.bestDirs, gst);
-            const sc = spotIndexColor(si);
-            const svg = spotMarkerSVG(si, '', 56);
-            const dirs = spot.bestDirs ? spot.bestDirs.join(' · ') : '';
-            return '<div style="display:inline-flex;align-items:center;gap:12px;margin-bottom:14px">'
-              + svg
-              + '<div style="font-family:DM Mono,monospace;line-height:1.6">'
-              + '<div style="font-size:9px;color:rgba(180,215,255,.5);text-transform:uppercase;letter-spacing:1px">Spottiindeksi</div>'
-              + '<div style="font-size:11px;color:'+sc+';font-weight:600">'+dirs+'</div>'
-              + '</div></div>';
-          })()
-      + '</div>'
-      + '<div class="sh-hero-right">'
-        + '<div style="text-align:right">'
+        + '<div class="sh-hero-left">'
+          + '<div class="sh-name">' + spot.name + '</div>'
+          + '<div class="sh-desc">' + spot.desc + '</div>'
+          + (()=>{
+              const si2 = spotIndex(ms, dir, spot.bestDirs, gst);
+              const sc2 = spotIndexColor(si2);
+              const svg2 = spotMarkerSVG(si2, '', 48);
+              const dirs2 = spot.bestDirs ? spot.bestDirs.join(' · ') : '';
+              return '<div style="display:inline-flex;align-items:center;gap:10px;margin-top:8px">'
+                + svg2
+                + '<div style="font-family:DM Mono,monospace;line-height:1.5">'
+                + '<div style="font-size:9px;color:rgba(180,215,255,.5);text-transform:uppercase;letter-spacing:1px">Spottiindeksi</div>'
+                + '<div style="font-size:11px;color:'+sc2+';font-weight:600">'+dirs2+'</div>'
+                + '</div></div>';
+            })()
+        + '</div>'
+        + '<div class="sh-hero-right">'
           + '<div class="sh-big-wind" style="color:' + colorStr + '">' + Units.fmt(ms) + '</div>'
           + '<span class="sh-big-unit">' + Units.label() + '</span>'
           + '<div class="sh-big-gust">Puuska ' + Units.fmt(gst) + ' ' + Units.label() + '</div>'
-          + '<div style="margin-top:4px;font-family:DM Mono,monospace;font-size:9px;color:'
-            + (trend.arrow==='↑'?'rgba(255,160,80,.7)':trend.arrow==='↓'?'rgba(80,180,255,.7)':'rgba(255,255,255,.3)')
-            + '">'
-            + (trend.arrow==='↑'?'↑':trend.arrow==='↓'?'↓':'→') + ' ' + trend.label
-          + '</div>'
         + '</div>'
       + '</div>'
-      + '</div>'
+      + (()=>{
+          var tIdx2  = idx;
+          var tArr2  = h.time || [];
+          var isNow2 = Math.abs(new Date(tArr2[tIdx2]||0).getTime() - Date.now()) < 3600000;
+          var times2 = State._tlTimes || tArr2;
+          var curIdx2 = State.currentHourIdx || 0;
+          var DAY3 = ['Su','Ma','Ti','Ke','To','Pe','La'];
+          var MON3 = ['tam','hel','maa','huh','tou','kes','hei','elo','syy','lok','mar','jou'];
+          var allSlots2 = times2.map(function(t, ri) {
+            var d2 = new Date(t);
+            var isActive = ri === curIdx2;
+            var isPast   = ri < curIdx2;
+            var hStr = ('0'+d2.getHours()).slice(-2)+':00';
+            var prevD = ri > 0 ? new Date(times2[ri-1]) : null;
+            var isNewDay = !prevD || prevD.getDate() !== d2.getDate();
+            var showDay = isActive || isNewDay;
+            var dayStr = showDay ? DAY3[d2.getDay()]+' '+d2.getDate()+'. '+MON3[d2.getMonth()] : '';
+            var cls = 'sh-tpslot'+(isActive?' active':'')+(isPast?' past':'');
+            return '<div class="'+cls+'" data-tpidx="'+ri+'">'
+              + '<div class="sh-tpslot-day'+(showDay?' vis':'')+'">'+dayStr+'</div>'
+              + (isActive && isNow2
+                  ? '<span class="sh-tpslot-now">NYT</span><div class="sh-tpslot-time">'+hStr+'</div>'
+                  : '<div class="sh-tpslot-time">'+hStr+'</div>')
+            + '</div>';
+          }).join('');
+          return '<div id="sh-timepill" class="sh-timepill">'
+            + '<div class="sh-tp-arrow" id="sh-tp-prev">'
+              + '<svg width="9" height="15" viewBox="0 0 9 15" fill="none">'
+                + '<polyline points="7,1 1,7.5 7,14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
+              + '</svg>'
+            + '</div>'
+            + '<div class="sh-tp-window" id="sh-tp-window">'
+              + '<div class="sh-tp-inner" id="sh-tp-inner">'+allSlots2+'</div>'
+            + '</div>'
+            + '<div class="sh-tp-arrow" id="sh-tp-next">'
+              + '<svg width="9" height="15" viewBox="0 0 9 15" fill="none">'
+                + '<polyline points="2,1 8,7.5 2,14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
+              + '</svg>'
+            + '</div>'
+          + '</div>';
+        })()
     + '</div>'
-
     /* Sun bar */
     + buildSunBar()
 
