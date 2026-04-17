@@ -548,7 +548,53 @@ to   { opacity: 1; transform: translateX(0); }
 display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
 }
 .sh-hero-left { flex: 1; min-width: 0; }
-.sh-datetime { display: block; font-family: ‘DM Mono’, monospace; font-size: 13px; font-weight: 600; color: rgba(255,255,255,.7); margin-bottom: 8px; letter-spacing: 0.2px; }
+.sh-datetime { display: none; } /* korvattu pillillä */
+.sh-timepill {
+display: flex; align-items: center;
+margin: 4px 0 12px;
+background: rgba(255,255,255,.07);
+border: 1px solid rgba(255,255,255,.13);
+border-radius: 14px;
+overflow: hidden;
+-webkit-user-select: none; user-select: none;
+}
+.sh-timepill-arrow {
+flex-shrink: 0;
+width: 44px; height: 44px;
+display: flex; align-items: center; justify-content: center;
+font-size: 17px; color: rgba(255,255,255,.55);
+cursor: pointer;
+transition: background .12s, color .12s;
+-webkit-tap-highlight-color: transparent;
+}
+.sh-timepill-arrow:active { background: rgba(255,255,255,.1); color: rgba(255,255,255,.95); }
+.sh-timepill-center {
+flex: 1; text-align: center;
+padding: 0 2px;
+cursor: pointer;
+-webkit-tap-highlight-color: transparent;
+}
+.sh-timepill-time {
+font-family: ‘DM Mono’, monospace;
+font-size: 20px; font-weight: 700;
+color: rgba(255,255,255,.95);
+letter-spacing: -.3px; line-height: 1.1;
+}
+.sh-timepill-date {
+font-family: ‘DM Mono’, monospace;
+font-size: 10px; color: rgba(255,255,255,.4);
+letter-spacing: .3px; margin-top: 1px;
+}
+.sh-timepill-now {
+display: inline-block;
+font-family: ‘DM Mono’, monospace;
+font-size: 8px; font-weight: 700; letter-spacing: 1px;
+color: rgba(100,255,160,.85);
+background: rgba(100,255,160,.1);
+border: 1px solid rgba(100,255,160,.2);
+border-radius: 6px; padding: 1px 6px;
+margin-bottom: 3px;
+}
 .sh-name {
 font-size: 20px; font-weight: 800; letter-spacing: -.4px;
 margin-bottom: 2px; line-height: 1.15; word-break: break-word;
@@ -4496,13 +4542,18 @@ function openSheet(spot, hourIdx) {
         + '<div class="sh-name">' + spot.name + '</div>'
         + '<div class="sh-desc">' + spot.desc + '</div>'
         + (()=>{
-            var dtStr = fmtDateTime(h.time ? h.time[idx] : null);
-            var isNow = Math.abs(new Date(h.time?h.time[idx]:0).getTime() - Date.now()) < 3600000;
-            return '<div class="sh-datetime">'
-              + (isNow ? '<span style="color:rgba(100,255,160,.6);font-size:9px;letter-spacing:1px;margin-right:6px">NYT</span>' : '')
-              + dtStr
-              + '</div>';
-          })()
+            var tIdx  = idx;
+            var tArr  = h.time || [];
+            var tLen  = State._tlTimes ? State._tlTimes.length : tArr.length;
+            var isNow = Math.abs(new Date(tArr[tIdx]||0).getTime() - Date.now()) < 3600000;
+            var d     = tArr[tIdx] ? new Date(tArr[tIdx]) : new Date();
+            var DAY   = ['Su','Ma','Ti','Ke','To','Pe','La'];
+            var MON   = ['tam','hel','maa','huh','tou','kes','hei','elo','syy','lok','mar','jou'];
+            var timeStr = ('0'+d.getHours()).slice(-2)+':00';
+            var dateStr = DAY[d.getDay()]+' '+d.getDate()+'. '+MON[d.getMonth()];
+            var canPrev = (State.currentHourIdx||0) > 0;
+            var canNext = (State.currentHourIdx||0) < tLen - 1;
+            return '<div class="sh-timepill" id="sh-timepill">'              + '<div class="sh-timepill-arrow" id="sh-tp-prev" style="opacity:'+(canPrev?'1':'.2')+'">'                + '<svg width="10" height="16" viewBox="0 0 10 16"><polyline points="8,2 2,8 8,14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'              + '</div>'              + '<div class="sh-timepill-center" id="sh-tp-center">'                + (isNow ? '<div class="sh-timepill-now">NYT</div>' : '')                + '<div class="sh-timepill-time">'+timeStr+'</div>'                + '<div class="sh-timepill-date">'+dateStr+'</div>'              + '</div>'              + '<div class="sh-timepill-arrow" id="sh-tp-next" style="opacity:'+(canNext?'1':'.2')+'">'                + '<svg width="10" height="16" viewBox="0 0 10 16"><polyline points="2,2 8,8 2,14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'              + '</div>'            + '</div>';          })()
         + (()=>{
             const si = spotIndex(ms, dir, spot.bestDirs, gst);
             const sc = spotIndexColor(si);
@@ -4588,6 +4639,54 @@ function openSheet(spot, hourIdx) {
   document.getElementById('sheet').classList.add('open');
   document.getElementById('sheet-overlay').classList.add('open');
   Haptics.medium();
+
+  /* ── Time pill: prev/next ────────────────────────────────────── */
+  (function() {
+    function _tpGo(delta) {
+      var newIdx = (State.currentHourIdx || 0) + delta;
+      var maxIdx = State._tlTimes ? State._tlTimes.length - 1 : 0;
+      if (newIdx < 0 || newIdx > maxIdx) return;
+      if (typeof Haptics !== 'undefined') Haptics.selection();
+      State.currentHourIdx = newIdx;
+      var tl = document.getElementById('tl-scroll');
+      if (tl && State._tlTicks && State._tlTicks[newIdx]) {
+        var tick = State._tlTicks[newIdx];
+        tl.scrollTo({ left: tick.offsetLeft - tl.offsetWidth/2 + 12, behavior: 'smooth' });
+      }
+      if (typeof _tlUpdateNow === 'function') _tlUpdateNow(newIdx);
+      if (typeof buildWindField === 'function') {
+        buildWindField(newIdx).then(function(){ drawColorField(); resetParticles(); });
+      }
+      if (typeof renderSpots === 'function') renderSpots(newIdx);
+      if (State.sheetSpot) openSheet(State.sheetSpot, newIdx);
+    }
+    /* Käytä setTimeout 0 jotta DOM on päivittynyt */
+    setTimeout(function() {
+      var prev = document.getElementById('sh-tp-prev');
+      var next = document.getElementById('sh-tp-next');
+      if (prev) prev.addEventListener('click', function(e){
+        e.stopPropagation(); _tpGo(-1);
+      }, { passive: true });
+      if (next) next.addEventListener('click', function(e){
+        e.stopPropagation(); _tpGo(+1);
+      }, { passive: true });
+      /* Swipe pill vasemmalle/oikealle */
+      var pill = document.getElementById('sh-timepill');
+      if (pill) {
+        var _sx = null;
+        pill.addEventListener('touchstart', function(e){
+          if (e.target.closest('.sh-timepill-arrow')) return;
+          _sx = e.touches[0].clientX;
+        }, { passive: true });
+        pill.addEventListener('touchend', function(e){
+          if (_sx === null) return;
+          var dx = e.changedTouches[0].clientX - _sx;
+          _sx = null;
+          if (Math.abs(dx) > 36) _tpGo(dx < 0 ? 1 : -1);
+        }, { passive: true });
+      }
+    }, 0);
+  })();
   /* Tausta hivelee tuulen mukaan */
   (function() {
     var sc = document.getElementById('sheet-content');
