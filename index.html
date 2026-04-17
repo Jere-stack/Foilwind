@@ -754,7 +754,7 @@ transition: transform .2s; font-size: 11px;
 .fmi-station-trigger.open .fmi-station-trigger-arrow { transform: rotate(180deg); }
 
 .fmi-dropdown {
-position: relative; margin-bottom: 10px;
+position: relative; margin-bottom: 0;
 }
 .fmi-dropdown-menu {
 display: none;
@@ -5476,7 +5476,14 @@ function _renderLiveHistory(el, data, wx) {
         if (nd) { el._fmiHours=hours; delete el.dataset.ok; el.dataset.ok='1'; _renderLiveHistory(el,Object.assign({},nd,{place:st.place}),lat2||wx); }
       }).catch(function(){ el.innerHTML='<div style="text-align:center;padding:10px;color:rgba(255,100,100,.7);font-family:DM Mono,monospace;font-size:10px">Virhe</div>'; });
     });
-    el.insertBefore(dropdown, el.firstChild);
+    /* Lisää dropdown header-rivin fmidd-slottiin, ei koko elementin alkuun */
+    const ddSlot = el.querySelector('[id$="-fmidd"]');
+    if (ddSlot) {
+      ddSlot.innerHTML = '';
+      ddSlot.appendChild(dropdown);
+    } else {
+      el.insertBefore(dropdown, el.firstChild);
+    }
   }
 
   /* Period napit */
