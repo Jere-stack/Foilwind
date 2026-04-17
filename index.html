@@ -3738,9 +3738,7 @@ function openSheet(spot, hourIdx) {
 
   /* -- SUN BAR --------------------------------------------------- */
   function buildSunBar() {
-    /* Jean Meeus auringonnousu/lasku + siviilihämärä (aurinko -6°)
-       cosH-kynnys: aurinko  = sin(-0.833°) = -0.0145
-                    hämärä   = sin(-6°)      = -0.1045               */
+    /* Valittu aika — h.time[idx] on timeline-valinta, fallback nykyhetkeen */
     const now = h.time && h.time[idx] ? new Date(h.time[idx]) : new Date();
     const lat = spot.lat * Math.PI / 180;
     const lng = spot.lng;
@@ -3764,8 +3762,8 @@ function openSheet(spot, hourIdx) {
       return new Date(d.getTime() + t * 3600000);
     }
 
-    const SUN    = -0.0145;
-    const TWILIT = -0.1045;
+    const SUN    = -0.0145;   /* aurinko: -0.833 astetta */
+    const TWILIT = -0.1045;   /* siviilihämärä: -6 astetta */
 
     const rise = calcSunAngle(now.getTime(), true,  SUN);
     const set  = calcSunAngle(now.getTime(), false, SUN);
@@ -3776,131 +3774,210 @@ function openSheet(spot, hourIdx) {
     const fmt = d => ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
     const nowMs = now.getTime();
 
-    /* Aikaikkuna: aamuhämärästä iltahämärään */
-    const winStart = dawn ? dawn.getTime() : rise.getTime() - 3600000*1.5;
-    const winEnd   = dusk ? dusk.getTime() : set.getTime()  + 3600000*1.5;
+    /* Aikaikkuna: yö ennen dawnista yö duskin jälkeen
+       Jos hämärää ei ole (yötön yö / napa-alue), käytä rise/set +-2h */
+    const winStart = dawn ? dawn.getTime() - 3600000 : rise.getTime() - 5400000;
+    const winEnd   = dusk ? dusk.getTime() + 3600000 : set.getTime()  + 5400000;
     const winTotal = winEnd - winStart;
 
-    /* 0–1 normalisoitu paikka aikajanalla */
-    const tNorm = t => Math.max(0, Math.min(1, (t - winStart) / winTotal));
-    const riseN = tNorm(rise.getTime());
-    const setN  = tNorm(set.getTime());
-    const nowN  = tNorm(nowMs);
+    /* 0-1 normalisoitu paikka */
+    const tN = t => Math.max(0, Math.min(1, (t.getTime() - winStart) / winTotal));
+    const riseN = tN(rise);
+    const setN  = tN(set);
+    const dawnN = dawn ? tN(dawn) : riseN - 0.1;
+    const duskN = dusk ? tN(dusk) : setN  + 0.1;
+    const nowN  = Math.max(0, Math.min(1, (nowMs - winStart) / winTotal));
 
-    const isDaytime = nowMs >= rise.getTime() && nowMs <= set.getTime();
-    const isAfterSunset = nowMs > set.getTime();
-    const hoursLeft = Math.max(0, (set.getTime() - nowMs) / 3600000);
+    const isDaytime    = nowMs >= rise.getTime() && nowMs <= set.getTime();
+    const isAfterSet   = nowMs > set.getTime();
+    const hoursLeft    = Math.max(0, (set.getTime() - nowMs) / 3600000);
 
-    /* SVG-mitat — viewBox-koordinaatit, skaalautuu 100% leveydelle */
-    const VW = 340, VH = 80;
-    const ARC_L = 18, ARC_R = VW - 18; /* kaaren vasen/oikea jalka */
-    const HOR_Y = 60;  /* horisonttiviivan y */
-    const PEAK_Y = 10; /* kaaren huippu y */
+    /* SVG-mitat */
+    const VW = 340;
+    const HOR_Y  = 54;   /* horisonttiviivan y */
+    const GROUND = 22;   /* maa-alueen korkeus horisontinrajan alla */
+    const VH     = HOR_Y + GROUND;
+    const MARGIN = 0;    /* kaaren jalat aivan reunoissa */
 
-    /* Kaari: cubic bezier — symmetrinen kupola */
-    const arcPath = 'M'+ARC_L+','+HOR_Y+' C'+ARC_L+','+(PEAK_Y+14)+' '+ARC_R+','+(PEAK_Y+14)+' '+ARC_R+','+HOR_Y;
+    /* Kaari: bezier P0..P3 — jalat horisontinrajassa, huippu ylhäällä
+       Kaaren jalat ovat hieman horisontinrajan ALLA jotta siirtymä on pehmeä */
+    const ARC_Y0 = HOR_Y + 2;
+    const ARC_X0 = MARGIN, ARC_X1 = VW - MARGIN;
+    const PEAK_Y = 6;
+    const CP_Y   = PEAK_Y + 16;  /* bezier control point y */
 
-    /* Pisteen paikka kaarella parametrilla t (0=vasen, 1=oikea)
-       Cubic bezier B(t) = (1-t)^3*P0 + 3(1-t)^2*t*P1 + 3(1-t)*t^2*P2 + t^3*P3 */
-    function arcPoint(t) {
-      const P0x=ARC_L, P0y=HOR_Y;
-      const P1x=ARC_L,  P1y=PEAK_Y+14;
-      const P2x=ARC_R,  P2y=PEAK_Y+14;
-      const P3x=ARC_R,  P3y=HOR_Y;
-      const u=1-t;
+    const arcPath = 'M'+ARC_X0+','+ARC_Y0
+      + ' C'+ARC_X0+','+CP_Y+' '+ARC_X1+','+CP_Y+' '+ARC_X1+','+ARC_Y0;
+
+    /* Pisteen paikka kaarella t=0..1 */
+    function arcPt(t) {
+      const u = 1 - t;
       return {
-        x: u*u*u*P0x + 3*u*u*t*P1x + 3*u*t*t*P2x + t*t*t*P3x,
-        y: u*u*u*P0y + 3*u*u*t*P1y + 3*u*t*t*P2y + t*t*t*P3y
+        x: u*u*u*ARC_X0 + 3*u*u*t*ARC_X0 + 3*u*t*t*ARC_X1 + t*t*t*ARC_X1,
+        y: u*u*u*ARC_Y0 + 3*u*u*t*CP_Y   + 3*u*t*t*CP_Y   + t*t*t*ARC_Y0
       };
     }
 
-    /* Aurinkopiste kaarella */
-    const sunPos = arcPoint(nowN);
-    const risePos = arcPoint(riseN);
-    const setPos  = arcPoint(setN);
+    const sunPt  = arcPt(nowN);
+    const risePt = arcPt(riseN);
+    const setPt  = arcPt(setN);
+    const dawnPt = arcPt(dawnN);
+    const duskPt = arcPt(duskN);
 
-    /* Mennyt kaari: alusta nykyhetkeen — clip-path SVG-elementillä */
-    const pastArcId = 'sun-past-' + Math.random().toString(36).slice(2,6);
-    const clipId    = 'sun-clip-' + Math.random().toString(36).slice(2,6);
-    const gradSkyId = 'sun-sky-'  + Math.random().toString(36).slice(2,6);
-    const gradArcId = 'sun-arc-'  + Math.random().toString(36).slice(2,6);
+    /* Uniikki ID per render */
+    const uid = Math.random().toString(36).slice(2,7);
 
-    /* Kaaren täyttöpolku (closed shape) */
-    const fillPath = arcPath + ' L'+ARC_L+','+HOR_Y+' Z';
+    /* x-koordinaatit prosentteina viewbox-leveydestä vyöhykerajoille */
+    const xPct = n => (n * VW).toFixed(1);
+    const dawnX = xPct(dawnN);
+    const riseX = xPct(riseN);
+    const setX  = xPct(setN);
+    const duskX = xPct(duskN);
 
-    /* Clip-rect: 0 → nykyhetki-x */
-    const clipW = (sunPos.x / VW * 100).toFixed(2);
-
-    /* Värit */
-    const sunColor   = isDaytime ? '#FFD95C' : 'rgba(255,255,255,.25)';
-    const glowColor  = isDaytime ? 'rgba(255,215,60,.6)' : 'transparent';
-    const arcPastCol = isDaytime ? 'rgba(255,210,60,.9)' : 'rgba(255,255,255,.15)';
-    const arcFutCol  = 'rgba(255,255,255,.12)';
-
-    /* Statuslabel */
+    /* ── Tilateksti ─────────────────────────────────────────────── */
     let label;
     if (isDaytime) {
-      const h = Math.floor(hoursLeft), m = Math.round((hoursLeft - h) * 60);
-      label = h > 0 ? h+'h '+m+'min valoa' : m+'min valoa';
-    } else if (isAfterSunset) {
+      const hh = Math.floor(hoursLeft);
+      const mm = Math.round((hoursLeft - hh) * 60);
+      label = hh > 0 ? hh + 'h ' + mm + 'min valoa' : mm + 'min valoa';
+    } else if (isAfterSet) {
       label = 'Aurinko laski ' + fmt(set);
     } else {
       label = 'Aurinko nousee ' + fmt(rise);
     }
 
-    const svgContent =
+    /* Aurinkopisteen näkyvyys: piilotetaan horisontinrajan alle */
+    const sunVisible = sunPt.y <= HOR_Y + 1;
+
+    /* ── SVG-rakenne ────────────────────────────────────────────── */
+    const svg =
+      /* DEFS */
       '<defs>'
-        /* Gradient kaaren täytölle */
-        + '<linearGradient id="'+gradSkyId+'" x1="0" y1="0" x2="0" y2="1">'
-          + '<stop offset="0%" stop-color="rgba(255,200,50,.22)"/>'
-          + '<stop offset="100%" stop-color="rgba(255,140,0,.04)"/>'
-        + '</linearGradient>'
-        /* Gradient itse viivalle: oranssi → keltainen → oranssi */
-        + '<linearGradient id="'+gradArcId+'" x1="0" y1="0" x2="1" y2="0">'
-          + '<stop offset="0%" stop-color="rgba(255,160,40,.5)"/>'
-          + '<stop offset="50%" stop-color="rgba(255,220,60,.95)"/>'
-          + '<stop offset="100%" stop-color="rgba(255,160,40,.5)"/>'
-        + '</linearGradient>'
-        /* Clip: vasen osa (mennyt) */
-        + '<clipPath id="'+clipId+'">'
-          + '<rect x="0" y="0" width="'+sunPos.x.toFixed(1)+'" height="'+VH+'"/>'
+
+        /* Clip: mennyt kaari (0 → sunPt.x) */
+        + '<clipPath id="sc'+uid+'">'
+          + '<rect x="0" y="0" width="'+sunPt.x.toFixed(1)+'" height="'+VH+'"/>'
         + '</clipPath>'
+
+        /* Clip: tuleva kaari (sunPt.x → VW) */
+        + '<clipPath id="sf'+uid+'">'
+          + '<rect x="'+sunPt.x.toFixed(1)+'" y="0" width="'+(VW-sunPt.x).toFixed(1)+'" height="'+VH+'"/>'
+        + '</clipPath>'
+
+        /* Gradient kaaren täytölle (pystysuora alla) */
+        + '<linearGradient id="gf'+uid+'" x1="0" y1="0" x2="0" y2="1">'
+          + '<stop offset="0%" stop-color="rgba(255,200,55,.28)"/>'
+          + '<stop offset="100%" stop-color="rgba(255,150,0,.04)"/>'
+        + '</linearGradient>'
+
+        /* Mennyt kaariviiva: kulta */
+        + '<linearGradient id="gp'+uid+'" x1="0" y1="0" x2="1" y2="0">'
+          + '<stop offset="0%" stop-color="rgba(255,165,40,.6)"/>'
+          + '<stop offset="45%" stop-color="rgba(255,225,60,1)"/>'
+          + '<stop offset="100%" stop-color="rgba(255,225,60,1)"/>'
+        + '</linearGradient>'
+
       + '</defs>'
 
-      /* Horisontti-viiva */
-      + '<line x1="0" y1="'+HOR_Y+'" x2="'+VW+'" y2="'+HOR_Y+'" stroke="rgba(255,255,255,.08)" stroke-width="1"/>'
+      /* ── MAAKERROS: vyöhykkeet horisontinrajan alla ── */
 
-      /* Auringonnousu/lasku pystyviivat */
-      + '<line x1="'+risePos.x.toFixed(1)+'" y1="'+(HOR_Y-4)+'" x2="'+risePos.x.toFixed(1)+'" y2="'+(HOR_Y+4)+'" stroke="rgba(255,200,80,.3)" stroke-width="1"/>'
-      + '<line x1="'+setPos.x.toFixed(1)+'"  y1="'+(HOR_Y-4)+'" x2="'+setPos.x.toFixed(1)+'"  y2="'+(HOR_Y+4)+'" stroke="rgba(255,200,80,.3)" stroke-width="1"/>'
+      /* Yö vasemmalla: 0 → dawn */
+      + '<rect x="0" y="'+HOR_Y+'" width="'+dawnX+'" height="'+GROUND+'"'
+        + ' fill="rgba(8,12,32,1)"/>'
 
-      /* Kaaren täyttö (gradient alla) — vain päiväalue */
-      + (isDaytime || !isAfterSunset
-        ? '<path d="'+fillPath+'" fill="url(#'+gradSkyId+')" opacity="'+(isDaytime?'1':'.4')+'"/>'
-        : '')
+      /* Aamuhämärä: dawn → rise (oranssi/punainen liuku) */
+      + '<defs><linearGradient id="gd'+uid+'" x1="0" y1="0" x2="1" y2="0">'
+          + '<stop offset="0%" stop-color="rgba(80,40,20,1)"/>'
+          + '<stop offset="100%" stop-color="rgba(255,120,30,1)"/>'
+        + '</linearGradient></defs>'
+      + '<rect x="'+dawnX+'" y="'+HOR_Y+'" width="'+(riseX-dawnX)+'" height="'+GROUND+'"'
+        + ' fill="url(#gd'+uid+')"/>'
 
-      /* Tuleva kaari (harmaa) */
-      + '<path d="'+arcPath+'" fill="none" stroke="'+arcFutCol+'" stroke-width="2" stroke-linecap="round"/>'
+      /* Päivä: rise → set (vaalean sininen taivas) */
+      + '<defs><linearGradient id="gy'+uid+'" x1="0" y1="0" x2="0" y2="1">'
+          + '<stop offset="0%" stop-color="rgba(80,160,255,.7)"/>'
+          + '<stop offset="100%" stop-color="rgba(40,100,200,.9)"/>'
+        + '</linearGradient></defs>'
+      + '<rect x="'+riseX+'" y="'+HOR_Y+'" width="'+(setX-riseX)+'" height="'+GROUND+'"'
+        + ' fill="url(#gy'+uid+')"/>'
 
-      /* Mennyt kaari (oranssi, clip) */
-      + '<path d="'+arcPath+'" fill="none" stroke="url(#'+gradArcId+')" stroke-width="2.5" stroke-linecap="round" clip-path="url(#'+clipId+')"/>'
+      /* Iltahämärä: set → dusk (punainen/oranssi → tumma) */
+      + '<defs><linearGradient id="ge'+uid+'" x1="0" y1="0" x2="1" y2="0">'
+          + '<stop offset="0%" stop-color="rgba(255,120,30,1)"/>'
+          + '<stop offset="100%" stop-color="rgba(80,40,20,1)"/>'
+        + '</linearGradient></defs>'
+      + '<rect x="'+setX+'" y="'+HOR_Y+'" width="'+(duskX-setX)+'" height="'+GROUND+'"'
+        + ' fill="url(#ge'+uid+')"/>'
 
-      /* Aurinko-piste — hehku + ydin */
-      + (isDaytime
-        ? '<circle cx="'+sunPos.x.toFixed(1)+'" cy="'+sunPos.y.toFixed(1)+'" r="9" fill="'+glowColor+'"><animate attributeName="r" values="8;12;8" dur="3s" repeatCount="indefinite"/><animate attributeName="opacity" values=".5;.15;.5" dur="3s" repeatCount="indefinite"/></circle>'
-          + '<circle cx="'+sunPos.x.toFixed(1)+'" cy="'+sunPos.y.toFixed(1)+'" r="5" fill="'+sunColor+'" stroke="rgba(255,255,255,.5)" stroke-width="1.2"/>'
-        : '<circle cx="'+sunPos.x.toFixed(1)+'" cy="'+sunPos.y.toFixed(1)+'" r="4" fill="rgba(255,255,255,.25)" stroke="rgba(255,255,255,.15)" stroke-width="1"/>')
+      /* Yö oikealla: dusk → VW */
+      + '<rect x="'+duskX+'" y="'+HOR_Y+'" width="'+(VW-parseFloat(duskX)).toFixed(1)+'" height="'+GROUND+'"'
+        + ' fill="rgba(8,12,32,1)"/>'
 
-      /* Auringonnousu/lasku kellonajat kaaren alla */
-      + '<text x="'+risePos.x.toFixed(1)+'" y="'+(HOR_Y+13)+'" font-family="DM Mono,monospace" font-size="8" fill="rgba(255,200,80,.45)" text-anchor="middle">'+fmt(rise)+'</text>'
-      + '<text x="'+setPos.x.toFixed(1)+'"  y="'+(HOR_Y+13)+'" font-family="DM Mono,monospace" font-size="8" fill="rgba(255,200,80,.45)" text-anchor="middle">'+fmt(set)+'</text>'
+      /* Horisonttiviiva — ohuesti kaiken päälle */
+      + '<line x1="0" y1="'+HOR_Y+'" x2="'+VW+'" y2="'+HOR_Y+'"'
+        + ' stroke="rgba(255,255,255,.18)" stroke-width="0.75"/>'
 
-      /* Statuslabel kaaren alla keskellä */
-      + '<text x="'+(VW/2)+'" y="'+(HOR_Y+13)+'" font-family="DM Mono,monospace" font-size="8.5" fill="rgba(255,210,80,'+(isDaytime?'.75':'.35')+')" text-anchor="middle" font-weight="'+(isDaytime?'600':'400')+'">'+label+'</text>';
+      /* ── KAARI ── */
+
+      /* Täyttögradientti kaaren alla (päivän osalta) */
+      + '<path d="'+arcPath+' L'+ARC_X1+','+HOR_Y+' L'+ARC_X0+','+HOR_Y+' Z"'
+        + ' fill="url(#gf'+uid+')" opacity="'+(isDaytime?'1':'.3')+'"/>'
+
+      /* Tuleva kaari — himmeä */
+      + '<path d="'+arcPath+'" fill="none"'
+        + ' stroke="rgba(255,255,255,.13)" stroke-width="2" stroke-linecap="round"'
+        + ' clip-path="url(#sf'+uid+')"/>'
+
+      /* Mennyt kaari — kultainen */
+      + '<path d="'+arcPath+'" fill="none"'
+        + ' stroke="url(#gp'+uid+')" stroke-width="2.5" stroke-linecap="round"'
+        + ' clip-path="url(#sc'+uid+')"/>'
+
+      /* ── AURINKO ── */
+      + (sunVisible
+          ? (isDaytime
+              /* Päivällä: sykkivä hehku + kiinteä ydin */
+              ? '<circle cx="'+sunPt.x.toFixed(1)+'" cy="'+sunPt.y.toFixed(1)+'" r="10"'
+                  + ' fill="rgba(255,215,60,.2)" pointer-events="none">'
+                  + '<animate attributeName="r" values="8;14;8" dur="3s" repeatCount="indefinite"/>'
+                  + '<animate attributeName="opacity" values=".4;.08;.4" dur="3s" repeatCount="indefinite"/>'
+                + '</circle>'
+                + '<circle cx="'+sunPt.x.toFixed(1)+'" cy="'+sunPt.y.toFixed(1)+'" r="5"'
+                  + ' fill="#FFD95C" stroke="rgba(255,255,255,.55)" stroke-width="1.5"/>'
+              /* Hämärässä: oranssi hehku */
+              : '<circle cx="'+sunPt.x.toFixed(1)+'" cy="'+sunPt.y.toFixed(1)+'" r="4"'
+                  + ' fill="rgba(255,140,40,.6)" stroke="rgba(255,180,80,.4)" stroke-width="1"/>')
+          : '')
+
+      /* ── KELLONAJAT ── */
+
+      /* Auringonnousu — kaaren jalan kohdalla */
+      + '<text x="'+risePt.x.toFixed(1)+'" y="'+(HOR_Y+GROUND-3)+'"'
+        + ' font-family="DM Mono,monospace" font-size="8"'
+        + ' fill="rgba(255,200,80,.75)" text-anchor="middle" font-weight="500">'+fmt(rise)+'</text>'
+
+      /* Aurinkolasku */
+      + '<text x="'+setPt.x.toFixed(1)+'" y="'+(HOR_Y+GROUND-3)+'"'
+        + ' font-family="DM Mono,monospace" font-size="8"'
+        + ' fill="rgba(255,200,80,.75)" text-anchor="middle" font-weight="500">'+fmt(set)+'</text>'
+
+      /* Statuslabel — auringon yläpuolella tai kaaren huipulla */
+      + (function(){
+          var tx = isDaytime ? sunPt.x : VW/2;
+          var ty = isDaytime ? Math.max(sunPt.y - 10, PEAK_Y + 14) : PEAK_Y + 18;
+          var anchor = tx < 60 ? 'start' : tx > VW-60 ? 'end' : 'middle';
+          var fill = isDaytime ? 'rgba(255,215,60,.9)' : 'rgba(255,255,255,.3)';
+          return '<text x="'+tx.toFixed(1)+'" y="'+ty.toFixed(1)+'"'
+            + ' font-family="DM Mono,monospace" font-size="8.5"'
+            + ' fill="'+fill+'" text-anchor="'+anchor+'" font-weight="600">'+label+'</text>';
+        })()
+    ;
 
     return '<div class="sh-sun-arc">'
-      + '<svg viewBox="0 0 '+VW+' '+(HOR_Y+18)+'" preserveAspectRatio="none" style="width:100%;height:auto;display:block;overflow:visible">'
-        + svgContent
+      + '<svg viewBox="0 0 '+VW+' '+VH+'"'
+        + ' preserveAspectRatio="none"'
+        + ' style="width:100%;height:auto;display:block;overflow:visible">'
+        + svg
       + '</svg>'
     + '</div>';
   }
