@@ -555,62 +555,61 @@ display: flex; align-items: flex-start; justify-content: space-between; gap: 12p
 -webkit-user-select: none; user-select: none;
 margin: 4px -20px 14px;
 display: flex; align-items: center;
-height: 52px;
+height: 58px;
 }
 .sh-tp-arrow {
-flex-shrink: 0; width: 36px; height: 52px;
+flex-shrink: 0; width: 32px; height: 58px;
 display: flex; align-items: center; justify-content: center;
-color: rgba(255,255,255,.45);
-cursor: pointer; -webkit-tap-highlight-color: transparent;
+color: rgba(255,255,255,.4); cursor: pointer;
+-webkit-tap-highlight-color: transparent;
 transition: color .1s;
 }
 .sh-tp-arrow:active { color: rgba(255,255,255,.9); }
-/* Slider-ikkuna — overflow hidden leikkaa */
 .sh-tp-window {
-flex: 1; overflow: hidden; height: 52px;
-position: relative;
+flex: 1; overflow: hidden; height: 58px; position: relative;
 }
-/* Liukuva sisätraktori */
 .sh-tp-inner {
-display: flex; align-items: center;
-height: 52px;
+display: flex; align-items: center; height: 58px;
 will-change: transform;
-/* ei CSS transition — JS hoitaa animoinnin */
 }
-/* Yksittäinen slotti */
+/* Slotti — leveys asetetaan JS:ssä */
 .sh-tpslot {
 flex-shrink: 0;
 display: flex; flex-direction: column;
 align-items: center; justify-content: center;
-gap: 2px;
-height: 52px;
-/* leveys asetetaan JS:ssä */
+gap: 1px; height: 58px; cursor: pointer;
+-webkit-tap-highlight-color: transparent;
 }
+/* Päivämäärä — piilotettu oletuksena */
 .sh-tpslot-day {
 font-family: ‘DM Mono’, monospace;
-font-size: 8px; letter-spacing: .4px;
+font-size: 8px; letter-spacing: .3px;
 color: rgba(255,255,255,.0);
-height: 10px; line-height: 10px;
-white-space: nowrap;
+height: 11px; line-height: 11px; white-space: nowrap;
 }
-.sh-tpslot-day.vis { color: rgba(255,255,255,.4); }
+.sh-tpslot-day.vis { color: rgba(255,255,255,.38); }
+/* Kellonaika */
 .sh-tpslot-time {
 font-family: ‘DM Mono’, monospace;
 font-size: 11px; font-weight: 400;
-color: rgba(255,255,255,.25);
-white-space: nowrap; line-height: 1;
+color: rgba(255,255,255,.22); white-space: nowrap; line-height: 1;
 }
-/* Menneisyys vieläkin haalemmaksi */
-.sh-tpslot.past .sh-tpslot-time { color: rgba(255,255,255,.14); }
-.sh-tpslot.past .sh-tpslot-day.vis { color: rgba(255,255,255,.22); }
-/* Valittu: kirkas ja iso */
+/* Mennyt */
+.sh-tpslot.past .sh-tpslot-time   { color: rgba(255,255,255,.14); }
+.sh-tpslot.past .sh-tpslot-day.vis{ color: rgba(255,255,255,.2); }
+/* Valittu — kirkas, iso */
 .sh-tpslot.active .sh-tpslot-time {
-font-size: 19px; font-weight: 700;
-color: rgba(255,255,255,.95);
-letter-spacing: -.4px;
+font-size: 20px; font-weight: 700;
+color: rgba(255,255,255,.95); letter-spacing: -.5px;
 }
-.sh-tpslot.active .sh-tpslot-day.vis { color: rgba(255,255,255,.65); }
-/* NYT */
+.sh-tpslot.active .sh-tpslot-day.vis { color: rgba(255,255,255,.6); }
+/* Hover-tila dragin aikana (JS lisää .hover) */
+.sh-tpslot.hover .sh-tpslot-time {
+font-size: 16px; font-weight: 600;
+color: rgba(0,207,255,.9);
+}
+.sh-tpslot.hover .sh-tpslot-day.vis { color: rgba(0,207,255,.6); }
+/* NYT-badge */
 .sh-tpslot-now {
 font-family: ‘DM Mono’, monospace;
 font-size: 7px; font-weight: 700; letter-spacing: .8px;
@@ -4592,35 +4591,30 @@ function openSheet(spot, hourIdx) {
             var tArr  = h.time || [];
             var tLen  = State._tlTimes ? State._tlTimes.length : tArr.length;
             var isNow = Math.abs(new Date(tArr[tIdx]||0).getTime() - Date.now()) < 3600000;
-            var d     = tArr[tIdx] ? new Date(tArr[tIdx]) : new Date();
-            var DAY   = ['Su','Ma','Ti','Ke','To','Pe','La'];
-            var MON   = ['tam','hel','maa','huh','tou','kes','hei','elo','syy','lok','mar','jou'];
-            var timeStr = ('0'+d.getHours()).slice(-2)+':00';
-            var dateStr = DAY[d.getDay()]+' '+d.getDate()+'. '+MON[d.getMonth()];
-            var canPrev = (State.currentHourIdx||0) > 0;
-            var canNext = (State.currentHourIdx||0) < tLen - 1;
-            /* -- AIKAVALITSIN ----------------------------------------
-               Rakennetaan kaikki ajat etukäteen, JS pyörittää
-               sisä-diviä offsetilla jotta drag toimii sulavasti.
-               SLOT_W = piilotettujen leveys, ACT_W = valitun leveys */
             var times = State._tlTimes || tArr;
             var curIdx = State.currentHourIdx || 0;
             var DAY3 = ['Su','Ma','Ti','Ke','To','Pe','La'];
-            /* Rakennetaan kaikki slotit (koko lista) — JS piilottaa ikkunalla */
+            var MON3 = ['tam','hel','maa','huh','tou','kes','hei','elo','syy','lok','mar','jou'];
+            /* Kaikki slotit — näytetään joka 1h (kaikki) */
             var allSlots = times.map(function(t, ri) {
               var d2 = new Date(t);
               var isActive = ri === curIdx;
               var isPast   = ri < curIdx;
+              /* Kellonaika */
               var hStr = ('0'+d2.getHours()).slice(-2)+':00';
-              /* Päivä näkyy kun ensimmäinen tämän päivän slotti */
+              /* Päivä: näkyy JOKA slotissa jolla on päivänvaihdos tai aktiiviinen */
               var prevD = ri > 0 ? new Date(times[ri-1]) : null;
-              var showDay = !prevD || prevD.getDate() !== d2.getDate();
-              var dayStr = showDay ? DAY3[d2.getDay()]+' '+d2.getDate()+'.' : '';
+              var isNewDay = !prevD || prevD.getDate() !== d2.getDate();
+              /* Aktiivisella näytetään aina päivä+kk */
+              var dayStr = '';
+              if (isActive || isNewDay) {
+                dayStr = DAY3[d2.getDay()]+' '+d2.getDate()+'. '+MON3[d2.getMonth()];
+              }
               var cls = 'sh-tpslot'+(isActive?' active':'')+(isPast?' past':'');
               return '<div class="'+cls+'" data-tpidx="'+ri+'">'
-                + '<div class="sh-tpslot-day'+(showDay?' vis':'')+'">'+(dayStr)+'</div>'
+                + '<div class="sh-tpslot-day'+(dayStr?' vis':'')+'">'+dayStr+'</div>'
                 + (isActive && isNow
-                    ? '<span class="sh-tpslot-now">NYT</span>'
+                    ? '<span class="sh-tpslot-now">NYT</span><div class="sh-tpslot-time">'+hStr+'</div>'
                     : '<div class="sh-tpslot-time">'+hStr+'</div>')
               + '</div>';
             }).join('');
@@ -4639,7 +4633,7 @@ function openSheet(spot, hourIdx) {
                 + '</svg>'
               + '</div>'
             + '</div>';
-                    })()
+                                        })()
         + (()=>{
             const si = spotIndex(ms, dir, spot.bestDirs, gst);
             const sc = spotIndexColor(si);
@@ -4726,18 +4720,31 @@ function openSheet(spot, hourIdx) {
   document.getElementById('sheet-overlay').classList.add('open');
   Haptics.medium();
 
-  /* ── Time slider — iOS-yhteensopiva drag ─────────────────────── */
+  /* ── Time slider ────────────────────────────────────────────── */
   (function() {
-    /* Slottien leveydet */
-    var SLOT_W = 52;   /* ei-aktiivinen slotti px */
-    var ACT_W  = 80;   /* aktiivinen slotti px */
+    var SLOT_W  = 44;   /* ei-aktiivinen px */
+    var ACT_W   = 90;   /* aktiivinen px */
+    var HOV_W   = 64;   /* hover px dragin aikana */
 
+    /* Laske x-offset niin että slotti idx on ikkunan keskellä
+       Kaikki slotit ennen idx ovat SLOT_W, idx on (act tai hov) */
+    function _xForIdx(idx, curActive, hovIdx) {
+      var x = 0;
+      for (var i = 0; i < idx; i++) {
+        if (i === curActive) x += ACT_W;
+        else if (i === hovIdx) x += HOV_W;
+        else x += SLOT_W;
+      }
+      var myW = (idx === curActive) ? ACT_W : (idx === hovIdx) ? HOV_W : SLOT_W;
+      return x + myW / 2;
+    }
+
+    /* Julkaistava ajanpäivitys — vasta touchend jälkeen */
     function _tpGoTo(newIdx) {
       var maxIdx = State._tlTimes ? State._tlTimes.length - 1 : 0;
       if (newIdx < 0 || newIdx > maxIdx) return;
       if (typeof Haptics !== 'undefined') Haptics.selection();
       State.currentHourIdx = newIdx;
-      /* Synkronoi timeline */
       var tl = document.getElementById('tl-scroll');
       if (tl && State._tlTicks && State._tlTicks[newIdx]) {
         var tick = State._tlTicks[newIdx];
@@ -4750,16 +4757,6 @@ function openSheet(spot, hourIdx) {
       if (State.sheetSpot) openSheet(State.sheetSpot, newIdx);
     }
 
-    /* Laske slottien x-offset niin että valittu on ikkunan keskellä */
-    function _offsetForIdx(idx, winW) {
-      /* Kaikki slotit ennen idx: SLOT_W px, aktiivinen ACT_W px */
-      var x = 0;
-      for (var i = 0; i < idx; i++) x += SLOT_W;
-      /* Aktiivinen alkaa kohdassa x, sen keskipiste = x + ACT_W/2
-         Haluamme sen ikkunan keskelle → offset = winW/2 - (x + ACT_W/2) */
-      return winW / 2 - (x + ACT_W / 2);
-    }
-
     setTimeout(function() {
       var win   = document.getElementById('sh-tp-window');
       var inner = document.getElementById('sh-tp-inner');
@@ -4767,67 +4764,129 @@ function openSheet(spot, hourIdx) {
       var next  = document.getElementById('sh-tp-next');
       if (!win || !inner) return;
 
-      var times  = State._tlTimes || [];
-      var maxIdx = times.length - 1;
+      var times   = State._tlTimes || [];
+      var maxIdx  = times.length - 1;
+      var els     = inner.querySelectorAll('.sh-tpslot');
+      var winW    = win.offsetWidth || 260;
+      var curIdx  = State.currentHourIdx || 0;
+      var hovIdx  = -1;   /* slotti joka on hover-tilassa dragin aikana */
+      var offset  = 0;    /* translateX arvo */
+      var _startX = null, _startOff = null, _dragged = false, _lastX = null, _velX = 0;
 
-      /* Aseta slottien leveydet CSS:llä */
-      var allSlotEls = inner.querySelectorAll('.sh-tpslot');
-      allSlotEls.forEach(function(el) {
-        el.style.width = (el.classList.contains('active') ? ACT_W : SLOT_W) + 'px';
-      });
+      /* Aseta kaikkien slottien leveydet */
+      function _setWidths(activeI, hoverI) {
+        els.forEach(function(el) {
+          var ei = parseInt(el.dataset.tpidx);
+          if (ei === activeI)      el.style.width = ACT_W + 'px';
+          else if (ei === hoverI) el.style.width = HOV_W + 'px';
+          else                    el.style.width = SLOT_W + 'px';
+        });
+      }
 
-      var winW = win.offsetWidth || 240;
+      /* Laske offset niin että slotti targetI on ikkunan keskellä */
+      function _calcOffset(targetI, activeI, hoverI) {
+        var x = 0;
+        els.forEach(function(el) {
+          var ei = parseInt(el.dataset.tpidx);
+          if (ei === targetI) return;
+          if (ei === activeI)      x += ACT_W;
+          else if (ei === hoverI) x += HOV_W;
+          else                    x += SLOT_W;
+        });
+        var myW = (targetI === activeI) ? ACT_W : (targetI === hoverI) ? HOV_W : SLOT_W;
+        return winW / 2 - (x + myW / 2);
+      }
 
-      /* Aseta alkuperäinen offset ilman animaatiota */
-      var curIdx = State.currentHourIdx || 0;
-      var offset = _offsetForIdx(curIdx, winW);
-      inner.style.transition = 'none';
-      inner.style.transform = 'translateX('+offset.toFixed(1)+'px)';
+      /* Löydä lähimpänä ikkunan keskipistettä oleva slotti nykyisellä offsetilla */
+      function _nearestIdx(curActive, curHover) {
+        var cx = winW / 2 - offset;   /* x-koordinaatti inner-koordinaatistossa */
+        var x = 0, best = 0, bestD = Infinity;
+        els.forEach(function(el) {
+          var ei = parseInt(el.dataset.tpidx);
+          var w = (ei === curActive) ? ACT_W : (ei === curHover) ? HOV_W : SLOT_W;
+          var center = x + w / 2;
+          var d = Math.abs(cx - center);
+          if (d < bestD) { bestD = d; best = ei; }
+          x += w;
+        });
+        return best;
+      }
 
-      /* Snap animoidusti tiettyyn indeksiin */
-      function _snapTo(idx) {
-        /* Päivitä luokat */
-        allSlotEls.forEach(function(el) {
+      /* Päivitä hover-slotti dragin aikana ilman data-päivitystä */
+      function _setHover(newHov) {
+        if (newHov === hovIdx) return;
+        hovIdx = newHov;
+        els.forEach(function(el) {
+          var ei = parseInt(el.dataset.tpidx);
+          el.classList.toggle('hover', ei === hovIdx && ei !== curIdx);
+          /* Päivitä leveys */
+          if (ei === curIdx)       el.style.width = ACT_W + 'px';
+          else if (ei === hovIdx) el.style.width = HOV_W + 'px';
+          else                    el.style.width = SLOT_W + 'px';
+        });
+      }
+
+      /* Nollaa hover */
+      function _clearHover() {
+        hovIdx = -1;
+        els.forEach(function(el) {
+          el.classList.remove('hover');
+          var ei = parseInt(el.dataset.tpidx);
+          el.style.width = (ei === curIdx ? ACT_W : SLOT_W) + 'px';
+        });
+      }
+
+      /* Snap animoidusti — vasta touchend kutsuu _tpGoTo */
+      function _snapTo(idx, fireUpdate) {
+        _clearHover();
+        /* Päivitä active/past luokat */
+        els.forEach(function(el) {
           var ei = parseInt(el.dataset.tpidx);
           el.classList.toggle('active', ei === idx);
           el.classList.toggle('past',   ei < idx);
           el.style.width = (ei === idx ? ACT_W : SLOT_W) + 'px';
+          /* Päivitä päiväteksti: aktiiviiselle aina näkyy */
+          var dayEl = el.querySelector('.sh-tpslot-day');
+          if (dayEl) {
+            if (ei === idx) {
+              if (!dayEl.classList.contains('vis')) dayEl.classList.add('vis');
+            }
+          }
         });
-        winW = win.offsetWidth || 240;
-        var newOffset = _offsetForIdx(idx, winW);
-        inner.style.transition = 'transform .22s cubic-bezier(.25,.46,.45,.94)';
-        inner.style.transform  = 'translateX('+newOffset.toFixed(1)+'px)';
-        _tpGoTo(idx);
+        curIdx = idx;
+        winW = win.offsetWidth || 260;
+        offset = _calcOffset(idx, idx, -1);
+        inner.style.transition = 'transform .2s cubic-bezier(.25,.46,.45,.94)';
+        inner.style.transform  = 'translateX('+offset.toFixed(1)+'px)';
+        if (fireUpdate !== false) _tpGoTo(idx);
       }
 
-      /* Nuolipainikkeet */
+      /* Alku-asema */
+      _setWidths(curIdx, -1);
+      offset = _calcOffset(curIdx, curIdx, -1);
+      inner.style.transition = 'none';
+      inner.style.transform  = 'translateX('+offset.toFixed(1)+'px)';
+
+      /* ── Nuolipainikkeet ─────────────────────────────────────── */
       if (prev) prev.addEventListener('click', function(e) {
         e.stopPropagation();
-        _snapTo(Math.max(0, (State.currentHourIdx||0) - 1));
+        _snapTo(Math.max(0, curIdx - 1));
       }, { passive: true });
       if (next) next.addEventListener('click', function(e) {
         e.stopPropagation();
-        _snapTo(Math.min(maxIdx, (State.currentHourIdx||0) + 1));
+        _snapTo(Math.min(maxIdx, curIdx + 1));
       }, { passive: true });
 
-      /* Klikkaus slottiin */
+      /* ── Slotti-klikkaus (ei dragin jälkeen) ─────────────────── */
       inner.addEventListener('click', function(e) {
-        if (_dragged) return; /* älä tulkitse drag-lopetusta klikkaukseksi */
+        if (_dragged) return;
         var sl = e.target.closest('[data-tpidx]');
         if (!sl) return;
         var ni = parseInt(sl.dataset.tpidx);
-        if (!isNaN(ni) && ni !== (State.currentHourIdx||0)) _snapTo(ni);
+        if (!isNaN(ni) && ni !== curIdx) _snapTo(ni);
       }, { passive: true });
 
-      /* ── Continuous drag — toimii iOS Safarissa ────────────────
-         touch-action: pan-y sallii pystysuoran sivuscrollen
-         mutta koukkataan vaakaliike ennen kuin selain ehtii */
-      var _startX   = null;   /* touchstart x */
-      var _startOff = null;   /* offset dragin alussa */
-      var _dragged  = false;  /* siirtyikö yli kynnyksen */
-      var _lastX    = null;
-      var _velX     = 0;
-
+      /* ── Touch drag ──────────────────────────────────────────── */
       win.addEventListener('touchstart', function(e) {
         var t = e.touches[0];
         _startX   = t.clientX;
@@ -4840,80 +4899,58 @@ function openSheet(spot, hourIdx) {
 
       win.addEventListener('touchmove', function(e) {
         if (_startX === null) return;
-        var t   = e.touches[0];
-        var dx  = t.clientX - _startX;
-        _velX   = t.clientX - _lastX;
-        _lastX  = t.clientX;
-        if (!_dragged && Math.abs(dx) > 6) _dragged = true;
+        var t  = e.touches[0];
+        var dx = t.clientX - _startX;
+        _velX  = t.clientX - _lastX;
+        _lastX = t.clientX;
+        if (!_dragged && Math.abs(dx) > 5) _dragged = true;
         if (!_dragged) return;
-        /* Siirrä inner suoraan sormen mukana */
+        e.preventDefault();  /* estä page scroll */
+        /* Siirrä inner sormen mukana */
         offset = _startOff + dx;
         inner.style.transform = 'translateX('+offset.toFixed(1)+'px)';
-        /* Estä sivun scroll vain kun draggaamme vaakasuunnassa */
-        e.preventDefault();
+        /* Selvitä mikä slotti on nyt keskellä → hover */
+        var ni = _nearestIdx(curIdx, hovIdx);
+        _setHover(ni !== curIdx ? ni : -1);
       }, { passive: false });
 
       win.addEventListener('touchend', function(e) {
-        if (_startX === null) return;
-        var totalDx = (e.changedTouches[0] ? e.changedTouches[0].clientX : _lastX) - _startX;
+        if (_startX === null || !_dragged) { _startX = null; return; }
         _startX = null;
-        if (!_dragged) return;
-        /* Lisää velocity ennen snappausta */
-        var momentumSlots = Math.round(-(_velX * 2.5) / SLOT_W);
-        var cur = State.currentHourIdx || 0;
-        /* Mikä slotti on lähimpänä ikkunan keskipistettä? */
-        var nearestIdx = cur;
-        var bestDist = Infinity;
-        var cx = winW / 2 - offset;
-        var x2 = 0;
-        for (var i = 0; i < allSlotEls.length; i++) {
-          var ei2 = parseInt(allSlotEls[i].dataset.tpidx);
-          var slotCenter = x2 + (ei2 === cur ? ACT_W : SLOT_W) / 2;
-          var dist = Math.abs(cx - slotCenter);
-          if (dist < bestDist) { bestDist = dist; nearestIdx = ei2; }
-          x2 += (ei2 === cur ? ACT_W : SLOT_W);
-        }
-        /* Velocity-korjaus */
-        nearestIdx = Math.max(0, Math.min(maxIdx, nearestIdx + momentumSlots));
-        _snapTo(nearestIdx);
+        /* Velocity momentum — 1 slot per 12px/frame nopeudella */
+        var momentumExtra = Math.round(-_velX * 2) / SLOT_W | 0;
+        momentumExtra = Math.max(-3, Math.min(3, momentumExtra));
+        var ni = _nearestIdx(curIdx, hovIdx);
+        ni = Math.max(0, Math.min(maxIdx, ni + momentumExtra));
+        _snapTo(ni);   /* tämä kutsuu _tpGoTo → päivittää datan */
       }, { passive: true });
 
-      /* Mouse drag desktop-testaukseen */
-      var _mdown = false, _msx = null, _msOff = null, _mDragged = false;
+      /* ── Mouse drag (desktop testaus) ────────────────────────── */
+      var _md = false, _msx = null, _msOff = null, _mdr = false;
       win.addEventListener('mousedown', function(e) {
-        _mdown = true; _msx = e.clientX; _msOff = offset; _mDragged = false;
-        inner.style.transition = 'none';
-        e.preventDefault();
+        _md = true; _msx = e.clientX; _msOff = offset; _mdr = false;
+        inner.style.transition = 'none'; e.preventDefault();
       });
       window.addEventListener('mousemove', function(e) {
-        if (!_mdown) return;
+        if (!_md) return;
         var dx = e.clientX - _msx;
-        if (Math.abs(dx) > 4) _mDragged = true;
-        if (!_mDragged) return;
+        if (Math.abs(dx) > 4) _mdr = true;
+        if (!_mdr) return;
         offset = _msOff + dx;
         inner.style.transform = 'translateX('+offset.toFixed(1)+'px)';
+        var ni = _nearestIdx(curIdx, hovIdx);
+        _setHover(ni !== curIdx ? ni : -1);
       });
-      window.addEventListener('mouseup', function(e) {
-        if (!_mdown) return;
-        _mdown = false;
-        if (!_mDragged) return;
-        var cx2 = winW / 2 - offset;
-        var ni2 = 0, bd2 = Infinity, x3 = 0;
-        allSlotEls.forEach(function(el) {
-          var ei3 = parseInt(el.dataset.tpidx);
-          var cur3 = State.currentHourIdx || 0;
-          var sc3 = x3 + (ei3 === cur3 ? ACT_W : SLOT_W) / 2;
-          var d3 = Math.abs(cx2 - sc3);
-          if (d3 < bd2) { bd2 = d3; ni2 = ei3; }
-          x3 += (ei3 === cur3 ? ACT_W : SLOT_W);
-        });
-        _snapTo(ni2);
-        _mDragged = false;
+      window.addEventListener('mouseup', function() {
+        if (!_md) return; _md = false;
+        if (!_mdr) return; _mdr = false;
+        var ni = _nearestIdx(curIdx, hovIdx);
+        _snapTo(Math.max(0, Math.min(maxIdx, ni)));
       });
 
     }, 0);
   })();
-    /* Tausta hivelee tuulen mukaan */
+      /* Tausta hivelee tuulen mukaan */
   (function() {
     var sc = document.getElementById('sheet-content');
     if (!sc) return;
