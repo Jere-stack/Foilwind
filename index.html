@@ -551,23 +551,23 @@ display: flex; align-items: flex-start; justify-content: space-between; gap: 12p
 .sh-datetime { display: none; } /* korvattu pillillä */
 .sh-timepill {
 display: flex; align-items: center;
-margin: 4px 0 12px;
-background: rgba(255,255,255,.07);
-border: 1px solid rgba(255,255,255,.13);
-border-radius: 14px;
-overflow: hidden;
+margin: 2px 0 10px;
+background: none;
+border: none;
+border-radius: 0;
+overflow: visible;
 -webkit-user-select: none; user-select: none;
 }
 .sh-timepill-arrow {
 flex-shrink: 0;
-width: 44px; height: 44px;
+width: 36px; height: 44px;
 display: flex; align-items: center; justify-content: center;
-font-size: 17px; color: rgba(255,255,255,.55);
+color: rgba(255,255,255,.4);
 cursor: pointer;
-transition: background .12s, color .12s;
+transition: color .12s;
 -webkit-tap-highlight-color: transparent;
 }
-.sh-timepill-arrow:active { background: rgba(255,255,255,.1); color: rgba(255,255,255,.95); }
+.sh-timepill-arrow:active { color: rgba(255,255,255,.9); }
 .sh-timepill-center {
 flex: 1; text-align: center;
 padding: 0 2px;
@@ -592,6 +592,16 @@ font-size: 8px; font-weight: 700; letter-spacing: 1px;
 color: rgba(100,255,160,.85);
 background: rgba(100,255,160,.1);
 border: 1px solid rgba(100,255,160,.2);
+border-radius: 6px; padding: 1px 6px;
+margin-bottom: 3px;
+}
+.sh-timepill-forecast {
+display: inline-block;
+font-family: ‘DM Mono’, monospace;
+font-size: 8px; font-weight: 700; letter-spacing: 1px;
+color: rgba(0,207,255,.7);
+background: rgba(0,207,255,.08);
+border: 1px solid rgba(0,207,255,.15);
 border-radius: 6px; padding: 1px 6px;
 margin-bottom: 3px;
 }
@@ -3819,10 +3829,15 @@ function openSheet(spot, hourIdx) {
     /* Päivänkeston normalisoitu aika 0–1 koko vuorokausi midnight–midnight */
     const midnight = new Date(now); midnight.setHours(0,0,0,0);
     const DAY_MS = 86400000;
-    const riseN = (riseMs - midnight.getTime()) / DAY_MS;  /* esim 0.229 = klo 05:30 */
-    const setN  = (setMs  - midnight.getTime()) / DAY_MS;  /* esim 0.875 = klo 21:00 */
+    const riseN = (riseMs - midnight.getTime()) / DAY_MS;
+    const setN  = (setMs  - midnight.getTime()) / DAY_MS;
+    /* nowN = VALITTU aika (h.time[idx]) — tämä on auringon piste */
     const nowN  = Math.max(0, Math.min(1, (nowMs - midnight.getTime()) / DAY_MS));
-    const dayLen = setN - riseN;  /* päivän pituus 0–1 */
+    /* realNowN = TODELLINEN nykyaika — referenssiviiva */
+    const realNowMs = Date.now();
+    const realNowN  = Math.max(0, Math.min(1, (realNowMs - midnight.getTime()) / DAY_MS));
+    const isSelectedNow = Math.abs(nowMs - realNowMs) < 3600000; /* sama tunti */
+    const dayLen = setN - riseN;
 
     /* ── Sinikäyrä-kaava ────────────────────────────────────────
        y(t) = sin( (t - riseN) / dayLen * π )
@@ -3958,13 +3973,33 @@ function openSheet(spot, hourIdx) {
           /* Yöllä: piste horisontin alapuolella — piilota */
           : '')
 
-      /* Kellonajat */
-      + '<text x="'+riseX.toFixed(1)+'" y="'+(HOR_Y+14)+'"'
-        + ' font-family="DM Mono,monospace" font-size="8"'
-        + ' fill="rgba(255,210,80,.6)" text-anchor="middle">'+fmt(rise)+'</text>'
-      + '<text x="'+setX.toFixed(1)+'" y="'+(HOR_Y+14)+'"'
-        + ' font-family="DM Mono,monospace" font-size="8"'
-        + ' fill="rgba(255,210,80,.6)" text-anchor="middle">'+fmt(set)+'</text>'
+      /* Todellinen nykyaika — ohut referenssiviiva jos eri kuin valittu */
+      + ((!isSelectedNow && realNowN >= 0 && realNowN <= 1)
+        ? (function(){
+            var rnX = (realNowN * VW).toFixed(1);
+            return '<line x1="'+rnX+'" y1="'+(HOR_Y-AMP-4)+'" x2="'+rnX+'" y2="'+(HOR_Y+2)+'"'              + ' stroke="rgba(255,255,255,.2)" stroke-width="1" stroke-dasharray="2,3"/>'              + '<text x="'+rnX+'" y="'+(HOR_Y+14)+'" font-family="DM Mono,monospace" font-size="7"'              + ' fill="rgba(255,255,255,.25)" text-anchor="middle">NYT</text>';
+          })()
+        : '')
+
+      /* Valittu hetki — pieni kolmio / tikki horisonttiviivalla */
+      + (function(){
+          var tx = (nowN * VW).toFixed(1);
+          /* Tikki: pieni pystyviiva horisontin alla */
+          return '<line x1="'+tx+'" y1="'+HOR_Y+'" x2="'+tx+'" y2="'+(HOR_Y+5)+'"'            + ' stroke="rgba(0,207,255,.7)" stroke-width="2" stroke-linecap="round"/>'            /* Teksti: valittu kellonaika */
+            + '<text x="'+tx+'" y="'+(HOR_Y+14)+'" font-family="DM Mono,monospace" font-size="8"'            + ' fill="rgba(0,207,255,'+(isSelectedNow?'0':'.55')+')" text-anchor="'            + (nowN < 0.15 ? 'start' : nowN > 0.85 ? 'end' : 'middle')+'"'            + '>'+('0'+new Date(nowMs).getHours()).slice(-2)+':00</text>';
+        })()
+
+      /* Kellonajat — piilota jos valittu-merkki liian lähellä */
+      + (Math.abs(nowN*VW - riseN*VW) > 30
+        ? '<text x="'+riseX.toFixed(1)+'" y="'+(HOR_Y+14)+'"'
+          + ' font-family="DM Mono,monospace" font-size="8"'
+          + ' fill="rgba(255,210,80,.55)" text-anchor="middle">'+fmt(rise)+'</text>'
+        : '')
+      + (Math.abs(nowN*VW - setN*VW) > 30
+        ? '<text x="'+setX.toFixed(1)+'" y="'+(HOR_Y+14)+'"'
+          + ' font-family="DM Mono,monospace" font-size="8"'
+          + ' fill="rgba(255,210,80,.55)" text-anchor="middle">'+fmt(set)+'</text>'
+        : '')
 
       /* Statuslabel — kaaren yläpuolella auringon kohdalla tai keskellä */
       + (function(){
@@ -4553,7 +4588,10 @@ function openSheet(spot, hourIdx) {
             var dateStr = DAY[d.getDay()]+' '+d.getDate()+'. '+MON[d.getMonth()];
             var canPrev = (State.currentHourIdx||0) > 0;
             var canNext = (State.currentHourIdx||0) < tLen - 1;
-            return '<div class="sh-timepill" id="sh-timepill">'              + '<div class="sh-timepill-arrow" id="sh-tp-prev" style="opacity:'+(canPrev?'1':'.2')+'">'                + '<svg width="10" height="16" viewBox="0 0 10 16"><polyline points="8,2 2,8 8,14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'              + '</div>'              + '<div class="sh-timepill-center" id="sh-tp-center">'                + (isNow ? '<div class="sh-timepill-now">NYT</div>' : '')                + '<div class="sh-timepill-time">'+timeStr+'</div>'                + '<div class="sh-timepill-date">'+dateStr+'</div>'              + '</div>'              + '<div class="sh-timepill-arrow" id="sh-tp-next" style="opacity:'+(canNext?'1':'.2')+'">'                + '<svg width="10" height="16" viewBox="0 0 10 16"><polyline points="2,2 8,8 2,14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'              + '</div>'            + '</div>';          })()
+            var badge = isNow
+              ? '<div class="sh-timepill-now">NYT</div>'
+              : '<div class="sh-timepill-forecast">ENNUSTE</div>';
+            return '<div class="sh-timepill" id="sh-timepill">'              + '<div class="sh-timepill-arrow" id="sh-tp-prev" style="opacity:'+(canPrev?'1':'.25')+'">'                + '<svg width="9" height="15" viewBox="0 0 9 15"><polyline points="7,1 1,7.5 7,14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'              + '</div>'              + '<div class="sh-timepill-center" id="sh-tp-center">'                + badge                + '<div class="sh-timepill-time">'+timeStr+'</div>'                + '<div class="sh-timepill-date">'+dateStr+'</div>'              + '</div>'              + '<div class="sh-timepill-arrow" id="sh-tp-next" style="opacity:'+(canNext?'1':'.25')+'">'                + '<svg width="9" height="15" viewBox="0 0 9 15"><polyline points="2,1 8,7.5 2,14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'              + '</div>'            + '</div>';          })()
         + (()=>{
             const si = spotIndex(ms, dir, spot.bestDirs, gst);
             const sc = spotIndexColor(si);
