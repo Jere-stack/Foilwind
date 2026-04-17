@@ -3517,7 +3517,7 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
   el.innerHTML=
     /* Header */
     '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;min-width:0">'
-      +'<div id="'+svgId+'-dd" style="min-width:0;overflow:hidden"></div>'
+      +'<div id="'+svgId+'-dd" style="min-width:0;overflow:visible;position:relative"></div>'
       +'<div style="display:flex;flex-shrink:0;background:rgba(255,255,255,.06);border-radius:10px;padding:2px;gap:1px;border:1px solid rgba(255,255,255,.08)">'
         +segBtns
       +'</div>'
@@ -3599,74 +3599,119 @@ function _uirasChartInteractive(el, allPts, stationName, uirasStation, spotLat, 
     },{passive:true});
   });
 
-  /* Asemavalitsin dropdown */
+  /* Asemavalitsin dropdown
+     RATKAISU: ei document-listenereita jotka kertyisivät.
+     Käytetään el-tason delegointia + data-attribuutteja.
+     Syy: svgId on satunnainen per renderöinti → el.innerHTML tuhoaa
+     vanhat DOM-nodet mutta document-listenerit jäävät henkiin
+     ja wrap.contains() palauttaa aina false poistetulle nodelle. */
   var ddEl=document.getElementById(svgId+'-dd');
   if(ddEl&&uirasStation&&spotLat!=null){
     function uiKm(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
     var sorted=UIRAS_STATIONS.map(function(s){return Object.assign({},s,{km:uiKm(spotLat,spotLng,s.lat,s.lng)});})
       .filter(function(s){return s.km<=20;}).sort(function(a,b){return a.km-b.km;}).slice(0,6);
-    var tr=document.createElement('button');
-    tr.style.cssText='display:flex;align-items:center;gap:6px;background:rgba(0,180,255,.08);border:1px solid rgba(0,180,255,.2);border-radius:8px;font-family:DM Mono,monospace;font-size:9px;color:rgba(0,220,255,.9);cursor:pointer;padding:4px 10px;-webkit-user-select:none;user-select:none;transition:background .15s';
-    function setTr(st){
-      tr.innerHTML='<span style="font-weight:700;color:rgba(0,220,255,.95)">'+st.name+'</span>'
-        +'<span style="color:rgba(255,255,255,.38);font-size:8px;margin-left:2px">'+st.km.toFixed(1)+'km</span>'
-        +'<svg width="12" height="12" viewBox="0 0 12 12" style="flex-shrink:0;margin-left:2px"><polyline points="2,4 6,8 10,4" fill="none" stroke="rgba(0,220,255,.85)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    }
+    if(!sorted.length){ddEl.innerHTML='';return;}
+
     var curSt=sorted.find(function(s){return s.id===uirasStation.id;})||sorted[0];
-    setTr(curSt);
-    var menu=document.createElement('div');
-    menu.style.cssText='display:none;position:absolute;top:calc(100% + 6px);left:0;min-width:190px;background:rgba(10,14,28,.98);border:1px solid rgba(0,180,255,.18);border-radius:14px;overflow:hidden;z-index:200;box-shadow:0 12px 40px rgba(0,0,0,.7);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)';
-    sorted.forEach(function(st){
-      var item=document.createElement('div');
-      var active=st.id===curSt.id;
-      item.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:11px 16px;cursor:pointer;font-family:system-ui,sans-serif;font-size:11px;border-bottom:1px solid rgba(255,255,255,.04);-webkit-user-select:none;user-select:none'+(active?';background:rgba(0,180,255,.1)':'');
-      item.innerHTML='<span style="color:rgba(255,255,255,'+(active?.95:.7)+');font-weight:'+(active?700:400)+'">'+st.name+'</span>'
-        +'<div style="display:flex;align-items:center;gap:8px">'
-          +'<span style="color:rgba(255,255,255,.3);font-size:10px">'+st.km.toFixed(1)+' km</span>'
-          +(active?'<span style="color:rgba(0,207,255,.8);font-size:12px">✓</span>':'')
-        +'</div>';
-      item.addEventListener('click',function(e){
+    var menuId=svgId+'-umenu';
+    var trId=svgId+'-utr';
+
+    /* Rakenna trigger-nappi */
+    function makeTriggerHtml(st){
+      return '<button id="'+trId+'" style="display:flex;align-items:center;gap:6px;'
+        +'background:rgba(0,180,255,.08);border:1px solid rgba(0,180,255,.2);'
+        +'border-radius:8px;font-family:DM Mono,monospace;font-size:9px;'
+        +'color:rgba(0,220,255,.9);cursor:pointer;padding:4px 10px;'
+        +'-webkit-user-select:none;user-select:none;">'
+        +'<span style="font-weight:700;color:rgba(0,220,255,.95)">'+st.name+'</span>'
+        +'<span style="color:rgba(255,255,255,.38);font-size:8px;margin-left:2px">'+st.km.toFixed(1)+'km</span>'
+        +'<svg width="12" height="12" viewBox="0 0 12 12" style="flex-shrink:0;margin-left:2px">'
+          +'<polyline points="2,4 6,8 10,4" fill="none" stroke="rgba(0,220,255,.85)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        +'</svg></button>';
+    }
+
+    /* Rakenna menu-html */
+    function makeMenuHtml(){
+      var items=sorted.map(function(st){
+        var active=st.id===curSt.id;
+        return '<div data-uiras-pick="'+st.id+'" style="display:flex;justify-content:space-between;align-items:center;'
+          +'padding:11px 16px;cursor:pointer;font-family:DM Mono,monospace;font-size:11px;'
+          +'border-bottom:1px solid rgba(255,255,255,.04);-webkit-user-select:none;user-select:none;'
+          +(active?'background:rgba(0,180,255,.1)':'')+';">'
+          +'<span style="color:rgba(255,255,255,'+(active?'.95':'.7')+');font-weight:'+(active?700:400)+'">'
+            +st.name+'</span>'
+          +'<div style="display:flex;align-items:center;gap:8px;">'
+            +'<span style="color:rgba(255,255,255,.3);font-size:10px">'+st.km.toFixed(1)+' km</span>'
+            +(active?'<span style="color:rgba(0,207,255,.8);font-size:12px">✓</span>':'')
+          +'</div></div>';
+      }).join('');
+      return '<div id="'+menuId+'" style="display:none;position:absolute;top:calc(100% + 6px);left:0;'
+        +'min-width:190px;background:rgba(10,14,28,.98);border:1px solid rgba(0,180,255,.18);'
+        +'border-radius:14px;overflow:hidden;z-index:300;box-shadow:0 12px 40px rgba(0,0,0,.7);'
+        +'-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)">'+items+'</div>';
+    }
+
+    /* Kirjoita alkutila */
+    ddEl.innerHTML='<div style="position:relative;display:inline-block">'
+      +makeTriggerHtml(curSt)
+      +makeMenuHtml()
+      +'</div>';
+
+    /* Event delegation suoraan ddEl:llä — ei document-listenereita */
+    ddEl.addEventListener('click', function(e) {
+      var menu=document.getElementById(menuId);
+      var tr=document.getElementById(trId);
+      if(!menu||!tr) return;
+
+      /* Klikkaus trigger-napissa */
+      if(tr.contains(e.target)){
         e.stopPropagation();
+        var isOpen=menu.style.display==='block';
+        menu.style.display=isOpen?'none':'block';
+        if(!isOpen&&typeof Haptics!=='undefined') Haptics.light();
+        return;
+      }
+
+      /* Klikkaus menu-itemissä */
+      var pick=e.target.closest('[data-uiras-pick]');
+      if(pick){
+        e.stopPropagation();
+        var stId=pick.dataset.urasPick || pick.getAttribute('data-uiras-pick');
+        var st=sorted.find(function(s){return s.id===stId;});
+        if(!st||st.id===curSt.id){menu.style.display='none';return;}
+        curSt=st;
         menu.style.display='none';
-        if(st.id===curSt.id)return;
-        curSt=st;setTr(st);
+        /* Päivitä trigger */
+        ddEl.querySelector('div').innerHTML=makeTriggerHtml(st)+makeMenuHtml();
+        /* Lataa uusi data */
         el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:16px">Ladataan '+st.name+'...</div>';
         var spotRef3=State.sheetSpot;
         var wsIdRef=spotRef3?('ws-'+spotRef3.name.replace(/[^a-z0-9]/gi,'_')):null;
         Promise.allSettled([UiRas.history(st.id),UiRas.loadLatest()]).then(function(results){
           var pts2=results[0].status==='fulfilled'?results[0].value:null;
           var latest=results[1].status==='fulfilled'?results[1].value:null;
-          if(latest&&latest[st.id]&&latest[st.id].temp!=null&&wsIdRef)_updateUirasCard(wsIdRef,latest[st.id].temp,st.name);
+          if(latest&&latest[st.id]&&latest[st.id].temp!=null&&wsIdRef)
+            _updateUirasCard(wsIdRef,latest[st.id].temp,st.name);
           el._period=period;
-          if(pts2&&pts2.length)_uirasChartInteractive(el,pts2,st.name,st,spotLat,spotLng);
+          if(pts2&&pts2.length) _uirasChartInteractive(el,pts2,st.name,st,spotLat,spotLng);
           else el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);text-align:center;padding:16px">Ei dataa</div>';
-        }).catch(function(){ el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);text-align:center;padding:16px">Ei dataa</div>'; });
-      },{passive:true});
-      menu.appendChild(item);
-    });
-    var wrap=document.createElement('div');
-    wrap.style.cssText='position:relative;display:inline-block';
-    wrap.appendChild(tr);wrap.appendChild(menu);
-    ddEl.appendChild(wrap);
-    tr.addEventListener('click',function(e){
-      e.stopPropagation();  /* tarvitsee non-passive */
-      var open=menu.style.display==='block';
-      document.querySelectorAll('.uiras-menu-open').forEach(function(m){m.style.display='none';m.classList.remove('uiras-menu-open');});
-      if(!open){
-        menu.style.display='block';
-        menu.classList.add('uiras-menu-open');
-        if(typeof Haptics!=='undefined')Haptics.light();
+        }).catch(function(){
+          el.innerHTML='<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);text-align:center;padding:16px">Ei dataa</div>';
+        });
+        return;
       }
-    });  /* ei passive — stopPropagation toimii */
+    });
 
-    document.addEventListener('click',function _cUd(e){
-      if(!menu.classList.contains('uiras-menu-open'))return;
-      if(wrap.contains(e.target))return;
-      menu.style.display='none';
-      menu.classList.remove('uiras-menu-open');
-    },{capture:false,passive:true});
-  } else if(ddEl){
-    ddEl.innerHTML='<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.5)">🌊 '+(stationName||'Vedenlämpö')+'</span>';
+    /* Sulje menu kun klikataan ddEl:n ulkopuolelta — kerran rekisteröity per el */
+    if(!el._uirasCloseRegistered){
+      el._uirasCloseRegistered=true;
+      document.addEventListener('click',function(){
+        /* Etsi nykyinen menu el:n sisältä */
+        var m=el.querySelector('[id$="-umenu"]');
+        if(m) m.style.display='none';
+      });
+    }
+  } else if(ddEl){    ddEl.innerHTML='<span style="font-family:DM Mono,monospace;font-size:9px;color:rgba(0,207,255,.5)">🌊 '+(stationName||'Vedenlämpö')+'</span>';
   }
 
 }
