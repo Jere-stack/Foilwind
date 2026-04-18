@@ -5124,6 +5124,9 @@ function openSheet(spot, hourIdx) {
     }).then(function(res) {
       if (!res || !res.pts || !uirasHistEl) return;
       var pts = res.pts, bestSt = res.st;
+      /* Päivitä graafin otsikko vastaamaan datan asemaa */
+      var chartLbl = document.getElementById('uiras-chart-lbl-' + _waterStatId);
+      if (chartLbl) chartLbl.textContent = 'Uimaveden lämpötila · ' + bestSt.name;
       _uirasChartInteractive(uirasHistEl, pts, bestSt.name, bestSt, spot.lat, spot.lng);
     }).catch(function() {
       if (uirasHistEl) uirasHistEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Vedenlämpödata ei saatavilla</div>';
