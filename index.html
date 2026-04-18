@@ -1485,8 +1485,19 @@ border-color: rgba(0,207,255,.4);
         </div>
       </div>
       <div id="bottom-bar-spacer"></div>
-      <!-- Right column: calendar (forecast) -->
+      <!-- Right column: free point above, calendar below -->
       <div id="btn-spots-wrap">
+        <div class="mctl" id="btn-freespot" title="Avaa tämän paikan tiedot">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Tähtäinympyrä -->
+            <circle cx="12" cy="12" r="3.5"/>
+            <!-- Neljä tähtäinviivaa -->
+            <line x1="12" y1="2"  x2="12" y2="6"/>
+            <line x1="12" y1="18" x2="12" y2="22"/>
+            <line x1="2"  y1="12" x2="6"  y2="12"/>
+            <line x1="18" y1="12" x2="22" y2="12"/>
+          </svg>
+        </div>
         <div class="mctl" id="fc-btn" title="Parhaat ajankohdat">
           <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="3"/>
@@ -3902,7 +3913,54 @@ function _openObsSheet(type, station) {
 
 
 function openSheet(spot, hourIdx) {
-  if (!spot.wx || !spot.wx.hourly) return;
+  /* Jos wx puuttuu (vapaa piste), hae Harmonie ensin */
+  if (!spot.wx || !spot.wx.hourly) {
+    if (spot._loadingWx) return; /* jo ladataan */
+    spot._loadingWx = true;
+    /* Näytä latausanimaatio sheetissä */
+    const sheet = document.getElementById('sheet');
+    const sc    = document.getElementById('sheet-content');
+    if (sheet && sc) {
+      sc.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:32px;font-family:DM Mono,monospace;font-size:11px;color:rgba(255,255,255,.4)">'
+        + '<svg width="18" height="18" viewBox="0 0 18 18" style="animation:spin 1s linear infinite"><circle cx="9" cy="9" r="7" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1.5"/><path d="M9 2 A7 7 0 0 1 16 9" fill="none" stroke="rgba(100,255,160,.7)" stroke-width="1.5" stroke-linecap="round"/></svg>'
+        + spot.name + '</div>';
+      sheet.classList.add('open');
+      document.getElementById('sheet-overlay').classList.add('open');
+    }
+    /* Hae Harmonie + Open-Meteo */
+    const harUrl = HARMONIE_BASE + '?lat=' + spot.lat.toFixed(4) + '&lng=' + spot.lng.toFixed(4);
+    const omUrl  = OM_BASE + '?latitude=' + spot.lat.toFixed(4) + '&longitude=' + spot.lng.toFixed(4)
+      + '&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m'
+      + '&wind_speed_unit=ms&timezone=auto&forecast_days=7&past_days=1';
+    Promise.allSettled([
+      fetch(harUrl).then(r => r.json()).catch(() => null),
+      fetch(omUrl).then(r => r.json()).catch(() => null)
+    ]).then(function(results) {
+      spot._loadingWx = false;
+      const harm = results[0].status === 'fulfilled' ? results[0].value : null;
+      const om   = results[1].status === 'fulfilled' ? results[1].value : null;
+      if (harm && harm.hourly && harm.hourly.windspeed_10m) {
+        normalizeHourly(harm.hourly);
+        spot.wx = harm;
+      } else if (om && om.hourly) {
+        normalizeHourly(om.hourly);
+        spot.wx = om;
+      }
+      if (!spot.wx) {
+        if (sc) sc.innerHTML = '<div style="text-align:center;padding:32px;font-family:DM Mono,monospace;font-size:11px;color:rgba(255,100,100,.6)">Ei säädataa tässä paikassa</div>';
+        return;
+      }
+      /* Laske nykyinen tuntiindeksi */
+      const nowMs = Date.now();
+      const times = spot.wx.hourly.time || [];
+      let best = 0;
+      for (let i = 0; i < times.length; i++) {
+        if (new Date(times[i]).getTime() <= nowMs) best = i;
+      }
+      openSheet(spot, best);
+    });
+    return;
+  }
   State.sheetSpot = spot;
   const h = spot.wx.hourly, idx = Math.min(hourIdx, h.windspeed_10m.length - 1);
   const ms  = h.windspeed_10m[idx] || 0;
@@ -6140,6 +6198,37 @@ async function loadMarineTemp() {
 }
 
 /* -- CONTROLS --------------------------------------------------- */
+/* Vapaa piste -nappi: avaa spottikortti tähtäimen koordinaateille */
+document.getElementById('btn-freespot').addEventListener('click', function() {
+  if (typeof Haptics !== 'undefined') Haptics.medium();
+  const map    = State.map;
+  const center = map.getCenter();
+  const lat    = parseFloat(center.lat.toFixed(5));
+  const lng    = parseFloat(center.lng.toFixed(5));
+
+  /* Koordinaattistring nimeksi: 60.175°N 24.944°E */
+  const latStr = Math.abs(lat).toFixed(3) + '°' + (lat >= 0 ? 'N' : 'S');
+  const lngStr = Math.abs(lng).toFixed(3) + '°' + (lng >= 0 ? 'E' : 'W');
+
+  /* Lähimmät FMI ja UiRas */
+  const fmiSt = _fmiStationsSorted(lat, lng)[0];
+
+  /* Vapaa spot-objekti — wx haetaan openSheet:ssä */
+  const freeSpot = {
+    name:        latStr + ' ' + lngStr,
+    lat:         lat,
+    lng:         lng,
+    desc:        fmiSt ? 'Lähin asema: ' + fmiSt.name + ' (' + fmiSt.km.toFixed(1) + ' km)' : 'Vapaa piste',
+    bestDirs:    null,
+    wx:          null,
+    _waterTemp:  null,
+    _isFreeSpot: true,
+  };
+
+  const hourIdx = State.currentHourIdx || 0;
+  openSheet(freeSpot, hourIdx);
+}, { passive: true });
+
 document.getElementById('btn-settings').addEventListener('click', (e) => {
   e.stopPropagation();
   Haptics.light();
