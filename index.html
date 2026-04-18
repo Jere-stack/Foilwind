@@ -3145,7 +3145,38 @@ function renderSpots(hourIdx) {
     const icon = L.divIcon({ className: '', html, iconSize: [iconW, iconH], iconAnchor: anchor });
     State.markers.push(
       L.marker([spot.lat, spot.lng], { icon })
-        .on('click', () => { Haptics.medium(); openSheet(spot, hourIdx); })
+        .on('click', () => {
+          Haptics.medium();
+          const map = State.map;
+
+          /* Laske offset: spotti halutaan sheetin yläpuolelle
+             Sheet max-height = 82vh, haluamme spotin ~30% näkyvästä alueesta */
+          const winH   = window.innerHeight;
+          const sheetH = winH * 0.82;          /* sheet korkeus pikseleinä */
+          const visH   = winH - sheetH;         /* näkyvä karttaosuus px */
+          const wantY  = visH * 0.38;           /* haluttu spotti-y näkyvässä alueessa */
+
+          /* Nykyinen spotin sijainti ruudulla */
+          const spotPx = map.latLngToContainerPoint([spot.lat, spot.lng]);
+          /* Kartan keskipiste siirtyy niin että spotti päätyy wantY:hän */
+          const centerPx = map.latLngToContainerPoint(map.getCenter());
+          /* Deltapikseli: positiivinen = alas (siirretään karttaa ylös = spotti nousee) */
+          const dy = spotPx.y - wantY;
+          const dx = spotPx.x - (map.getSize().x / 2);
+
+          const targetZoom = Math.max(map.getZoom(), 10);
+          const targetLatLng = map.containerPointToLatLng(
+            map.latLngToContainerPoint(map.getCenter()).add([dx, dy])
+          );
+
+          map.flyTo(targetLatLng, targetZoom, {
+            animate: true,
+            duration: 0.55,
+            easeLinearity: 0.15,
+          });
+
+          setTimeout(() => openSheet(spot, hourIdx), 380);
+        })
         .addTo(State.map)
     );
   }
