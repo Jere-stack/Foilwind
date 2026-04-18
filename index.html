@@ -5114,12 +5114,17 @@ function openSheet(spot, hourIdx) {
       }
       /* Päivitä UiRas linkki-kortti */
       if (best) _updateUirasCard(_waterStatId, best.temp, best.name + (best.km > 1 ? ' (' + best.km.toFixed(0) + ' km)' : ''));
-      /* Lataa historia */
+      /* Lataa historia PARHAALTA asemalta — ei alkuperäiseltä _uirasStation:lta */
       if (!uirasHistEl) return;
-      return UiRas.history(_uirasStation.id);
-    }).then(function(pts) {
-      if (!pts || !uirasHistEl) return;
-      _uirasChartInteractive(uirasHistEl, pts, _uirasStation.name, _uirasStation, spot.lat, spot.lng);
+      /* Etsi parhaan aseman koko objekti UIRAS_STATIONS:sta */
+      var bestSt = best
+        ? (UIRAS_STATIONS.find(function(s){ return s.name === best.name; }) || _uirasStation)
+        : _uirasStation;
+      return UiRas.history(bestSt.id).then(function(pts){ return {pts:pts, st:bestSt}; });
+    }).then(function(res) {
+      if (!res || !res.pts || !uirasHistEl) return;
+      var pts = res.pts, bestSt = res.st;
+      _uirasChartInteractive(uirasHistEl, pts, bestSt.name, bestSt, spot.lat, spot.lng);
     }).catch(function() {
       if (uirasHistEl) uirasHistEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Vedenlämpödata ei saatavilla</div>';
     });
