@@ -10,7 +10,7 @@ const STATIONS = [
   /* Vuosaari satama — fmisid haetaan bbox:lla */
   { place: 'vuosaari',   name: 'Helsinki Vuosaari satama', lat: 60.20900, lng: 25.19660, type: 'maritime', fmisid: null },
   /* Sipoo Itätoukki — FMISID 105392 (vahvistettu 18.4.2026: ws=4.1 wg=4.4) */
-  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.15806, lng: 25.32611, type: 'fmisid',   fmisid: '105392' },
+  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.10121, lng: 25.19439, type: 'fmisid',   fmisid: '105392' },
 ];
 
 function km(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
