@@ -919,136 +919,114 @@ transition: opacity .3s, transform .3s;
 /* ============================================================
 LOADING  z:9999
 ============================================================ */
+/* ============================================================
+LOADING SCREEN — Apple-tason redesign
+============================================================ */
 #loading {
 position: fixed; inset: 0; z-index: 9999;
-display: flex; flex-direction: column; align-items: center;
-justify-content: flex-start;
-transition: opacity .9s ease;
-overflow: hidden;
+background: #050810;
+display: flex; flex-direction: column;
+align-items: center; justify-content: center;
+transition: opacity .5s cubic-bezier(.4,0,.2,1), transform .5s cubic-bezier(.4,0,.2,1);
 }
-#loading.out { opacity: 0; pointer-events: none; }
+#loading.out {
+opacity: 0;
+transform: scale(1.03);
+pointer-events: none;
+}
 #loading.hidden { display: none; }
 
-/* Taustakuva — Safari-safe */
+/* Taustakuva */
 #load-bg {
-position: absolute;
-top: 0; left: 0; right: 0; bottom: 0;
-z-index: 0; overflow: hidden;
+position: absolute; inset: 0; z-index: 0; overflow: hidden;
 }
 #load-bg img {
 width: 100%; height: 100%;
-object-fit: cover; object-position: center 30%; display: block;
+object-fit: cover; object-position: center 35%; display: block;
+opacity: .55;
 }
 
-/* Overlay: radiaali + pysty */
+/* Tumma overlay taustakuvan päälle */
 #load-overlay {
-position: absolute;
-top: 0; left: 0; width: 100%; height: 100%;
-z-index: 1;
-background:
-radial-gradient(ellipse 100% 55% at 50% 38%, rgba(2,6,18,.75) 0%, transparent 70%),
-linear-gradient(to bottom,
-rgba(2,6,18,.7)  0%,
-rgba(2,6,18,.05) 40%,
-rgba(2,6,18,.05) 60%,
-rgba(2,6,18,.95) 100%);
+position: absolute; inset: 0; z-index: 1;
+background: linear-gradient(
+180deg,
+rgba(5,8,16,.55) 0%,
+rgba(5,8,16,.3)  35%,
+rgba(5,8,16,.3)  65%,
+rgba(5,8,16,.88) 100%
+);
 }
 
-/* – Yläosan container: badge + logo + renkaat – */
+/* Keskikontainer */
 #load-top {
 position: relative; z-index: 3;
-margin-top: calc(env(safe-area-inset-top) + 13vh);
-display: flex; flex-direction: column; align-items: center;
+display: flex; flex-direction: column;
+align-items: center; gap: 0;
 }
 
-/* Sykkivät renkaat logon ympärillä */
-.load-ring {
-position: absolute; border-radius: 50%;
-border: 1px solid rgba(0,207,255,.18);
-top: 50%; left: 50%;
-transform: translate(-50%, -50%);
-pointer-events: none;
+/* Wave bars — 4 palkkia aaltoilemassa */
+#load-waves {
+display: flex; align-items: center; justify-content: center;
+gap: 7px; height: 52px; margin-bottom: 36px;
+animation: loadFadeIn .5s .05s ease both;
 }
-.load-ring-1 {
-width: 130px; height: 130px;
-animation: ringPulse 2.8s ease-in-out infinite;
+.load-bar {
+width: 4px; border-radius: 3px;
+background: rgba(100,255,160,1);
+transform-origin: bottom center;
+animation: waveBar 1.1s ease-in-out infinite;
 }
-.load-ring-2 {
-width: 180px; height: 180px;
-border-color: rgba(0,207,255,.10);
-animation: ringPulse 2.8s .55s ease-in-out infinite;
-}
-.load-ring-3 {
-width: 240px; height: 240px;
-border-color: rgba(0,207,255,.06);
-animation: ringPulse 2.8s 1.1s ease-in-out infinite;
-}
-@keyframes ringPulse {
-0%   { transform: translate(-50%,-50%) scale(.92); opacity: 0; }
-30%  { opacity: 1; }
-100% { transform: translate(-50%,-50%) scale(1.08); opacity: 0; }
+.load-bar:nth-child(1) { animation-delay: 0s;    height: 18px; }
+.load-bar:nth-child(2) { animation-delay: .18s;  height: 30px; }
+.load-bar:nth-child(3) { animation-delay: .36s;  height: 44px; }
+.load-bar:nth-child(4) { animation-delay: .54s;  height: 30px; }
+.load-bar:nth-child(5) { animation-delay: .72s;  height: 18px; }
+@keyframes waveBar {
+0%, 100% { transform: scaleY(.35); opacity: .4; }
+50%       { transform: scaleY(1);  opacity: 1;  }
 }
 
-/* Badge */
-#load-badge {
-position: relative; z-index: 2;
-display: inline-block;
-font-family: ‘DM Mono’, monospace; font-size: 9px;
-color: rgba(255,255,255,.4); letter-spacing: 2.5px; text-transform: uppercase;
-background: rgba(255,255,255,.05);
-border: 1px solid rgba(255,255,255,.1);
-border-radius: 20px; padding: 4px 14px;
-margin-bottom: 22px;
-animation: loadFadeUp .6s .1s ease both;
-}
-
-/* Logo */
-#load-logo {
-position: relative; z-index: 2;
-font-size: 62px; font-weight: 800; letter-spacing: -3px;
-background: linear-gradient(135deg, #fff 0%, #c8eeff 50%, #00cfff 100%);
--webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-line-height: 1; margin-bottom: 0;
-animation: loadFadeUp .7s .2s ease both;
-filter: drop-shadow(0 0 28px rgba(0,207,255,.5));
-}
-
-/* – Alaosan container: slogan + palkki – */
-#load-bottom {
+/* Statusviesti */
+#load-txt {
 position: relative; z-index: 3;
-margin-top: auto;
-margin-bottom: calc(env(safe-area-inset-bottom) + 52px);
-display: flex; flex-direction: column; align-items: center;
-text-align: center; padding: 0 32px;
+font-family: ‘DM Mono’, monospace;
+font-size: 11px; letter-spacing: 2px;
+text-transform: uppercase;
+color: rgba(255,255,255,.32);
+text-align: center;
+animation: loadFadeIn .5s .3s ease both;
+min-height: 16px;
 }
 
-/* Progressbar */
+/* Progressbar — alaosa */
+#load-bottom {
+position: absolute; bottom: 0; left: 0; right: 0;
+z-index: 3;
+padding-bottom: calc(env(safe-area-inset-bottom) + 48px);
+display: flex; flex-direction: column; align-items: center;
+animation: loadFadeIn .5s .45s ease both;
+}
 #load-progress-wrap {
-width: 110px; height: 1px;
+width: 140px; height: 1px;
 background: rgba(255,255,255,.08);
 border-radius: 1px; overflow: hidden;
-margin-bottom: 14px;
-animation: loadFadeUp .6s .45s ease both;
+margin-bottom: 12px;
 }
 #load-progress-bar {
 height: 100%; width: 0%;
-background: linear-gradient(90deg, rgba(0,207,255,.8), rgba(0,255,157,.8));
+background: linear-gradient(90deg, rgba(100,255,160,.9), rgba(0,207,255,.9));
 border-radius: 1px;
-transition: width .4s ease;
+transition: width .35s ease;
 }
 
-/* Status */
-#load-txt {
-font-family: ‘DM Mono’, monospace; font-size: 9px;
-color: rgba(255,255,255,.25); letter-spacing: 1.5px; text-transform: uppercase;
-min-height: 13px; text-align: center;
-animation: loadFadeUp .6s .5s ease both;
-}
+/* Poistumaton: piilota turhat vanhat */
+#load-badge { display: none; }
+#load-logo  { display: none; }
+#load-glow  { display: none; }
 
-#load-glow { display: none; }
-
-@keyframes loadFadeUp {
-from { opacity: 0; transform: translateY(10px); }
+@keyframes loadFadeIn {
+from { opacity: 0; transform: translateY(12px); }
 to   { opacity: 1; transform: translateY(0); }
 }
 
@@ -1344,21 +1322,23 @@ border-color: rgba(0,207,255,.4);
     <div id="load-glow"></div>
 
 ```
-<!-- Yläosa: badge + logo + sykkivät renkaat -->
+<!-- Keskiosa: wave bars + status -->
 <div id="load-top">
-  <div class="load-ring load-ring-1"></div>
-  <div class="load-ring load-ring-2"></div>
-  <div class="load-ring load-ring-3"></div>
-  <div id="load-badge">Wingfoil Weather</div>
-  <div id="load-logo">FoilSpot</div>
+  <div id="load-waves">
+    <div class="load-bar"></div>
+    <div class="load-bar"></div>
+    <div class="load-bar"></div>
+    <div class="load-bar"></div>
+    <div class="load-bar"></div>
+  </div>
+  <div id="load-txt">Ladataan...</div>
 </div>
 
-<!-- Alaosa: slogan + latauspalkki -->
+<!-- Alaosa: progressbar -->
 <div id="load-bottom">
   <div id="load-progress-wrap">
     <div id="load-progress-bar"></div>
   </div>
-  <div id="load-txt">Yhdistetään säädataan...</div>
 </div>
 ```
 
