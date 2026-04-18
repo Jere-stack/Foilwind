@@ -8,7 +8,8 @@ const STATIONS = [
   { place: 'malmi',      name: 'Helsinki Malmi',           lat: 60.25299, lng: 25.04549, type: 'weather' },
   { place: 'vantaa',     name: 'Vantaa Helsinki-Vantaa',   lat: 60.31700, lng: 24.96300, type: 'weather' },
   { place: 'vuosaari',   name: 'Helsinki Vuosaari satama', lat: 60.20900, lng: 25.19660, type: 'maritime' },
-  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.20610, lng: 25.42920, type: 'maritime' },
+  /* Sipoo Itätoukki — koordinaatit WGS84/EUREF-FIN: 60°09'29"N 25°19'34"E */
+  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.15806, lng: 25.32611, type: 'maritime' },
 ];
 
 function km(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
@@ -22,7 +23,7 @@ function fetchUrl(url){
   });
 }
 
-/* Alkuperäinen toimiva parseri — käyttää [a-zA-Z]+ capture groupia */
+/* Alkuperäinen toimiva parseri */
 function parseLatest(xml){
   var result={};
   var re=/gml:id="[^"]*-([a-zA-Z]+)"[\s\S]*?(<wml2:point[\s\S]*?<\/wml2:MeasurementTimeseries>)/g;
@@ -35,7 +36,6 @@ function parseLatest(xml){
   }
   return result;
 }
-
 function parseHistory(xml){
   var series={};
   var re=/gml:id="[^"]*-([a-zA-Z]+)"[\s\S]*?(<wml2:point[\s\S]*?<\/wml2:MeasurementTimeseries>)/g;
@@ -49,9 +49,9 @@ function parseHistory(xml){
   return series;
 }
 
-function bbox(lat,lng,d){d=d||0.10;return(lng-d).toFixed(4)+','+(lat-d).toFixed(4)+','+(lng+d).toFixed(4)+','+(lat+d).toFixed(4);}
+function makeBbox(lat,lng,d){return(lng-d).toFixed(4)+','+(lat-d).toFixed(4)+','+(lng+d).toFixed(4)+','+(lat+d).toFixed(4);}
 
-/* Weather-asema: place-parametrilla (alkuperäinen toimiva tapa) */
+/* Weather-asema: place-parametrilla (toimii varmasti) */
 function fetchWeather(place,params,start){
   var url='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
     +'&storedquery_id=fmi::observations::weather::timevaluepair'
@@ -59,25 +59,41 @@ function fetchWeather(place,params,start){
   return fetchUrl(url);
 }
 
-/* Maritime-asema: 1) kokeile weather bbox, 2) kokeile maritime bbox */
+/* Maritime-asema: 3 strategiaa järjestyksessä */
 async function fetchMaritime(lat,lng,params,start){
-  var bb=bbox(lat,lng);
-  /* Yritys 1: weather storedquery bbox */
-  try {
-    var xml1=await fetchUrl('https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
-      +'&storedquery_id=fmi::observations::weather::timevaluepair'
-      +'&bbox='+bb+'&parameters='+params+'&timestep=10&starttime='+start+'&maxlocations=1');
+  var BASE='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
+    +'&timestep=10&starttime='+start+'&maxlocations=1';
+
+  /* S1: weather storedquery bbox d=0.15° (~11km) */
+  try{
+    var bb1=makeBbox(lat,lng,0.15);
+    var xml1=await fetchUrl(BASE+'&storedquery_id=fmi::observations::weather::timevaluepair&bbox='+bb1+'&parameters='+params);
     var s1=parseHistory(xml1);
-    if(s1.windspeedms&&s1.windspeedms.length) return xml1;
-  } catch(e){}
-  /* Yritys 2: maritime storedquery bbox */
-  var url2='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
-    +'&storedquery_id=fmi::observations::maritime::simple'
-    +'&bbox='+bb+'&parameters=WindSpeedMS,WindGust,WindDirection&timestep=10&starttime='+start+'&maxlocations=1';
-  console.log('[fmi maritime] bbox='+bb+' url='+url2.slice(0,150));
-  var xml2=await fetchUrl(url2);
-  console.log('[fmi maritime] response len='+xml2.length+' hasData='+xml2.includes('wml2:value'));
-  return xml2;
+    if(s1.windspeedms&&s1.windspeedms.length){console.log('[maritime] S1 weather bbox OK');return xml1;}
+    console.log('[maritime] S1 empty');
+  }catch(e){console.log('[maritime] S1 error:',e.message);}
+
+  /* S2: maritime storedquery bbox d=0.15° */
+  try{
+    var bb2=makeBbox(lat,lng,0.15);
+    var xml2=await fetchUrl(BASE+'&storedquery_id=fmi::observations::maritime::simple&bbox='+bb2+'&parameters=WindSpeedMS,WindGust,WindDirection');
+    var s2=parseHistory(xml2);
+    if(s2.windspeedms&&s2.windspeedms.length){console.log('[maritime] S2 maritime bbox OK');return xml2;}
+    console.log('[maritime] S2 empty, xml len='+xml2.length);
+  }catch(e){console.log('[maritime] S2 error:',e.message);}
+
+  /* S3: tunnetut FMISID:t Sipoo Itätoukki / Vuosaari */
+  var FMISIDS=['151048','100928','101023','100540'];
+  for(var i=0;i<FMISIDS.length;i++){
+    try{
+      var xml3=await fetchUrl(BASE+'&storedquery_id=fmi::observations::weather::timevaluepair&fmisid='+FMISIDS[i]+'&parameters='+params);
+      var s3=parseHistory(xml3);
+      if(s3.windspeedms&&s3.windspeedms.length){console.log('[maritime] S3 fmisid='+FMISIDS[i]+' OK');return xml3;}
+    }catch(e){}
+  }
+
+  console.log('[maritime] ALL STRATEGIES FAILED lat='+lat+' lng='+lng);
+  return '';
 }
 
 module.exports = async function handler(req,res){
@@ -89,19 +105,26 @@ module.exports = async function handler(req,res){
     station=STATIONS.find(function(s){return s.place===placeParam;});
     if(!station&&!isNaN(lat)&&!isNaN(lng))station=nearest(lat,lng);
     if(!station)station=STATIONS[0];
-  } else if(!isNaN(lat)&&!isNaN(lng)){
+  }else if(!isNaN(lat)&&!isNaN(lng)){
     station=nearest(lat,lng);
-  } else {
+  }else{
     station=STATIONS[0];
   }
 
-  if(req.query.history==='1'){
-    res.setHeader('Cache-Control','public, s-maxage=600, stale-while-revalidate=120');
-    var start=new Date(Date.now()-24*3600000).toISOString().slice(0,16)+'Z';
-    try{
-      var xml=station.type==='maritime'
-        ? await fetchMaritime(station.lat,station.lng,'WindSpeedMS,WindGust',start)
-        : await fetchWeather(station.place,'WindSpeedMS,WindGust',start);
+  var isHistory=req.query.history==='1';
+  var start=isHistory
+    ?new Date(Date.now()-24*3600000).toISOString().slice(0,16)+'Z'
+    :new Date(Date.now()-60*60000).toISOString().slice(0,16)+'Z';
+
+  if(isHistory)res.setHeader('Cache-Control','public, s-maxage=600, stale-while-revalidate=120');
+  else res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=60');
+
+  try{
+    var xml=station.type==='maritime'
+      ?await fetchMaritime(station.lat,station.lng,isHistory?'WindSpeedMS,WindGust':'WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint',start)
+      :await fetchWeather(station.place,isHistory?'WindSpeedMS,WindGust':'WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint',start);
+
+    if(isHistory){
       var series=parseHistory(xml);
       var ws=series['windspeedms']||[];
       var wg=series['windgust']||[];
@@ -111,24 +134,17 @@ module.exports = async function handler(req,res){
         ws:ws.map(function(p){return{t:toFiTime(p.t),v:p.v};}),
         wg:wg.map(function(p){return{t:toFiTime(p.t),v:p.v};}),
       });
-    }catch(err){return res.status(500).json({error:err.message});}
-  }
-
-  res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=60');
-  var start2=new Date(Date.now()-60*60000).toISOString().slice(0,16)+'Z';
-  try{
-    var xml2=station.type==='maritime'
-      ? await fetchMaritime(station.lat,station.lng,'WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint',start2)
-      : await fetchWeather(station.place,'WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint',start2);
-    var d=parseLatest(xml2);
-    var ws2=d['windspeedms']||null,wd=d['winddirection']||null,wg2=d['windgust']||null;
-    var t=d['temperature']||null,dp=d['dewpoint']||null;
-    if(!ws2)return res.status(200).json({error:'no data',station:station.name,place:station.place});
-    return res.status(200).json({
-      station:station.name,place:station.place,
-      ws:ws2.v,wd:wd?wd.v:null,wg:wg2?wg2.v:null,
-      tmp:t?t.v:null,dew:dp?dp.v:null,
-      time:toFiTime(ws2.t),
-    });
+    }else{
+      var d=parseLatest(xml);
+      var ws2=d['windspeedms']||null,wd=d['winddirection']||null,wg2=d['windgust']||null;
+      var t=d['temperature']||null,dp=d['dewpoint']||null;
+      if(!ws2)return res.status(200).json({error:'no data',station:station.name,place:station.place});
+      return res.status(200).json({
+        station:station.name,place:station.place,
+        ws:ws2.v,wd:wd?wd.v:null,wg:wg2?wg2.v:null,
+        tmp:t?t.v:null,dew:dp?dp.v:null,
+        time:toFiTime(ws2.t),
+      });
+    }
   }catch(err){return res.status(500).json({error:err.message});}
 };
