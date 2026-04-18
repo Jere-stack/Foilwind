@@ -5529,7 +5529,7 @@ function _renderLiveHistory(el, data, wx) {
     var yw=wsU[idx]!=null?yOf(wsU[idx]):null,yg=wgU[idx]!=null?yOf(wgU[idx]):null;
     vl.setAttribute('x1',x.toFixed(1));vl.setAttribute('x2',x.toFixed(1));vl.setAttribute('visibility','visible');
     if(dotWs&&yw!=null){dotWs.setAttribute('cx',x.toFixed(1));dotWs.setAttribute('cy',yw.toFixed(1));dotWs.setAttribute('visibility','visible');}
-    if(dotWg&&yg!=null){dotWg.setAttribute('cx',x.toFixed(1));dotWg.setAttribute('cy',yg.toFixed(1));}
+    if(dotWg&&yg!=null){dotWg.setAttribute('cx',x.toFixed(1));dotWg.setAttribute('cy',yg.toFixed(1));dotWg.setAttribute('visibility','visible');}
     var wsVal=wsU[idx]!=null?wsU[idx].toFixed(1):'--';
     var wgVal=wgU[idx]!=null?wgU[idx].toFixed(1):null;
     var dir=wsDirs&&wsDirs[idx]!=null?wsDirs[idx]:null;
@@ -5548,7 +5548,7 @@ function _renderLiveHistory(el, data, wx) {
     tip.style.display='none';
     vl.setAttribute('visibility','hidden');vl.setAttribute('x1','-1');vl.setAttribute('x2','-1');
     if(dotWs){dotWs.setAttribute('visibility','hidden');dotWs.setAttribute('cx','-1');dotWs.setAttribute('cy','-1');}
-    if(dotWg){dotWg.setAttribute('cx','-1');dotWg.setAttribute('cy','-1');}
+    if(dotWg){dotWg.setAttribute('visibility','hidden');dotWg.setAttribute('cx','-1');dotWg.setAttribute('cy','-1');}
   }
   hit.addEventListener('mousemove',function(e){showTip(e.clientX);},{passive:true});
   hit.addEventListener('mouseleave',hideTip,{passive:true});
