@@ -132,6 +132,30 @@ module.exports = async function handler(req,res){
     return res.status(200).json(results);
   }
 
+  /* STATIONCOORD: hae aseman koordinaatit FMISID:llä */
+  if(req.query.stationcoord==='1'){
+    res.setHeader('Access-Control-Allow-Origin','*');
+    var fid=req.query.fmisid||'105392';
+    var start=new Date(Date.now()-2*3600000).toISOString().slice(0,16)+'Z';
+    var url='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
+      +'&storedquery_id=fmi::observations::weather::timevaluepair'
+      +'&fmisid='+fid+'&parameters=WindSpeedMS&timestep=60&starttime='+start;
+    try{
+      var xml=await fetchUrl(url);
+      /* Koordinaatit ovat gml:pos tai gml:coordinates tagissa */
+      var pos=xml.match(/gml:pos[^>]*>([^<]+)/);
+      var name=xml.match(/gmd:name>([^<]+)/);
+      var fmisidMatch=xml.match(/fmisid[^>]*>(\d+)/);
+      return res.status(200).json({
+        fmisid:fid,
+        name:name?name[1]:null,
+        pos:pos?pos[1]:null,
+        fmisid_found:fmisidMatch?fmisidMatch[1]:null,
+        xml_snippet:xml.slice(0,800)
+      });
+    }catch(e){return res.status(500).json({error:e.message});}
+  }
+
   /* DEBUG: listaa kaikki asemat alueelta */
   if(req.query.debug==='1'){
     res.setHeader('Access-Control-Allow-Origin','*');
