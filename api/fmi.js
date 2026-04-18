@@ -9,8 +9,8 @@ const STATIONS = [
   { place: 'vantaa',     name: 'Vantaa Helsinki-Vantaa',   lat: 60.31700, lng: 24.96300, type: 'weather', fmisid: null },
   /* Vuosaari satama — fmisid haetaan bbox:lla */
   { place: 'vuosaari',   name: 'Helsinki Vuosaari satama', lat: 60.20900, lng: 25.19660, type: 'maritime', fmisid: null },
-  /* Sipoo Itätoukki — fmisid 151028 (vahvistettu debug-haulla 2025) */
-  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.15806, lng: 25.32611, type: 'maritime', fmisid: '151028' },
+  /* Sipoo Itätoukki — place=sipoo toimii suoraan FMI weather API:ssa */
+  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.15806, lng: 25.32611, type: 'weather',  fmisid: null },
 ];
 
 function km(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
