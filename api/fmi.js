@@ -8,7 +8,7 @@ const STATIONS = [
   { place: 'malmi',      name: 'Helsinki Malmi',           lat: 60.25299, lng: 25.04549, type: 'weather' },
   { place: 'vantaa',     name: 'Vantaa Helsinki-Vantaa',   lat: 60.31700, lng: 24.96300, type: 'weather' },
   { place: 'vuosaari',   name: 'Helsinki Vuosaari satama', lat: 60.20900, lng: 25.19660, type: 'maritime' },
-  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.26300, lng: 25.28900, type: 'maritime' },
+  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.20610, lng: 25.42920, type: 'maritime' },
 ];
 
 function km(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
@@ -49,7 +49,7 @@ function parseHistory(xml){
   return series;
 }
 
-function bbox(lat,lng){var d=0.05;return(lng-d).toFixed(4)+','+(lat-d).toFixed(4)+','+(lng+d).toFixed(4)+','+(lat+d).toFixed(4);}
+function bbox(lat,lng,d){d=d||0.10;return(lng-d).toFixed(4)+','+(lat-d).toFixed(4)+','+(lng+d).toFixed(4)+','+(lat+d).toFixed(4);}
 
 /* Weather-asema: place-parametrilla (alkuperäinen toimiva tapa) */
 function fetchWeather(place,params,start){
@@ -71,9 +71,13 @@ async function fetchMaritime(lat,lng,params,start){
     if(s1.windspeedms&&s1.windspeedms.length) return xml1;
   } catch(e){}
   /* Yritys 2: maritime storedquery bbox */
-  return fetchUrl('https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
+  var url2='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
     +'&storedquery_id=fmi::observations::maritime::simple'
-    +'&bbox='+bb+'&parameters=WindSpeedMS,WindGust,WindDirection&timestep=10&starttime='+start+'&maxlocations=1');
+    +'&bbox='+bb+'&parameters=WindSpeedMS,WindGust,WindDirection&timestep=10&starttime='+start+'&maxlocations=1';
+  console.log('[fmi maritime] bbox='+bb+' url='+url2.slice(0,150));
+  var xml2=await fetchUrl(url2);
+  console.log('[fmi maritime] response len='+xml2.length+' hasData='+xml2.includes('wml2:value'));
+  return xml2;
 }
 
 module.exports = async function handler(req,res){
