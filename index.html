@@ -3198,11 +3198,14 @@ const UIRAS_STATIONS = [
 ];
 
 const FMI_MAP_STATIONS = [
-  { place:'harmaja',       name:'Harmaja',          lat:60.10512, lng:24.97539, tag:'Avomeri' },
-  { place:'kaisaniemi',    name:'Kaisaniemi',        lat:60.17523, lng:24.94459, tag:null },
-  { place:'kumpula',       name:'Kumpula',           lat:60.20307, lng:24.96131, tag:null },
-  { place:'vuosaari',      name:'Vuosaari satama',   lat:60.20900, lng:25.19660, tag:null },
-  { place:'malmi',         name:'Malmi lentokenttä', lat:60.25299, lng:25.04549, tag:null },
+  { place:'kaisaniemi', name:'Helsinki Kaisaniemi',      lat:60.17523, lng:24.94459, tag:null },
+  { place:'kumpula',    name:'Helsinki Kumpula',         lat:60.20307, lng:24.96131, tag:null },
+  { place:'harmaja',    name:'Helsinki Harmaja',         lat:60.10512, lng:24.97539, tag:'Avomeri' },
+  { place:'tapiola',    name:'Espoo Tapiola',            lat:60.17510, lng:24.80590, tag:null },
+  { place:'malmi',      name:'Helsinki Malmi',           lat:60.25299, lng:25.04549, tag:'Lento' },
+  { place:'vuosaari',   name:'Helsinki Vuosaari satama', lat:60.20900, lng:25.19660, tag:null },
+  { place:'sipoo',      name:'Sipoo Itätoukki',          lat:60.26300, lng:25.28900, tag:null },
+  { place:'vantaa',     name:'Vantaa Helsinki-Vantaa',   lat:60.31700, lng:24.96300, tag:'Lento' },
 ];
 
 const UiRas = {
@@ -3840,8 +3843,8 @@ function _openObsSheet(type, station) {
   }
 
   if(type==='fmi'){
-    var latUrl='https://foilwind.vercel.app/api/fmi?place='+station.place;
-    var histUrl='https://foilwind.vercel.app/api/fmi?history=1&place='+station.place;
+    var latUrl='https://foilwind.vercel.app/api/fmi?place='+station.place+'&lat='+station.lat+'&lng='+station.lng;
+    var histUrl='https://foilwind.vercel.app/api/fmi?history=1&place='+station.place+'&lat='+station.lat+'&lng='+station.lng;
     Promise.allSettled([
       fetch(latUrl).then(function(r){return r.json();}),
       fetch(histUrl).then(function(r){return r.json();})
@@ -5268,10 +5271,14 @@ function _renderLive(el, wx) {
 /* Laskee ja palauttaa kaikki FMI-asemat jarjestettyna etaisyyden mukaan */
 function _fmiStationsSorted(spotLat, spotLng) {
   const ALL = [
-    { place: 'harmaja',    name: 'Harmaja',         lat: 60.1053, lng: 24.9754, tag: 'Avomeri' },
-    { place: 'kaisaniemi', name: 'Kaisaniemi',      lat: 60.1752, lng: 24.9445, tag: null },
-    { place: 'kumpula',    name: 'Kumpula',         lat: 60.2039, lng: 24.9608, tag: null },
-    { place: 'vuosaari',   name: 'Vuosaari satama', lat: 60.2087, lng: 25.1966, tag: null },
+    { place: 'kaisaniemi', name: 'Helsinki Kaisaniemi',          lat: 60.17523, lng: 24.94459, tag: null },
+    { place: 'kumpula',    name: 'Helsinki Kumpula',             lat: 60.20307, lng: 24.96131, tag: null },
+    { place: 'harmaja',    name: 'Helsinki Harmaja',             lat: 60.10512, lng: 24.97539, tag: 'Avomeri' },
+    { place: 'tapiola',    name: 'Espoo Tapiola',                lat: 60.17510, lng: 24.80590, tag: null },
+    { place: 'malmi',      name: 'Helsinki Malmi',               lat: 60.25299, lng: 25.04549, tag: 'Lento' },
+    { place: 'vuosaari',   name: 'Helsinki Vuosaari satama',     lat: 60.20900, lng: 25.19660, tag: null },
+    { place: 'sipoo',      name: 'Sipoo Itätoukki',              lat: 60.26300, lng: 25.28900, tag: null },
+    { place: 'vantaa',     name: 'Vantaa Helsinki-Vantaa',       lat: 60.31700, lng: 24.96300, tag: 'Lento' },
   ];
   function km(a,b,c,d){
     const R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;
@@ -5532,8 +5539,8 @@ function _renderLiveHistory(el, data, wx) {
       }
       el.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:var(--muted);text-align:center;padding:10px">Ladataan '+st.name+'...</div>';
       Promise.allSettled([
-        fetch('https://foilwind.vercel.app/api/fmi?place='+st.place).then(function(r){return r.json();}),
-        fetch('https://foilwind.vercel.app/api/fmi?history=1&place='+st.place).then(function(r){return r.json();})
+        fetch('https://foilwind.vercel.app/api/fmi?place='+st.place+'&lat='+st.lat+'&lng='+st.lng).then(function(r){return r.json();}),
+        fetch('https://foilwind.vercel.app/api/fmi?history=1&place='+st.place+'&lat='+st.lat+'&lng='+st.lng).then(function(r){return r.json();})
       ]).then(function(results){
         var lat2 = results[0].status==='fulfilled'&&!results[0].value.error ? results[0].value : null;
         var nd   = results[1].status==='fulfilled' ? results[1].value : null;
