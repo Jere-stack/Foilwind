@@ -96,6 +96,42 @@ async function fetchMaritime(lat,lng,params,start,fmisid){
 }
 
 module.exports = async function handler(req,res){
+  /* FINDSTATION: testaa FMISID:t oikealla datalla */
+  if(req.query.findstation==='1'){
+    res.setHeader('Access-Control-Allow-Origin','*');
+    var target_ws=parseFloat(req.query.ws||'4.1');
+    var target_date=req.query.date||'2026-04-18';
+    var startT=target_date+'T07:00:00Z', endT=target_date+'T08:30:00Z';
+    var BASE2='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
+      +'&storedquery_id=fmi::observations::weather::timevaluepair'
+      +'&parameters=WindSpeedMS,WindGust&timestep=10&starttime='+startT+'&endtime='+endT;
+    function isDst2(d){var mar=new Date(d.getFullYear(),2,31);mar.setDate(31-mar.getDay());var oct=new Date(d.getFullYear(),9,31);oct.setDate(31-oct.getDay());return d>=mar&&d<oct;}
+    function toFi2(iso){var d=new Date(iso);d=new Date(d.getTime()+(isDst2(d)?3:2)*3600000);return('0'+d.getUTCHours()).slice(-2)+':'+('0'+d.getUTCMinutes()).slice(-2);}
+    var testIds=['151028','151048','100928','101023','105392','100540'];
+    var results={date:target_date,target_ws:target_ws,fmisids:{}};
+    for(var ii=0;ii<testIds.length;ii++){
+      var fid=testIds[ii];
+      try{
+        var xf=await fetchUrl(BASE2+'&fmisid='+fid);
+        var sf=parseHistory(xf);
+        var wsArr=(sf.windspeedms||[]).map(function(p){return{t:toFi2(p.t),v:p.v};});
+        var wgArr=(sf.windgust||[]).map(function(p){return{t:toFi2(p.t),v:p.v};});
+        var ws10=wsArr.find(function(p){return p.t==='10:00';});
+        var wg10=wgArr.find(function(p){return p.t==='10:00';});
+        results.fmisids[fid]={ws_at_10:ws10?ws10.v:null,wg_at_10:wg10?wg10.v:null,n:wsArr.length,match:ws10&&Math.abs(ws10.v-target_ws)<0.5};
+      }catch(e){results.fmisids[fid]={error:e.message};}
+    }
+    /* Testaa myös place=sipoo */
+    try{
+      var xp=await fetchUrl(BASE2+'&place=sipoo');
+      var sp=parseHistory(xp);
+      var wsp=(sp.windspeedms||[]).map(function(p){return{t:toFi2(p.t),v:p.v};});
+      var wgp=(sp.windgust||[]).map(function(p){return{t:toFi2(p.t),v:p.v};});
+      results.place_sipoo={ws_at_10:wsp.find(function(p){return p.t==='10:00';}),wg_at_10:wgp.find(function(p){return p.t==='10:00';}),n:wsp.length};
+    }catch(e){results.place_sipoo={error:e.message};}
+    return res.status(200).json(results);
+  }
+
   /* DEBUG: listaa kaikki asemat alueelta */
   if(req.query.debug==='1'){
     res.setHeader('Access-Control-Allow-Origin','*');
