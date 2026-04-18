@@ -762,15 +762,16 @@ position: absolute; top: calc(100% + 4px); left: 0; right: 0;
 background: rgba(12,18,36,.98);
 border: 1px solid rgba(100,255,160,.2);
 border-radius: 12px;
-overflow: hidden;
-z-index: 200;
-box-shadow: 0 8px 32px rgba(0,0,0,.6);
+overflow-y: auto;
+max-height: 220px;
+z-index: 400;
+box-shadow: 0 8px 32px rgba(0,0,0,.8);
 -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
 }
 .fmi-dropdown-menu.open { display: block; }
 .fmi-dropdown-item {
 display: flex; align-items: center; justify-content: space-between;
-padding: 10px 14px; cursor: pointer;
+padding: 7px 12px; cursor: pointer;
 font-family: ‘DM Mono’, monospace; font-size: 10px;
 border-bottom: 1px solid rgba(255,255,255,.04);
 transition: background .12s;
@@ -3843,21 +3844,21 @@ function _openObsSheet(type, station) {
   }
 
   if(type==='fmi'){
-    var latUrl='https://foilwind.vercel.app/api/fmi?place='+station.place+'&lat='+station.lat+'&lng='+station.lng;
-    var histUrl='https://foilwind.vercel.app/api/fmi?history=1&place='+station.place+'&lat='+station.lat+'&lng='+station.lng;
-    /* Käytä fallback-ketjua: jos asema ei anna dataa, kokeile seuraavaa */
-    var allStationsForFallback = _fmiStationsSorted(spot.lat, spot.lng);
-    _fmiLoadWithFallback(allStationsForFallback, 12,
-      function(okSt, lat, hist) {
-        if(lat&&lat.ws!=null){
-          var cc=ColorRamp.rgb(lat.ws);
+    /* Käytä valittua asemaa suoraan, sitten muut fallbackina */
+    var allStationsForFallback = _fmiStationsSorted(station.lat, station.lng);
+    /* Varmista että valittu asema on listassa ensimmäisenä */
+    var stList = [station].concat(allStationsForFallback.filter(function(s){ return s.place !== station.place; }));
+    _fmiLoadWithFallback(stList, 12,
+      function(okSt, latData, hist) {
+        if(latData&&latData.ws!=null){
+          var cc=ColorRamp.rgb(latData.ws);
           var wc='rgb('+cc.r+','+cc.g+','+cc.b+')';
           var sub=Units.label();
-          if(lat.wd!=null) sub+='\u2002'+dirArrow(lat.wd)+' '+Math.round(lat.wd)+'°';
-          if(lat.time) sub+='\u2002'+lat.time;
-          updateHero(Units.fmt(lat.ws),sub,wc);
+          if(latData.wd!=null) sub+='\u2002'+dirArrow(latData.wd)+' '+Math.round(latData.wd)+'°';
+          if(latData.time) sub+='\u2002'+latData.time;
+          updateHero(Units.fmt(latData.ws),sub,wc);
         }
-        if(el&&hist) _renderLiveHistory(el,Object.assign({},hist,{place:okSt.place}),lat);
+        if(el&&hist) _renderLiveHistory(el,Object.assign({},hist,{place:okSt.place}),latData);
       },
       function() {
         if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
@@ -5276,21 +5277,28 @@ function _renderLive(el, wx) {
 /* Laskee ja palauttaa kaikki FMI-asemat jarjestettyna etaisyyden mukaan */
 function _fmiStationsSorted(spotLat, spotLng) {
   const ALL = [
-    { place: 'kaisaniemi', name: 'Helsinki Kaisaniemi',          lat: 60.17523, lng: 24.94459, tag: null },
-    { place: 'kumpula',    name: 'Helsinki Kumpula',             lat: 60.20307, lng: 24.96131, tag: null },
-    { place: 'harmaja',    name: 'Helsinki Harmaja',             lat: 60.10512, lng: 24.97539, tag: 'Avomeri' },
-    { place: 'tapiola',    name: 'Espoo Tapiola',                lat: 60.17510, lng: 24.80590, tag: null },
-    { place: 'malmi',      name: 'Helsinki Malmi',               lat: 60.25299, lng: 25.04549, tag: 'Lento' },
-    { place: 'vuosaari',   name: 'Helsinki Vuosaari satama',     lat: 60.20900, lng: 25.19660, tag: 'Meri' },
-    { place: 'sipoo',      name: 'Sipoo Itätoukki',              lat: 60.20610, lng: 25.42920, tag: 'Meri' },
-    { place: 'vantaa',     name: 'Vantaa Helsinki-Vantaa',       lat: 60.31700, lng: 24.96300, tag: 'Lento' },
+    { place: 'kaisaniemi', name: 'Helsinki Kaisaniemi',          lat: 60.17523, lng: 24.94459, tag: null,      pref: false },
+    { place: 'kumpula',    name: 'Helsinki Kumpula',             lat: 60.20307, lng: 24.96131, tag: null,      pref: false },
+    { place: 'harmaja',    name: 'Helsinki Harmaja',             lat: 60.10512, lng: 24.97539, tag: 'Avomeri', pref: true  },
+    { place: 'tapiola',    name: 'Espoo Tapiola',                lat: 60.17510, lng: 24.80590, tag: null,      pref: false },
+    { place: 'malmi',      name: 'Helsinki Malmi',               lat: 60.25299, lng: 25.04549, tag: 'Lento',   pref: false },
+    { place: 'vuosaari',   name: 'Helsinki Vuosaari satama',     lat: 60.20900, lng: 25.19660, tag: 'Meri',    pref: true  },
+    { place: 'sipoo',      name: 'Sipoo Itätoukki',              lat: 60.20610, lng: 25.42920, tag: 'Meri',    pref: true  },
+    { place: 'vantaa',     name: 'Vantaa Helsinki-Vantaa',       lat: 60.31700, lng: 24.96300, tag: 'Lento',   pref: false },
   ];
   function km(a,b,c,d){
     const R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;
     return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));
   }
   return ALL.map(function(s){ return Object.assign({}, s, { km: km(spotLat, spotLng, s.lat, s.lng) }); })
-    .sort(function(a,b){ return a.km - b.km; });
+    .sort(function(a,b){
+      /* Preferoitu meriasema (Harmaja, Vuosaari, Itätoukki) alle 40km → ensin */
+      var aPref = a.pref && a.km < 40;
+      var bPref = b.pref && b.km < 40;
+      if(aPref && !bPref) return -1;
+      if(!aPref && bPref) return 1;
+      return a.km - b.km;
+    });
 }
 
 /* Yrittää ladata FMI-dataa asemista järjestyksessä — fallback seuraavaan jos tyhjä */
