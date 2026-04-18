@@ -3972,10 +3972,21 @@ function openSheet(spot, hourIdx) {
   const trend    = windTrend(h, idx);
   const c        = ColorRamp.rgb(ms);
   const colorStr = 'rgb('+c.r+','+c.g+','+c.b+')';
-  /* Validoi vedenlämpö: null tai epärealistinen arvo → näytä "—" */
+  /* Validoi vedenlämpö — fallback lähimpään spottiin jolla on arvo */
   const _rawWaterTemp = spot._waterTemp;
   const _validWater   = _rawWaterTemp != null && _rawWaterTemp > -5 && _rawWaterTemp < 40;
-  const waterTemp     = _validWater ? _rawWaterTemp.toFixed(1) + '°C' : '—';
+  let waterTemp, _waterTempSource = null;
+  if (_validWater) {
+    waterTemp = _rawWaterTemp.toFixed(1) + '°C';
+  } else {
+    const _fallback = _nearestValidWaterTemp(spot.lat, spot.lng);
+    if (_fallback) {
+      waterTemp = _fallback.temp.toFixed(1) + '°C';
+      _waterTempSource = _fallback.name + ' (' + _fallback.km.toFixed(0) + ' km)';
+    } else {
+      waterTemp = '—';
+    }
+  }
   /* UiRas: PKS-spoteilla käytä UiRas:ia, muualla fallback Open-Meteo:lle */
   const _uirasStation = _isPKS(spot) ? UiRas.nearest(spot.lat, spot.lng) : null;
   const _waterStatId = 'ws-' + spot.name.replace(/[^a-z0-9]/gi,'_');
@@ -4834,7 +4845,7 @@ function openSheet(spot, hourIdx) {
     /* 24h tuuliennuste — heti sliderin ja foil-badgen jälkeen */
     + build24hChart()
     /* Havainnot-rivi */
-    + '<div style="font-family:DM Mono,monospace;font-size:8px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, '°C', null))      + _fmiLinkCard(fmiId)      + (function(){          var fmiGustId = fmiId + '-gust-lnk';          var gstFmt = Units.fmt(gst);          var gcc = ColorRamp.rgb(gst);          var gcol = 'rgb('+gcc.r+','+gcc.g+','+gcc.b+')';          return '<div class="sh-stat" id="'+fmiGustId+'">'            + '<span class="sh-stat-label">💨 Puuska</span>'            + '<span class="sh-stat-value" id="'+fmiGustId+'-val" style="color:'+gcol+'">'+gstFmt+'</span>'            + '<span class="sh-stat-sub" id="'+fmiGustId+'-sub">'+Units.label()+' enn.</span>'          + '</div>';        })()    + '</div>'
+    + '<div style="font-family:DM Mono,monospace;font-size:8px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px">Havainnot</div>'    + '<div class="sh-stats" id="sh-stats-live">'      + _tempDewComboCard(fmiId + '-tmp', fmiId + '-dew')      + (_uirasStation ? _uirasLinkCard(_waterStatId, _uirasStation) : _statCard('Vesi', waterTemp, _waterTempSource || '°C', null))      + _fmiLinkCard(fmiId)      + (function(){          var fmiGustId = fmiId + '-gust-lnk';          var gstFmt = Units.fmt(gst);          var gcc = ColorRamp.rgb(gst);          var gcol = 'rgb('+gcc.r+','+gcc.g+','+gcc.b+')';          return '<div class="sh-stat" id="'+fmiGustId+'">'            + '<span class="sh-stat-label">💨 Puuska</span>'            + '<span class="sh-stat-value" id="'+fmiGustId+'-val" style="color:'+gcol+'">'+gstFmt+'</span>'            + '<span class="sh-stat-sub" id="'+fmiGustId+'-sub">'+Units.label()+' enn.</span>'          + '</div>';        })()    + '</div>'
     /* Aurinkokaari — tuuliruusun tilalle */
     + buildSunBar()
     + '<div style="height:8px"></div>'
@@ -6211,6 +6222,24 @@ async function loadMarineTemp() {
       }
     });
   } catch(e) { console.log('[Marine]', e.message); }
+}
+
+/* Etsi lähin spotti jolla on validi vedenlämpö.
+   Käytetään kun oman spotin arvo puuttuu tai on epärealistinen. */
+function _nearestValidWaterTemp(lat, lng) {
+  function km(a,b,c,d){
+    var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;
+    return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));
+  }
+  var best = null, bestKm = Infinity;
+  for (var i = 0; i < SPOTS.length; i++) {
+    var s = SPOTS[i];
+    if (s.lat === lat && s.lng === lng) continue; /* ohita oma spotti */
+    if (s._waterTemp == null || s._waterTemp <= -5 || s._waterTemp >= 40) continue;
+    var d = km(lat, lng, s.lat, s.lng);
+    if (d < bestKm) { bestKm = d; best = s; }
+  }
+  return best ? { temp: best._waterTemp, name: best.name, km: bestKm } : null;
 }
 
 /* -- CONTROLS --------------------------------------------------- */
