@@ -5527,8 +5527,12 @@ function _renderLiveHistory(el, data, wx) {
   /* Lisää dropdown */
   const spotRef = State.sheetSpot;
   if (spotRef) {
-    const stations = _fmiStationsSorted(spotRef.lat, spotRef.lng);
-    const curPlace = data.place || 'harmaja';
+    var allSt = _fmiStationsSorted(spotRef.lat, spotRef.lng);
+    /* Näytä max 6 lähintä; kaukospoteilla vain lähin */
+    var stations = allSt[0] && allSt[0].km > 50
+      ? allSt.slice(0, 1)
+      : allSt.slice(0, 6);
+    const curPlace = data.place || stations[0].place;
     const selected = stations.find(function(s){ return s.place===curPlace; }) || stations[0];
     var fmiIdRef = spotRef ? ('fmi-'+spotRef.name.replace(/\s/g,'_')) : null;
     const dropdown = _fmiDropdown(el, stations, selected, function(st) {
