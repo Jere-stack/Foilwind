@@ -4971,18 +4971,23 @@ function openSheet(spot, hourIdx) {
       if (wx && wx.ms != null) _updateFmiCard(fmiId, { ws: wx.ms, wg: wx.gst, tmp: wx.tmp, dew: wx.dew, time: wx.obsTime, station: wx.station });
     }
 
-    /* Historia */
+    /* Historia — käytä fallback-ketjua lähimmistä asemista */
     if (!histEl) return;
-    fetch(histUrl).then(function(r){ return r.json(); }).then(function(data){
-      if (!histEl) return;
-      histEl.dataset.ok = '1';
-      _renderLiveHistory(histEl, data, spot._currentWx || null);
-      /* Päivitä kaavio-otsikko */
-      var lbl = document.getElementById(fmiId + '-chart-lbl');
-      if (lbl && data.station) lbl.textContent = 'Tuulihavainto · ' + data.station;
-    }).catch(function(){
-      if (histEl) histEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Havaintodata ei saatavilla</div>';
-    });
+    var spotStations = _fmiStationsSorted(spot.lat, spot.lng);
+    _fmiLoadWithFallback(spotStations, 12,
+      function(okSt, latData, histData) {
+        if (!histEl) return;
+        histEl.dataset.ok = '1';
+        _renderLiveHistory(histEl, Object.assign({}, histData, {place: okSt.place}), spot._currentWx || latData || null);
+        var lbl = document.getElementById(fmiId + '-chart-lbl');
+        if (lbl) lbl.textContent = 'Tuulihavainto · ' + okSt.name;
+        /* Päivitä myös latest-data jos ei ole cachessa */
+        if (latData && !spot._currentWx) _updateFmiCard(fmiId, latData);
+      },
+      function() {
+        if (histEl) histEl.innerHTML = '<div style="font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.5);text-align:center;padding:10px">Havaintodata ei saatavilla</div>';
+      }
+    );
   })();
 
   /* Päivitä UiRas vesi-stat + lataa historia */
