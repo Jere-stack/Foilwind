@@ -3266,8 +3266,10 @@ const UiRas = {
     (gj.features||[]).forEach(f => {
       const p = f.properties||{};
       const m = p.measurement||{};
-      /* ID on feature.id tai properties.dev_id */
-      const id = f.id || p.dev_id || p.id;
+      /* ID normalisointi: "urn:dev:ow:70B3D..." → "70B3D..."
+         UIRAS_STATIONS käyttää pelkkää hex-ID:tä ilman URN-prefiksiä */
+      const rawId = f.id || p.dev_id || p.id || '';
+      const id = rawId.toString().replace(/^urn:dev:ow:/i,'').toUpperCase();
       /* Lämpötila on measurement.temp_water */
       const temp = m.temp_water ?? m.water_temperature ?? m.temperature ?? null;
       const time = m.time || p.time || null;
@@ -5087,19 +5089,31 @@ function openSheet(spot, hourIdx) {
   if (_uirasStation) {
     const uirasHistEl = document.getElementById('uiras-always-' + _waterStatId);
     UiRas.loadLatest().then(function(map) {
+      /* Etsi lähin asema jolla on validi lämpötila — fallback seuraavaan */
+      function findBestUirasTemp() {
+        /* Laske etäisyys kaikkiin asemiin ja järjestä */
+        function km(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
+        var candidates = UIRAS_STATIONS
+          .map(function(s){ return {s:s, d:km(spot.lat,spot.lng,s.lat,s.lng)}; })
+          .sort(function(a,b){ return a.d-b.d; });
+        for (var i=0; i<candidates.length; i++) {
+          var st = candidates[i].s;
+          var entry = map[st.id];
+          var t = entry && entry.temp != null ? entry.temp : null;
+          if (t != null && t > -5 && t < 40) return {temp:t, name:st.name, km:candidates[i].d};
+        }
+        return null;
+      }
+      var best = findBestUirasTemp();
       /* Päivitä stat arvo */
       const el = document.getElementById(_waterStatId);
       if (el) {
-        const d = map[_uirasStation.id];
-        const rawT = d && d.temp != null ? d.temp : null;
-        const validT = rawT != null && rawT > -5 && rawT < 40;
-        const temp = validT ? rawT.toFixed(1) + '°C' : '—';
+        const temp = best ? best.temp.toFixed(1) + '°C' : '—';
         const valEl = el.querySelector('[data-ws-val]');
         if (valEl) valEl.textContent = temp;
       }
       /* Päivitä UiRas linkki-kortti */
-      var d2 = map[_uirasStation.id];
-      if (d2 && d2.temp != null && d2.temp > -5 && d2.temp < 40) _updateUirasCard(_waterStatId, d2.temp, _uirasStation.name);
+      if (best) _updateUirasCard(_waterStatId, best.temp, best.name + (best.km > 1 ? ' (' + best.km.toFixed(0) + ' km)' : ''));
       /* Lataa historia */
       if (!uirasHistEl) return;
       return UiRas.history(_uirasStation.id);
@@ -6986,5 +7000,4 @@ if (document.readyState === 'loading') {
 </script>
 
 </body>
-
 </html>
