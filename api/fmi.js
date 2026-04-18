@@ -9,8 +9,8 @@ const STATIONS = [
   { place: 'vantaa',     name: 'Vantaa Helsinki-Vantaa',   lat: 60.31700, lng: 24.96300, type: 'weather', fmisid: null },
   /* Vuosaari satama — fmisid haetaan bbox:lla */
   { place: 'vuosaari',   name: 'Helsinki Vuosaari satama', lat: 60.20900, lng: 25.19660, type: 'maritime', fmisid: null },
-  /* Sipoo Itätoukki — place=sipoo toimii suoraan FMI weather API:ssa */
-  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.15806, lng: 25.32611, type: 'weather',  fmisid: null },
+  /* Sipoo Itätoukki — FMISID 105392 (vahvistettu 18.4.2026: ws=4.1 wg=4.4) */
+  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.15806, lng: 25.32611, type: 'fmisid',   fmisid: '105392' },
 ];
 
 function km(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
@@ -191,9 +191,21 @@ module.exports = async function handler(req,res){
   else res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=60');
 
   try{
-    var xml=station.type==='maritime'
-      ?await fetchMaritime(station.lat,station.lng,isHistory?'WindSpeedMS,WindGust':'WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint',start,station.fmisid)
-      :await fetchWeather(station.place,isHistory?'WindSpeedMS,WindGust':'WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint',start);
+    var histParams='WindSpeedMS,WindGust';
+    var latParams='WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint';
+    var params=isHistory?histParams:latParams;
+    var xml;
+    if(station.type==='fmisid'&&station.fmisid){
+      /* Suora FMISID-haku — varmin tapa tunnetuille asemille */
+      var BASE_F='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
+        +'&storedquery_id=fmi::observations::weather::timevaluepair'
+        +'&fmisid='+station.fmisid+'&parameters='+params+'&timestep=10&starttime='+start;
+      xml=await fetchUrl(BASE_F);
+    }else if(station.type==='maritime'){
+      xml=await fetchMaritime(station.lat,station.lng,params,start,station.fmisid);
+    }else{
+      xml=await fetchWeather(station.place,params,start);
+    }
 
     if(isHistory){
       var series=parseHistory(xml);
