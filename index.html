@@ -3972,7 +3972,11 @@ function openSheet(spot, hourIdx) {
   const trend    = windTrend(h, idx);
   const c        = ColorRamp.rgb(ms);
   const colorStr = 'rgb('+c.r+','+c.g+','+c.b+')';
-  const waterTemp = spot._waterTemp != null ? spot._waterTemp.toFixed(1) + '°C' : '—';
+  /* Validoi vedenlämpö: null tai epärealistinen arvo → näytä "—" */
+  const _rawWaterTemp = spot._waterTemp;
+  const _validWater   = _rawWaterTemp != null && _rawWaterTemp > -5 && _rawWaterTemp < 40;
+  const waterTemp     = _validWater ? _rawWaterTemp.toFixed(1) + '°C' : '—';
+  /* UiRas: PKS-spoteilla käytä UiRas:ia, muualla fallback Open-Meteo:lle */
   const _uirasStation = _isPKS(spot) ? UiRas.nearest(spot.lat, spot.lng) : null;
   const _waterStatId = 'ws-' + spot.name.replace(/[^a-z0-9]/gi,'_');
 
@@ -5076,13 +5080,15 @@ function openSheet(spot, hourIdx) {
       const el = document.getElementById(_waterStatId);
       if (el) {
         const d = map[_uirasStation.id];
-        const temp = d && d.temp != null ? d.temp.toFixed(1) + '°C' : '—';
+        const rawT = d && d.temp != null ? d.temp : null;
+        const validT = rawT != null && rawT > -5 && rawT < 40;
+        const temp = validT ? rawT.toFixed(1) + '°C' : '—';
         const valEl = el.querySelector('[data-ws-val]');
         if (valEl) valEl.textContent = temp;
       }
       /* Päivitä UiRas linkki-kortti */
       var d2 = map[_uirasStation.id];
-      if (d2 && d2.temp != null) _updateUirasCard(_waterStatId, d2.temp, _uirasStation.name);
+      if (d2 && d2.temp != null && d2.temp > -5 && d2.temp < 40) _updateUirasCard(_waterStatId, d2.temp, _uirasStation.name);
       /* Lataa historia */
       if (!uirasHistEl) return;
       return UiRas.history(_uirasStation.id);
@@ -6193,8 +6199,15 @@ async function loadMarineTemp() {
     const arr = Array.isArray(data) ? data : [data];
     arr.forEach((d, i) => {
       if (i < toFetch.length && d && d.current && d.current.sea_surface_temperature != null) {
-        toFetch[i]._waterTemp   = d.current.sea_surface_temperature;
-        toFetch[i]._waterTempTs = Date.now();
+        const sst = d.current.sea_surface_temperature;
+        /* Validoi: hylkää epärealistiset arvot */
+        if (sst > -5 && sst < 40) {
+          toFetch[i]._waterTemp   = sst;
+          toFetch[i]._waterTempTs = Date.now();
+        } else {
+          toFetch[i]._waterTemp   = null;
+          toFetch[i]._waterTempTs = Date.now();
+        }
       }
     });
   } catch(e) { console.log('[Marine]', e.message); }
