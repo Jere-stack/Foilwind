@@ -963,6 +963,8 @@ rgba(5,8,16,.88) 100%
 position: relative; z-index: 3;
 display: flex; flex-direction: column;
 align-items: center; gap: 0;
+/* Nosta hieman ylös jotta progressbar ei leikkaa */
+margin-top: -32px;
 }
 
 /* Wave bars — 4 palkkia aaltoilemassa */
@@ -1020,9 +1022,42 @@ border-radius: 1px;
 transition: width .35s ease;
 }
 
+/* Logo */
+#load-logo {
+display: block;
+position: relative; z-index: 2;
+font-family: ‘Syne’, system-ui; font-weight: 800;
+font-size: 42px; letter-spacing: -1.5px; line-height: 1;
+margin-bottom: 10px;
+animation: loadFadeIn .55s .08s ease both;
+/* Orgaaninen väri: ei symmetrinen, vino leikkaus */
+background: linear-gradient(
+118deg,
+#e8f4ff  0%,
+#a8e6ff  22%,
+#00cfff  44%,
+#52f0c0  66%,
+#64ffa0  84%,
+#b8ffdc  100%
+);
+-webkit-background-clip: text;
+-webkit-text-fill-color: transparent;
+background-clip: text;
+/* Hieno hehku — ei liian voimakas */
+filter: drop-shadow(0 2px 24px rgba(0,207,255,.28));
+}
+#load-sub {
+display: block;
+font-family: ‘DM Mono’, monospace;
+font-size: 10px; letter-spacing: 3.5px;
+text-transform: uppercase;
+color: rgba(255,255,255,.28);
+margin-bottom: 48px;
+animation: loadFadeIn .5s .18s ease both;
+}
+
 /* Poistumaton: piilota turhat vanhat */
 #load-badge { display: none; }
-#load-logo  { display: none; }
 #load-glow  { display: none; }
 
 @keyframes loadFadeIn {
@@ -1322,8 +1357,10 @@ border-color: rgba(0,207,255,.4);
     <div id="load-glow"></div>
 
 ```
-<!-- Keskiosa: wave bars + status -->
+<!-- Keskiosa: logo + wave bars + status -->
 <div id="load-top">
+  <div id="load-logo">FoilSpot</div>
+  <div id="load-sub">Wingfoil Weather</div>
   <div id="load-waves">
     <div class="load-bar"></div>
     <div class="load-bar"></div>
