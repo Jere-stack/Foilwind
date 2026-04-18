@@ -3148,32 +3148,19 @@ function renderSpots(hourIdx) {
         .on('click', () => {
           Haptics.medium();
           const map = State.map;
-          const winH = window.innerHeight;
 
-          /* Geometria:
-             - Sheet avautuu alhaalta, max-height 82vh
-             - Haluamme spotin juuri sheetin yläreunaan (+ 24px hengitystilaa)
-             - wantY = spotin haluttu y-positio containerissa (px ylhäältä)
-             - Oikea kaava: targetCenter = unproject(project(spot,Z) + [0, winH/2 - wantY], Z)
-               koska: center_world = spot_world + [0, winH/2 - wantY] */
-          const sheetH = winH * 0.82;
-          const wantY  = (winH - sheetH) - 24;   /* px ylhäältä: sheetin yläreuna */
-          const offsetY = winH / 2 - wantY;       /* positiivinen = kartta siirtyy ylös */
-
+          /* Tähtäin on fixed top:50% left:50% = ruudun absoluuttinen keskipiste.
+             Siirrä kartta niin että spotti on täsmälleen siinä keskipisteessä.
+             map.flyTo([lat,lng]) tekee juuri tämän — ei offset-laskentaa. */
           const targetZoom = Math.max(map.getZoom(), 10);
 
-          const targetLatLng = map.unproject(
-            map.project([spot.lat, spot.lng], targetZoom).add([0, offsetY]),
-            targetZoom
-          );
-
-          map.flyTo(targetLatLng, targetZoom, {
+          map.flyTo([spot.lat, spot.lng], targetZoom, {
             animate: true,
-            duration: 0.55,
+            duration: 0.5,
             easeLinearity: 0.15,
           });
 
-          setTimeout(() => openSheet(spot, hourIdx), 380);
+          setTimeout(() => openSheet(spot, hourIdx), 350);
         })
         .addTo(State.map)
     );
