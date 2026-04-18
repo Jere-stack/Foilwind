@@ -63,6 +63,7 @@ MAP  z:1
 #map { position: absolute; inset: 0; z-index: 1; background: var(–bg); touch-action: none; }
 .leaflet-container { background: var(–bg) !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
 .leaflet-tile-pane { -webkit-filter: brightness(2.0) contrast(1.05) saturate(1.15); filter: brightness(2.0) contrast(1.05) saturate(1.15); }
+
 .leaflet-control-zoom { display: none !important; }
 .leaflet-control-attribution { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
 .leaflet-control-attribution a { color: rgba(255,255,255,.22) !important; }
@@ -1382,7 +1383,8 @@ border-color: rgba(0,207,255,.4);
 ```
 
   </div>
-    <div id="map"></div></div>
+    <div id="map"></div>
+</div>
   <canvas id="c-wind"></canvas>
 
   <div id="topbar">
@@ -2265,10 +2267,45 @@ function initMap() {
     tap: false,              /* plugin hoitaa touch-eventtien käsittelyn */
     tapTolerance: 15
   });
+  /* Pohjakartta */
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd', maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
+
+  /* Coastline shadow layer — Windy-tyylinen ranta-korostus
+   *
+   * Tekniikka: CartoDB light_nolabels + CSS mix-blend-mode: multiply
+   * Light-tiilessä: vesi ≈ rgb(174,218,240) vaaleanharmaa-sininen
+   *                 maa  ≈ rgb(242,239,233) lähes valkoinen
+   * multiply-blend dark-taustan päälle:
+   *   meri: 174/255 × dark_ocean ≈ 0.68 → tummentaa 32%
+   *   maa:  242/255 × dark_land  ≈ 0.95 → tummentaa vain 5%
+   * → Automaattinen kontrastitehostus maan ja veden välillä.
+   * blur-filter pehmentää rajan antaen gradient-siirtymän kuten Windyssä.
+   */
+  (function() {
+    var pane = map.createPane('coastShadow');
+    pane.style.zIndex = 201;   /* juuri pohjakartan yläpuolella */
+    pane.style.pointerEvents = 'none';
+    pane.style.mixBlendMode  = 'multiply';
+
+    var coastLayer = L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+      {
+        subdomains: 'abcd', maxZoom: 19, pane: 'coastShadow', opacity: 1
+      }
+    );
+    coastLayer.addTo(map);
+
+    /* Blur jokaiselle tiilille pehmentää rajaa.
+       stdDeviation ~2 = noin 5px blur 256px tiilellä. */
+    coastLayer.on('tileload', function(e) {
+      e.tile.style.filter = 'blur(2.5px) brightness(0.75)';
+    });
+  })();
+
+
 
   /* Konfiguroi DoubleTapDragZoom-plugin */
   map.options.doubleTapDragZoom = L.Browser.touch;
