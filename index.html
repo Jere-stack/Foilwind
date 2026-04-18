@@ -3148,25 +3148,23 @@ function renderSpots(hourIdx) {
         .on('click', () => {
           Haptics.medium();
           const map = State.map;
+          const winH = window.innerHeight;
 
-          /* Laske offset: spotti halutaan sheetin yläpuolelle
-             Sheet max-height = 82vh, haluamme spotin ~30% näkyvästä alueesta */
-          const winH   = window.innerHeight;
-          const sheetH = winH * 0.82;          /* sheet korkeus pikseleinä */
-          const visH   = winH - sheetH;         /* näkyvä karttaosuus px */
-          const wantY  = visH * 0.38;           /* haluttu spotti-y näkyvässä alueessa */
-
-          /* Nykyinen spotin sijainti ruudulla */
-          const spotPx = map.latLngToContainerPoint([spot.lat, spot.lng]);
-          /* Kartan keskipiste siirtyy niin että spotti päätyy wantY:hän */
-          const centerPx = map.latLngToContainerPoint(map.getCenter());
-          /* Deltapikseli: positiivinen = alas (siirretään karttaa ylös = spotti nousee) */
-          const dy = spotPx.y - wantY;
-          const dx = spotPx.x - (map.getSize().x / 2);
+          /* Geometria:
+             - Sheet avautuu alhaalta, max-height 82vh
+             - Haluamme spotin juuri sheetin yläreunaan (+ 24px hengitystilaa)
+             - wantY = spotin haluttu y-positio containerissa (px ylhäältä)
+             - Oikea kaava: targetCenter = unproject(project(spot,Z) + [0, winH/2 - wantY], Z)
+               koska: center_world = spot_world + [0, winH/2 - wantY] */
+          const sheetH = winH * 0.82;
+          const wantY  = (winH - sheetH) - 24;   /* px ylhäältä: sheetin yläreuna */
+          const offsetY = winH / 2 - wantY;       /* positiivinen = kartta siirtyy ylös */
 
           const targetZoom = Math.max(map.getZoom(), 10);
-          const targetLatLng = map.containerPointToLatLng(
-            map.latLngToContainerPoint(map.getCenter()).add([dx, dy])
+
+          const targetLatLng = map.unproject(
+            map.project([spot.lat, spot.lng], targetZoom).add([0, offsetY]),
+            targetZoom
           );
 
           map.flyTo(targetLatLng, targetZoom, {
