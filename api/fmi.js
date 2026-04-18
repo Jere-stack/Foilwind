@@ -97,6 +97,42 @@ async function fetchMaritime(lat,lng,params,start){
 }
 
 module.exports = async function handler(req,res){
+  /* DEBUG: listaa kaikki asemat alueelta */
+  if(req.query.debug==='1'){
+    res.setHeader('Access-Control-Allow-Origin','*');
+    var dlat=parseFloat(req.query.lat)||60.158, dlng=parseFloat(req.query.lng)||25.326;
+    var dd=parseFloat(req.query.d)||0.20;
+    var bb=makeBbox(dlat,dlng,dd);
+    var start=new Date(Date.now()-2*3600000).toISOString().slice(0,16)+'Z';
+    var results={bbox:bb,lat:dlat,lng:dlng,strategies:{}};
+    try{
+      var x1=await fetchUrl('https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
+        +'&storedquery_id=fmi::observations::weather::timevaluepair&bbox='+bb
+        +'&parameters=WindSpeedMS&timestep=60&starttime='+start+'&maxlocations=5');
+      var ids1=[...x1.matchAll(/gml:id="([^"]+)"/g)].map(m=>m[1]).filter(id=>id.includes('obs'));
+      results.strategies.weather_bbox={ids:ids1,len:x1.length,hasData:x1.includes('wml2:value')};
+    }catch(e){results.strategies.weather_bbox={error:e.message};}
+    try{
+      var x2=await fetchUrl('https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
+        +'&storedquery_id=fmi::observations::maritime::simple&bbox='+bb
+        +'&parameters=WindSpeedMS&timestep=60&starttime='+start+'&maxlocations=5');
+      var ids2=[...x2.matchAll(/gml:id="([^"]+)"/g)].map(m=>m[1]).filter(id=>id.includes('obs'));
+      results.strategies.maritime_bbox={ids:ids2,len:x2.length,hasData:x2.includes('wml2:value')};
+    }catch(e){results.strategies.maritime_bbox={error:e.message};}
+    /* Kokeile eri FMISID:jä */
+    var testIds=['151048','100928','101023','100540','100971','101004'];
+    results.fmisids={};
+    for(var fid of testIds){
+      try{
+        var xf=await fetchUrl('https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
+          +'&storedquery_id=fmi::observations::weather::timevaluepair&fmisid='+fid
+          +'&parameters=WindSpeedMS&timestep=60&starttime='+start);
+        var sf=parseHistory(xf);
+        results.fmisids[fid]={hasData:!!(sf.windspeedms&&sf.windspeedms.length),len:xf.length};
+      }catch(e){results.fmisids[fid]={error:e.message};}
+    }
+    return res.status(200).json(results);
+  }
   res.setHeader('Access-Control-Allow-Origin','*');
   var lat=parseFloat(req.query.lat),lng=parseFloat(req.query.lng);
   var placeParam=req.query.place;
