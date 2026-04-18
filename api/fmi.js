@@ -1,15 +1,16 @@
 const https = require('https');
 
 const STATIONS = [
-  { place: 'kaisaniemi', name: 'Helsinki Kaisaniemi',      lat: 60.17523, lng: 24.94459, type: 'weather' },
-  { place: 'kumpula',    name: 'Helsinki Kumpula',         lat: 60.20307, lng: 24.96131, type: 'weather' },
-  { place: 'harmaja',    name: 'Helsinki Harmaja',         lat: 60.10512, lng: 24.97539, type: 'weather' },
-  { place: 'tapiola',    name: 'Espoo Tapiola',            lat: 60.17510, lng: 24.80590, type: 'weather' },
-  { place: 'malmi',      name: 'Helsinki Malmi',           lat: 60.25299, lng: 25.04549, type: 'weather' },
-  { place: 'vantaa',     name: 'Vantaa Helsinki-Vantaa',   lat: 60.31700, lng: 24.96300, type: 'weather' },
-  { place: 'vuosaari',   name: 'Helsinki Vuosaari satama', lat: 60.20900, lng: 25.19660, type: 'maritime' },
-  /* Sipoo Itätoukki — koordinaatit WGS84/EUREF-FIN: 60°09'29"N 25°19'34"E */
-  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.15806, lng: 25.32611, type: 'maritime' },
+  { place: 'kaisaniemi', name: 'Helsinki Kaisaniemi',      lat: 60.17523, lng: 24.94459, type: 'weather', fmisid: null },
+  { place: 'kumpula',    name: 'Helsinki Kumpula',         lat: 60.20307, lng: 24.96131, type: 'weather', fmisid: null },
+  { place: 'harmaja',    name: 'Helsinki Harmaja',         lat: 60.10512, lng: 24.97539, type: 'weather', fmisid: null },
+  { place: 'tapiola',    name: 'Espoo Tapiola',            lat: 60.17510, lng: 24.80590, type: 'weather', fmisid: null },
+  { place: 'malmi',      name: 'Helsinki Malmi',           lat: 60.25299, lng: 25.04549, type: 'weather', fmisid: null },
+  { place: 'vantaa',     name: 'Vantaa Helsinki-Vantaa',   lat: 60.31700, lng: 24.96300, type: 'weather', fmisid: null },
+  /* Vuosaari satama — fmisid haetaan bbox:lla */
+  { place: 'vuosaari',   name: 'Helsinki Vuosaari satama', lat: 60.20900, lng: 25.19660, type: 'maritime', fmisid: null },
+  /* Sipoo Itätoukki — fmisid 151028 (vahvistettu debug-haulla 2025) */
+  { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.15806, lng: 25.32611, type: 'maritime', fmisid: '151028' },
 ];
 
 function km(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
@@ -59,40 +60,38 @@ function fetchWeather(place,params,start){
   return fetchUrl(url);
 }
 
-/* Maritime-asema: 3 strategiaa järjestyksessä */
-async function fetchMaritime(lat,lng,params,start){
+/* Maritime-asema: käytä fmisid suoraan jos tiedossa, muuten bbox */
+async function fetchMaritime(lat,lng,params,start,fmisid){
   var BASE='https://opendata.fmi.fi/wfs?service=WFS&version=2.0.0&request=getFeature'
-    +'&timestep=10&starttime='+start+'&maxlocations=1';
+    +'&storedquery_id=fmi::observations::weather::timevaluepair'
+    +'&timestep=10&starttime='+start;
 
-  /* S1: weather storedquery bbox d=0.15° (~11km) */
-  try{
-    var bb1=makeBbox(lat,lng,0.15);
-    var xml1=await fetchUrl(BASE+'&storedquery_id=fmi::observations::weather::timevaluepair&bbox='+bb1+'&parameters='+params);
-    var s1=parseHistory(xml1);
-    if(s1.windspeedms&&s1.windspeedms.length){console.log('[maritime] S1 weather bbox OK');return xml1;}
-    console.log('[maritime] S1 empty');
-  }catch(e){console.log('[maritime] S1 error:',e.message);}
-
-  /* S2: maritime storedquery bbox d=0.15° */
-  try{
-    var bb2=makeBbox(lat,lng,0.15);
-    var xml2=await fetchUrl(BASE+'&storedquery_id=fmi::observations::maritime::simple&bbox='+bb2+'&parameters=WindSpeedMS,WindGust,WindDirection');
-    var s2=parseHistory(xml2);
-    if(s2.windspeedms&&s2.windspeedms.length){console.log('[maritime] S2 maritime bbox OK');return xml2;}
-    console.log('[maritime] S2 empty, xml len='+xml2.length);
-  }catch(e){console.log('[maritime] S2 error:',e.message);}
-
-  /* S3: tunnetut FMISID:t Sipoo Itätoukki / Vuosaari */
-  var FMISIDS=['151048','100928','101023','100540'];
-  for(var i=0;i<FMISIDS.length;i++){
+  /* S1: suora FMISID-haku jos asemalla on tunnettu ID */
+  if(fmisid){
     try{
-      var xml3=await fetchUrl(BASE+'&storedquery_id=fmi::observations::weather::timevaluepair&fmisid='+FMISIDS[i]+'&parameters='+params);
-      var s3=parseHistory(xml3);
-      if(s3.windspeedms&&s3.windspeedms.length){console.log('[maritime] S3 fmisid='+FMISIDS[i]+' OK');return xml3;}
-    }catch(e){}
+      var xml1=await fetchUrl(BASE+'&fmisid='+fmisid+'&parameters='+params);
+      var s1=parseHistory(xml1);
+      if(s1.windspeedms&&s1.windspeedms.length){
+        console.log('[maritime] S1 fmisid='+fmisid+' OK, n='+s1.windspeedms.length);
+        return xml1;
+      }
+      console.log('[maritime] S1 fmisid='+fmisid+' empty');
+    }catch(e){console.log('[maritime] S1 error:',e.message);}
   }
 
-  console.log('[maritime] ALL STRATEGIES FAILED lat='+lat+' lng='+lng);
+  /* S2: weather bbox — pieni säde jotta ei osu väärään asemaan */
+  try{
+    var bb=makeBbox(lat,lng,0.08);
+    var xml2=await fetchUrl(BASE+'&bbox='+bb+'&parameters='+params+'&maxlocations=1');
+    var s2=parseHistory(xml2);
+    if(s2.windspeedms&&s2.windspeedms.length){
+      console.log('[maritime] S2 weather bbox OK, n='+s2.windspeedms.length);
+      return xml2;
+    }
+    console.log('[maritime] S2 bbox empty');
+  }catch(e){console.log('[maritime] S2 error:',e.message);}
+
+  console.log('[maritime] ALL FAILED lat='+lat+' lng='+lng+' fmisid='+fmisid);
   return '';
 }
 
@@ -157,7 +156,7 @@ module.exports = async function handler(req,res){
 
   try{
     var xml=station.type==='maritime'
-      ?await fetchMaritime(station.lat,station.lng,isHistory?'WindSpeedMS,WindGust':'WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint',start)
+      ?await fetchMaritime(station.lat,station.lng,isHistory?'WindSpeedMS,WindGust':'WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint',start,station.fmisid)
       :await fetchWeather(station.place,isHistory?'WindSpeedMS,WindGust':'WindSpeedMS,WindDirection,WindGust,Temperature,DewPoint',start);
 
     if(isHistory){
