@@ -6479,11 +6479,41 @@ document.getElementById('fc-btn').addEventListener('click', (e) => {
   ForecastPanel.toggle();
 }, { passive: false });
 
-['fc-tog-weekday','fc-tog-weekend','fc-tog-allday'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => {
+(function() {
+  const elWeekday = document.getElementById('fc-tog-weekday');
+  const elWeekend = document.getElementById('fc-tog-weekend');
+  const elAllday  = document.getElementById('fc-tog-allday');
+
+  elWeekday.addEventListener('change', function() {
+    /* Ma-pe aktivoitu → poista kaikki päiväajat */
+    if (elWeekday.checked) elAllday.checked = false;
+    /* Jos kaikki kolme pois → palauta allday oletukseksi */
+    if (!elWeekday.checked && !elWeekend.checked && !elAllday.checked)
+      elAllday.checked = true;
     if (ForecastPanel._open) ForecastPanel.render();
   });
-});
+
+  elWeekend.addEventListener('change', function() {
+    /* Viikonloppu aktivoitu → poista kaikki päiväajat */
+    if (elWeekend.checked) elAllday.checked = false;
+    /* Jos kaikki kolme pois → palauta allday oletukseksi */
+    if (!elWeekday.checked && !elWeekend.checked && !elAllday.checked)
+      elAllday.checked = true;
+    if (ForecastPanel._open) ForecastPanel.render();
+  });
+
+  elAllday.addEventListener('change', function() {
+    /* Kaikki päiväajat aktivoitu → poista muut */
+    if (elAllday.checked) {
+      elWeekday.checked = false;
+      elWeekend.checked = false;
+    }
+    /* Jos kaikki kolme pois → palauta allday */
+    if (!elWeekday.checked && !elWeekend.checked && !elAllday.checked)
+      elAllday.checked = true;
+    if (ForecastPanel._open) ForecastPanel.render();
+  });
+})();
 
 /* -- UNITS PICKER ------------------------------------------------
    Opens on cr-speed tap, closes on outside tap. Pill-style menu.  */
