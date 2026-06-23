@@ -73,9 +73,7 @@ body {
   );
 }
 .leaflet-container { background: var(--bg) !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
-/* Ei brightness-filteriä leaflet-tile-panessa — se rikkoisi mix-blend-mode:n
-   Brightness asetetaan per-tiili tileload-eventissä */
-.leaflet-tile-pane { }
+.leaflet-tile-pane { -webkit-filter: brightness(1.4) contrast(1.4) saturate(1.2); filter: brightness(1.4) contrast(1.4) saturate(1.2); }
 
 .leaflet-control-zoom { display: none !important; }
 .leaflet-control-attribution { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
@@ -2270,41 +2268,30 @@ function initMap() {
     tap: false,              /* plugin hoitaa touch-eventtien käsittelyn */
     tapTolerance: 15
   });
-  /* Pohjakartta — brightness per tiili jotta ei riku mix-blend-mode:a */
-  var baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+  /* Pohjakartta */
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd', maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
-  });
-  baseLayer.addTo(map);
-  baseLayer.on('tileload', function(e) {
-    /* Aseta brightness/contrast per tiili — ei luo stacking contextia pane-tasolle */
-    e.tile.style.filter = 'brightness(1.5) contrast(1.35) saturate(1.4)';
-  });
+  }).addTo(map);
 
-  /* ── Coastline shadow — CartoDB light_nolabels + multiply blend ──
-   *
-   * light_nolabels:  vesi ≈ rgb(170,211,223)  maa ≈ rgb(242,239,233)
-   * multiply-blend:  vesi → ×0.67 tummenee merkittävästi
-   *                  maa  → ×0.95 pysyy lähes ennallaan
-   *
-   * Koska brightness-filter on nyt per-tiili eikä pane-tasolla,
-   * coastPane:n mix-blend-mode toimii oikein kartan tile-layeria vasten.
-   * blur(5px) pehmentää ranta-reunat gradient-tyylisesti.           */
+  /* ── Coastline shadow — Stadia watercolor overlay ────────────────
+   * Watercolor tyylin PNG-tiilet: vesi = värikäs, maa = läpinäkyvä
+   * screen blend-mode: vain vesi-alueet kirkkaan sinisiä näkyvät
+   * → automaattinen coastline-korostus ilman geodataa              */
   (function() {
-    var coastPane = map.createPane('coastPane');
-    coastPane.style.zIndex        = '202';
-    coastPane.style.pointerEvents = 'none';
-    coastPane.style.mixBlendMode  = 'multiply';
+    var wPane = map.createPane('waterPane');
+    wPane.style.zIndex        = '202';
+    wPane.style.pointerEvents = 'none';
+    wPane.style.mixBlendMode  = 'screen';
+    wPane.style.opacity       = '0.18';
 
-    var coastLayer = L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
-      { subdomains: 'abcd', maxZoom: 19, pane: 'coastPane', opacity: 1 }
-    );
-    coastLayer.addTo(map);
-    coastLayer.on('tileload', function(e) {
-      e.tile.style.filter = 'blur(3px) brightness(0.85)';
-    });
+    L.tileLayer(
+      'https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg',
+      { pane: 'waterPane', maxNativeZoom: 16, maxZoom: 19 }
+    ).addTo(map);
   })();
+
+
 
   
 
