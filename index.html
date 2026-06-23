@@ -4343,6 +4343,15 @@ function initMap() {
 
   State.map = map;
 
+  /* Palautetaan Promise joka resolvaa kun MapLibre style on ladattu
+     main() odottaa tätä ennen kuin käyttää karttaa */
+  State._mapReady = new Promise(function(resolve) {
+    map.once('load', function() {
+      console.log('[MapLibre] style loaded, map ready');
+      resolve(map);
+    });
+  });
+
   /* map.on events — MapLibre käyttää samaa API:a */
   map.on('moveend', () => {
     if (State._dragZooming) return;
@@ -4414,7 +4423,7 @@ function initMap() {
     State.windCvs.style.opacity = '0.25';
   });
 
-  _addObsMarkers(map);
+  /* _addObsMarkers kutsutaan main():sta map.load-eventin jälkeen */
   GeoProject.update(map);
 }
 
@@ -4641,6 +4650,7 @@ const WindTexture = {
 /* -- HEATMAP ---------------------------------------------------- */
 function drawColorField() {
   if (!WindTexture.canvas || !State.map || !WindTexture.msData) return;
+  if (!State.map.isStyleLoaded()) return;  /* MapLibre: odota style */
   const url = WindTexture.canvas.toDataURL();
   /* Piirretään tuulivisualisointi windCvs-canvasille CSS-overlay:na
      windCvs on position:absolute kartan päällä, mix-blend-mode:screen CSS:ssä */
@@ -4728,6 +4738,7 @@ function rndGeo() {
 const GeoProject = {
   _ox: 0, _oy: 0, _sx: 1, _sy: 1, _valid: false,
   update(map) {
+    if (!map || !map.isStyleLoaded()) return;
     const b = map.getBounds();
     const nw = map.latLngToContainerPoint(b.getNorthWest());
     const se = map.latLngToContainerPoint(b.getSouthEast());
@@ -9030,43 +9041,43 @@ function main() {
   document.addEventListener('touchstart', () => Haptics.unlock(), { once: true, passive: true });
 
   makeSwipeable(document.getElementById('sheet'), closeSheet);
-  /* spot-list removed */
 
-  /* Load spots first (small batch, 7-day forecast), then viewport, skip coarse global */
-  const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
+  /* Odota MapLibre-kartan latautumista ennen datatoimintoja */
+  (State._mapReady || Promise.resolve(State.map)).then(function() {
+    _addObsMarkers(State.map);
 
-  /* Ladataan spotit ja viewport RINNAKKAIN — nopeampi startup */
-  const spotsP    = ViewportGrid.loadSpots().catch(e => console.warn('[loadSpots]', e));
-  const viewportP = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[loadViewport]', e));
+    const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
 
-  /* Spotit valmiina → näytä heti aikajana + spottimarkerit */
-  spotsP.then(() => {
-    const ref = bestTimelineRef();
-    if (ref) {
-      const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
-      State._lastTlHour = ni;
-      const layer = State.activeLayer;
-      const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
-      renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
-      renderSpots(ni);
-      buildWindField(ni).then(() => { drawColorField(); resetParticles(); hideLoading(); });
-    } else {
-      hideLoading();
-    }
-  });
+    const spotsP    = ViewportGrid.loadSpots().catch(e => console.warn('[loadSpots]', e));
+    const viewportP = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[loadViewport]', e));
 
-  /* Molemmat valmiina → lopullinen renderöinti */
-  Promise.allSettled([spotsP, viewportP]).then(() => {
-    const ref = bestTimelineRef();
-    if (ref) {
-      const ni = State.currentHourIdx;
-      buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
-      renderSpots(ni);
-    }
-    loadMarineTemp();
-    State.lastDataLoad = Date.now();
-    scheduleRefresh();
-    setTimeout(() => dot.classList.remove('pulse'), 800);
+    spotsP.then(() => {
+      const ref = bestTimelineRef();
+      if (ref) {
+        const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
+        State._lastTlHour = ni;
+        const layer = State.activeLayer;
+        const sp = layer === 'gust' ? (ref.wx.hourly.windgusts_10m || ref.wx.hourly.windspeed_10m) : ref.wx.hourly.windspeed_10m;
+        renderTimeline(ref.wx.hourly.time, sp, ref.wx.hourly.winddirection_10m, ni);
+        renderSpots(ni);
+        buildWindField(ni).then(() => { drawColorField(); resetParticles(); hideLoading(); });
+      } else {
+        hideLoading();
+      }
+    });
+
+    Promise.allSettled([spotsP, viewportP]).then(() => {
+      const ref = bestTimelineRef();
+      if (ref) {
+        const ni = State.currentHourIdx;
+        buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
+        renderSpots(ni);
+      }
+      loadMarineTemp();
+      State.lastDataLoad = Date.now();
+      scheduleRefresh();
+      setTimeout(() => dot.classList.remove('pulse'), 800);
+    });
   });
 }
 
