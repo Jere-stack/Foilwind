@@ -79,6 +79,8 @@ body {
 }
 .leaflet-container { background: var(--bg) !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
 .leaflet-tile-pane { -webkit-filter: brightness(1.5) contrast(1.35) saturate(1.4); filter: brightness(1.5) contrast(1.35) saturate(1.4); }
+/* coastPane blendataan tile-pane:n päälle — ei omaa stacking contextia */
+.leaflet-pane.coastPane { isolation: auto; }
 
 .leaflet-control-zoom { display: none !important; }
 .leaflet-control-attribution { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
@@ -2292,40 +2294,37 @@ function initMap() {
     var coastPane = map.createPane('coastPane');
     coastPane.style.zIndex        = '202';
     coastPane.style.pointerEvents = 'none';
-    coastPane.style.mixBlendMode  = 'multiply';
-    coastPane.style.filter        = 'blur(4px)';
+    /* Ei mix-blend-mode — toimii CSS filter stacking contextin kanssa */
+    /* blur pehmentää ranta-reunat */
+    coastPane.style.filter        = 'blur(5px)';
+
+    /* Layer styles — funktio joka palauttaa tyylin layer-nimen mukaan
+       Käytetään paksua strokea rantalinjalla + blur-filter
+       → pehmeä gradient-varjo rantojen reunoille kuten Windyssä */
+    function _waterStyle(layerName) {
+      if (layerName === 'water') {
+        return {
+          fill:        true,
+          fillColor:   '#000c20',
+          fillOpacity: 0.45,       /* tummentaa vesialueen */
+          stroke:      true,
+          color:       '#000c20',
+          weight:      12,         /* paksu reuna-stroke */
+          opacity:     0.85,       /* stroke on näkyvä */
+        };
+      }
+      return { fill: false, stroke: false, fillOpacity: 0, opacity: 0, weight: 0 };
+    }
 
     L.vectorGrid.protobuf(
       'https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf',
       {
-        pane:         'coastPane',
+        pane:          'coastPane',
         maxNativeZoom: 14,
         maxZoom:       19,
-        /* Renderöi VAIN water-layer — kaikki muu ohitetaan */
-        vectorTileLayerStyles: {
-          water: {
-            fill:        true,
-            fillColor:   '#00040f',
-            fillOpacity: 0.80,
-            stroke:      true,
-            color:       '#00040f',
-            weight:      1,
-            opacity:     0.80,
-          },
-          /* Ohita kaikki muut layerit */
-          waterway:    { fill: false, stroke: false, opacity: 0 },
-          landcover:   { fill: false, stroke: false, opacity: 0 },
-          landuse:     { fill: false, stroke: false, opacity: 0 },
-          park:        { fill: false, stroke: false, opacity: 0 },
-          boundary:    { fill: false, stroke: false, opacity: 0 },
-          transportation: { fill: false, stroke: false, opacity: 0 },
-          building:    { fill: false, stroke: false, opacity: 0 },
-          place:       { fill: false, stroke: false, opacity: 0 },
-          poi:         { fill: false, stroke: false, opacity: 0 },
-          mountain_peak: { fill: false, stroke: false, opacity: 0 },
-        },
         interactive:   false,
         rendererFactory: L.svg.tile,
+        vectorTileLayerStyles: _waterStyle,
       }
     ).addTo(map);
   })();
