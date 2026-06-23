@@ -2274,22 +2274,25 @@ function initMap() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
 
-  /* ── Coastline shadow — Stadia watercolor overlay ────────────────
-   * Watercolor tyylin PNG-tiilet: vesi = värikäs, maa = läpinäkyvä
-   * screen blend-mode: vain vesi-alueet kirkkaan sinisiä näkyvät
-   * → automaattinen coastline-korostus ilman geodataa              */
+  /* Coastline shadow — ESRI Ocean Base overlay
+   * Ilmainen, ei API-avainta. Tumman sininen meri, neutraali maa.
+   * Multiply-blend: tummentaa pohjakartan vesi-alueet entisestään.
+   * fillOpacity 0.35 — hienovarainen, ei peitä tuulidataa.          */
   (function() {
-    var wPane = map.createPane('waterPane');
-    wPane.style.zIndex        = '202';
-    wPane.style.pointerEvents = 'none';
-    wPane.style.mixBlendMode  = 'screen';
-    wPane.style.opacity       = '0.18';
+    var oPane = map.createPane('oceanPane');
+    oPane.style.zIndex        = '202';
+    oPane.style.pointerEvents = 'none';
+    oPane.style.mixBlendMode  = 'multiply';
+    oPane.style.opacity       = '0.5';
 
     L.tileLayer(
-      'https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg',
-      { pane: 'waterPane', maxNativeZoom: 16, maxZoom: 19 }
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
+      { pane: 'oceanPane', maxNativeZoom: 13, maxZoom: 19,
+        attribution: 'Tiles &copy; Esri' }
     ).addTo(map);
   })();
+
+
 
 
 
