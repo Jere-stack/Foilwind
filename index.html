@@ -14,8 +14,8 @@
 <!-- Non-blocking font load — ei blokkaa iOS Safaria -->
 <link rel="preload" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet"></noscript>
-<link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"/>
-<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css" crossorigin/>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js" crossorigin></script>
 
 <style>
 /* ============================================================
@@ -71,12 +71,12 @@ body {
     rgba(0,4,12,0.55) 100%
   );
 }
-.maplibregl-map { background: var(--bg) !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
-.maplibregl-map canvas { -webkit-filter: brightness(1.4) contrast(1.4) saturate(1.2); filter: brightness(1.4) contrast(1.4) saturate(1.2); }
+.leaflet-container { background: var(--bg) !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
+.leaflet-tile-pane { -webkit-filter: brightness(1.4) contrast(1.4) saturate(1.2); filter: brightness(1.4) contrast(1.4) saturate(1.2); }
 
-.maplibregl-ctrl-zoom-in, .maplibregl-ctrl-zoom-out { display: none !important; }
-.maplibregl-ctrl-attrib { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
-.maplibregl-ctrl-attrib a { color: rgba(255,255,255,.22) !important; }
+.leaflet-control-zoom { display: none !important; }
+.leaflet-control-attribution { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
+.leaflet-control-attribution a { color: rgba(255,255,255,.22) !important; }
 
 
 /* ============================================================
@@ -4205,154 +4205,25 @@ function buildLegend() {
 
 /* -- MAP -------------------------------------------------------- */
 function initMap() {
-  /* MapLibre GL JS — korvaa Leaflet */
-  const map = new maplibregl.Map({
-    container:  'map',
-    style: {
-      version: 8,
-      glyphs:  'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-      sources: {
-        carto: {
-          type: 'raster',
-          tiles: [
-            'https://a.basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}@2x.png',
-            'https://b.basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}@2x.png',
-            'https://c.basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}@2x.png',
-            'https://d.basemaps.cartocdn.com/dark_matter/{z}/{x}/{y}@2x.png',
-          ],
-          tileSize: 256,
-          maxzoom:  19,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
-        },
-        ofm_water: {
-          type: 'vector',
-          tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'],
-          maxzoom: 14,
-        },
-      },
-      layers: [
-        /* Pohjakartta */
-        {
-          id: 'carto-base',
-          type: 'raster',
-          source: 'carto',
-          paint: {
-            'raster-brightness-min': 0,
-            'raster-brightness-max': 1,
-            'raster-contrast':  0.35,
-            'raster-saturation': 0.2,
-          },
-        },
-        /* Coastline shadow — vesialueet tummana vektoripolygonina */
-        {
-          id:     'water-shadow',
-          type:   'fill',
-          source: 'ofm_water',
-          'source-layer': 'water',
-          paint: {
-            'fill-color':   '#000c20',
-            'fill-opacity': 0.65,
-            'fill-antialias': true,
-          },
-        },
-        /* Coastline stroke — pehmeä reuna */
-        {
-          id:     'water-stroke',
-          type:   'line',
-          source: 'ofm_water',
-          'source-layer': 'water',
-          paint: {
-            'line-color':   '#000c20',
-            'line-width':   8,
-            'line-opacity': 0.70,
-            'line-blur':    6,
-          },
-        },
-      ],
-    },
-    center:   [25.5, 62.5],   /* [lng, lat] */
-    zoom:     5,
-    minZoom:  2,
-    maxZoom:  13,
-    attributionControl: true,
-    pitchWithRotate:    false,
-    dragRotate:         false,
-    touchPitch:         false,
+  const map = L.map('map', {
+    center: [62.5, 25.5], zoom: 5, zoomControl: false, attributionControl: true,
+    minZoom: 2, maxZoom: 13, preferCanvas: true, zoomSnap: 0.5, zoomDelta: 0.5,
+    worldCopyJump: true, doubleClickZoom: false, tap: false, tapTolerance: 15
   });
 
-  /* Piilotetaan rotate-control */
-  map.addControl(new maplibregl.NavigationControl({ showCompass: false, showZoom: false }));
-
-  /* Yhteensopivuuskerros — MapLibre getBounds() → sama API kuin Leaflet */
-  map.getBoundsLL = function() {
-    const b = map.getBounds();
-    return {
-      getNorth:    function(){ return b.getNorth(); },
-      getSouth:    function(){ return b.getSouth(); },
-      getEast:     function(){ return b.getEast(); },
-      getWest:     function(){ return b.getWest(); },
-      getNorthWest: function(){ return { lat: b.getNorth(), lng: b.getWest() }; },
-      getSouthEast: function(){ return { lat: b.getSouth(), lng: b.getEast() }; },
-    };
-  };
-
-  /* Yhteensopivuus: getCenter() → {lat, lng} */
-  const _origGetCenter = map.getCenter.bind(map);
-  map.getCenterLL = function() {
-    const c = _origGetCenter();
-    return { lat: c.lat, lng: c.lng };
-  };
-
-  /* Yhteensopivuus: project/unproject */
-  map.latLngToContainerPoint = function(ll) {
-    const p = map.project([ll.lng, ll.lat]);
-    return { x: p.x, y: p.y };
-  };
-  map.containerPointToLatLng = function(pt) {
-    const ll = map.unproject([pt.x, pt.y]);
-    return { lat: ll.lat, lng: ll.lng };
-  };
-  map.projectLL = function(ll, zoom) {
-    /* Leaflet project ottaa [lat,lng] + zoom, MapLibre project ottaa [lng,lat] */
-    const scale = 256 * Math.pow(2, zoom);
-    const p = map.project([ll.lng !== undefined ? ll.lng : ll[1],
-                           ll.lat !== undefined ? ll.lat : ll[0]]);
-    return { x: p.x, y: p.y, subtract: function(o) {
-      return { x: this.x - (o.x||o[0]||0), y: this.y - (o.y||o[1]||0) };
-    }};
-  };
-  map.unprojectLL = function(pt, zoom) {
-    const ll = map.unproject([pt.x, pt.y]);
-    return { lat: ll.lat, lng: ll.lng };
-  };
-
-  /* flyTo yhteensopivuus — Leaflet: [lat,lng], MapLibre: [lng,lat] */
-  map.flyToLL = function(latlng, zoom, opts) {
-    const lat = Array.isArray(latlng) ? latlng[0] : latlng.lat;
-    const lng = Array.isArray(latlng) ? latlng[1] : latlng.lng;
-    map.flyTo({
-      center:   [lng, lat],
-      zoom:     zoom !== undefined ? zoom : map.getZoom(),
-      speed:    opts && opts.duration ? (1 / opts.duration) : 1.2,
-      curve:    1,
-      easing:   opts && opts.easeLinearity
-        ? (t) => t * opts.easeLinearity + t * (1 - opts.easeLinearity) * (1 - Math.cos(t * Math.PI)) / 2
-        : undefined,
-    });
-  };
+  /* Pohjakartta */
+  var baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+    subdomains: 'abcd', maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
+  });
+  baseLayer.addTo(map);
+  baseLayer.on('tileload', function(e) {
+    e.tile.style.filter = 'brightness(1.5) contrast(1.35) saturate(1.4)';
+  });
 
   State.map = map;
+  _addObsMarkers(map);
 
-  /* Palautetaan Promise joka resolvaa kun MapLibre style on ladattu
-     main() odottaa tätä ennen kuin käyttää karttaa */
-  State._mapReady = new Promise(function(resolve) {
-    map.once('load', function() {
-      console.log('[MapLibre] style loaded, map ready');
-      resolve(map);
-    });
-  });
-
-  /* map.on events — MapLibre käyttää samaa API:a */
   map.on('moveend', () => {
     if (State._dragZooming) return;
     GeoProject.update(map);
@@ -4361,23 +4232,16 @@ function initMap() {
     State.windCvs.style.opacity = '1';
     State._panning = false;
     PerfTracker.reset();
-
-    /* Update timeline */
     const c = map.getCenter();
-    const cll = { lat: c.lat, lng: c.lng };
-    const best = _nearestLoadedSpot(cll.lat, cll.lng);
+    const best = _nearestLoadedSpot(c.lat, c.lng);
     if (best) {
       const ni = _nearestHourIdx(best, State.currentHourIdx);
-      if (ni !== State.currentHourIdx) {
-        State.currentHourIdx = ni;
-        Timeline.scheduleUpdate();
-      }
+      if (ni !== State.currentHourIdx) { State.currentHourIdx = ni; Timeline.scheduleUpdate(); }
     }
     _scheduleViewportLoad();
   });
 
   map.on('movestart', () => { State._panning = true; });
-
   map.on('move', () => {
     if (State._dragZooming) return;
     State.windCvs.style.opacity = '0.25';
@@ -4392,17 +4256,11 @@ function initMap() {
             const target = nParticles();
             for (let i = 0; i < target; i++) State.particles.push(makeParticle(true));
           }
-          const ni = _nearestHourIdx(
-            _nearestLoadedSpot(map.getCenter().lat, map.getCenter().lng),
-            State.currentHourIdx
-          );
           Timeline.scheduleUpdate();
         });
       } else {
         WindTexture.build(State.windField, map.getBounds()).then(() => {
-          drawColorField();
-          resetParticles();
-          Crosshair.refresh();
+          drawColorField(); resetParticles(); Crosshair.refresh();
         });
       }
     }, 250);
@@ -4412,18 +4270,14 @@ function initMap() {
   map.on('zoomend', () => {
     if (State._dragZooming) return;
     const newZoom = map.getZoom();
-    if (newZoom !== _prevZoom) {
-      _prevZoom = newZoom;
-      renderSpots(State.currentHourIdx);
-    }
-    WindTexture.build(State.windField, map.getBounds()).then(() => { drawColorField(); Crosshair.refresh(); });
+    if (newZoom !== _prevZoom) { _prevZoom = newZoom; renderSpots(State.currentHourIdx); }
+    WindTexture.build(State.windField, map.getBounds()).then(() => {
+      drawColorField(); Crosshair.refresh();
+    });
   });
 
-  map.on('zoom', () => {
-    State.windCvs.style.opacity = '0.25';
-  });
+  map.on('zoom', () => { State.windCvs.style.opacity = '0.25'; });
 
-  /* _addObsMarkers kutsutaan main():sta map.load-eventin jälkeen */
   GeoProject.update(map);
 }
 
@@ -4557,7 +4411,7 @@ function idw(lat, lng) {
   return { u, v, ms: Math.sqrt(u * u + v * v) };
 }
 
-function px2ll(x, y) { const ll = State.map.unproject([x, y]); return { lat: ll.lat, lng: ll.lng }; }
+function px2ll(x, y) { const ll = State.map.containerPointToLatLng(L.point(x, y)); return { lat: ll.lat, lng: ll.lng }; }
 
 /* -- WIND TEXTURE ----------------------------------------------- */
 const WindTexture = {
@@ -4650,25 +4504,15 @@ const WindTexture = {
 /* -- HEATMAP ---------------------------------------------------- */
 function drawColorField() {
   if (!WindTexture.canvas || !State.map || !WindTexture.msData) return;
-  if (!State.map.isStyleLoaded()) return;  /* MapLibre: odota style */
   const url = WindTexture.canvas.toDataURL();
-  /* Piirretään tuulivisualisointi windCvs-canvasille CSS-overlay:na
-     windCvs on position:absolute kartan päällä, mix-blend-mode:screen CSS:ssä */
-  const wCvs = State.windCvs;
-  if (!wCvs) return;
-  const wCtx = State.windCtx;
-  const map  = State.map;
-  /* Projektioi WindTexture-koordinaatit canvas-pikseliksi */
-  const nw = map.project([WindTexture.lngMin, WindTexture.latMax]);
-  const se = map.project([WindTexture.lngMax, WindTexture.latMin]);
-  const dpr = State.dpr || 1;
-  const px = Math.round(nw.x * dpr), py = Math.round(nw.y * dpr);
-  const pw = Math.round((se.x - nw.x) * dpr), ph = Math.round((se.y - nw.y) * dpr);
-  wCtx.clearRect(0, 0, wCvs.width, wCvs.height);
-  if (pw > 0 && ph > 0) {
-    wCtx.drawImage(WindTexture.canvas, px, py, pw, ph);
+  if (State.heatmapOverlay) {
+    State.heatmapOverlay.setUrl(url);
+    State.heatmapOverlay.setBounds(bounds);
+  } else {
+    State.heatmapOverlay = L.imageOverlay(url, bounds, {
+      opacity: 1, interactive: false, className: 'heatmap-overlay', pane: 'overlayPane'
+    }).addTo(State.map);
   }
-  State.heatmapOverlay = true;
   updateHeatmapBlur();
 }
 
@@ -4738,7 +4582,6 @@ function rndGeo() {
 const GeoProject = {
   _ox: 0, _oy: 0, _sx: 1, _sy: 1, _valid: false,
   update(map) {
-    if (!map || !map.isStyleLoaded()) return;
     const b = map.getBounds();
     const nw = map.latLngToContainerPoint(b.getNorthWest());
     const se = map.latLngToContainerPoint(b.getSouthEast());
@@ -4756,7 +4599,7 @@ const GeoProject = {
 
 function geo2px(lat, lng) {
   if (GeoProject._valid) return GeoProject.project(lat, lng);
-  const pt = State.map.latLngToContainerPoint({lat, lng});
+  const pt = State.map.latLngToContainerPoint(L.latLng(lat, lng));
   return { x: pt.x, y: pt.y };
 }
 function makeParticle(rAge) {
@@ -5238,26 +5081,20 @@ function renderSpots(hourIdx) {
       anchor = [sz / 2, sz / 2];
     }
 
-    /* MapLibre marker */
-    const _el = document.createElement('div');
-    _el.innerHTML = html;
-    const _mel = _el.firstElementChild || _el;
-    _mel.style.cursor = 'pointer';
-    _mel.style.width  = iconW + 'px';
-    _mel.style.height = iconH + 'px';
-    _mel.addEventListener('click', () => {
-      Haptics.medium();
-      const map = State.map;
-      const targetZoom = Math.max(map.getZoom(), 10);
-      map.flyToLL([spot.lat, spot.lng], targetZoom, {
-        animate: true, duration: 0.5, easeLinearity: 0.15,
-      });
-      setTimeout(() => openSheet(spot, hourIdx), 350);
-    });
-    const _marker = new maplibregl.Marker({ element: _mel, anchor: 'center' })
-      .setLngLat([spot.lng, spot.lat])
-      .addTo(State.map);
-    State.markers.push(_marker);
+    const icon = L.divIcon({ className: '', html, iconSize: [iconW, iconH], iconAnchor: anchor });
+    State.markers.push(
+      L.marker([spot.lat, spot.lng], { icon })
+        .on('click', () => {
+          Haptics.medium();
+          const map = State.map;
+          const targetZoom = Math.max(map.getZoom(), 10);
+          map.flyTo([spot.lat, spot.lng], targetZoom, {
+            animate: true, duration: 0.5, easeLinearity: 0.15,
+          });
+          setTimeout(() => openSheet(spot, hourIdx), 350);
+        })
+        .addTo(State.map)
+    );
   }
 }
 
@@ -5861,37 +5698,27 @@ function _addObsMarkers(map) {
     var z = zoom || 5;
     var sz = z < 8 ? 6 : z < 10 ? 8 : 10;
     var op = z < 8 ? 0.5 : z < 10 ? 0.65 : 0.85;
-    var _d = document.createElement('div');
-    _d.style.cssText = 'width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+c
-      +';opacity:'+op+';box-shadow:0 0 '+(sz/2)+'px '+c+'66;border:1px solid rgba(255,255,255,.25);cursor:pointer';
-    return _d;
+    return L.divIcon({
+      className: '',
+      html: '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+c+';opacity:'+op+';box-shadow:0 0 '+(sz/2)+'px '+c+'66;border:1px solid rgba(255,255,255,.25);cursor:pointer"></div>',
+      iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]
+    });
   }
 
   function updateIcons() {
     var z = map.getZoom();
-    _obsMarkers.forEach(function(m){
-      var newEl = mkIcon(m.color, z);
-      var oldEl = m.marker.getElement();
-      if (oldEl && oldEl.parentNode) {
-        oldEl.parentNode.replaceChild(newEl, oldEl);
-        m.el = newEl;
-      }
-    });
+    _obsMarkers.forEach(function(m){ m.marker.setIcon(mkIcon(m.color, z)); });
   }
 
   FMI_MAP_STATIONS.forEach(function(st){
-    var _fmiEl = mkIcon(FC, map.getZoom());
-    _fmiEl.addEventListener('click', function(){ _openObsSheet('fmi',st); });
-    var m = new maplibregl.Marker({ element: _fmiEl, anchor: 'center' })
-      .setLngLat([st.lng, st.lat]).addTo(map);
-    _obsMarkers.push({marker:m, color:FC, el:_fmiEl});
+    var m = L.marker([st.lat,st.lng],{icon:mkIcon(FC,map.getZoom()),zIndexOffset:-100})
+      .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
+    _obsMarkers.push({marker:m,color:FC});
   });
   UIRAS_STATIONS.forEach(function(st){
-    var _uiEl = mkIcon(UC, map.getZoom());
-    _uiEl.addEventListener('click', function(){ _openObsSheet('uiras',st); });
-    var m = new maplibregl.Marker({ element: _uiEl, anchor: 'center' })
-      .setLngLat([st.lng, st.lat]).addTo(map);
-    _obsMarkers.push({marker:m, color:UC, el:_uiEl});
+    var m = L.marker([st.lat,st.lng],{icon:mkIcon(UC,map.getZoom()),zIndexOffset:-100})
+      .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
+    _obsMarkers.push({marker:m,color:UC});
   });
 
   map.on('zoomend', updateIcons);
@@ -8410,13 +8237,14 @@ document.getElementById('btn-loc').addEventListener('click', () => {
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(p => {
     const lat = p.coords.latitude, lng = p.coords.longitude;
-    State.map.flyToLL([lat, lng], 9, { duration: 1.2 });
+    State.map.flyTo([lat, lng], 9, { duration: 1.2 });
     if (State._locMarker) State._locMarker.remove();
-    const _locEl = document.createElement('div');
-    _locEl.innerHTML = '<div class="loc-dot-outer"><div class="loc-dot-pulse"></div><div class="loc-dot-inner"></div></div>';
-    _locEl.style.cssText = 'width:22px;height:22px;pointer-events:none';
-    State._locMarker = new maplibregl.Marker({ element: _locEl, anchor: 'center' })
-      .setLngLat([lng, lat]).addTo(State.map);
+    const icon = L.divIcon({
+      className: '',
+      html: '<div class="loc-dot-outer"><div class="loc-dot-pulse"></div><div class="loc-dot-inner"></div></div>',
+      iconSize: [22, 22], iconAnchor: [11, 11]
+    });
+    State._locMarker = L.marker([lat, lng], { icon, interactive: false, zIndexOffset: 1000 }).addTo(State.map);
   }, () => { Haptics.error(); Toast.show('📍 Sijainnin haku epäonnistui'); });
 }, { passive: true });
 
@@ -8489,7 +8317,7 @@ const ForecastPanel = {
     if (!State.map) return [];
     const bounds = State.map.getBounds();
     const viewSpots = SPOTS.filter(s =>
-      s.wx && s.wx.hourly && bounds.contains([s.lng, s.lat])
+      s.wx && s.wx.hourly && bounds.contains(L.latLng(s.lat, s.lng))
     );
     if (!viewSpots.length) return [];
 
@@ -8610,7 +8438,7 @@ const ForecastPanel = {
         if (!spot) return;
         Haptics.medium();
         this.close();
-        State.map.flyToLL([spot.lat, spot.lng], 10, { duration: 1 });
+        State.map.flyTo([spot.lat, spot.lng], 10, { duration: 1 });
         /* Jump timeline to the window's hour */
         if (State._tlTimes && time) {
           const target = new Date(time).getTime();
@@ -9042,16 +8870,12 @@ function main() {
 
   makeSwipeable(document.getElementById('sheet'), closeSheet);
 
-  /* Odota MapLibre-kartan latautumista ennen datatoimintoja */
-  (State._mapReady || Promise.resolve(State.map)).then(function() {
-    _addObsMarkers(State.map);
+  const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
 
-    const dot = document.getElementById('refresh-dot'); dot.classList.add('pulse');
+  const spotsP    = ViewportGrid.loadSpots().catch(e => console.warn('[loadSpots]', e));
+  const viewportP = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[loadViewport]', e));
 
-    const spotsP    = ViewportGrid.loadSpots().catch(e => console.warn('[loadSpots]', e));
-    const viewportP = ViewportGrid.loadViewport(State.map).catch(e => console.warn('[loadViewport]', e));
-
-    spotsP.then(() => {
+  spotsP.then(() => {
       const ref = bestTimelineRef();
       if (ref) {
         const ni = nowIdx(ref.wx.hourly.time); State.currentHourIdx = ni;
@@ -9066,18 +8890,17 @@ function main() {
       }
     });
 
-    Promise.allSettled([spotsP, viewportP]).then(() => {
-      const ref = bestTimelineRef();
-      if (ref) {
-        const ni = State.currentHourIdx;
-        buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
-        renderSpots(ni);
-      }
-      loadMarineTemp();
-      State.lastDataLoad = Date.now();
-      scheduleRefresh();
-      setTimeout(() => dot.classList.remove('pulse'), 800);
-    });
+  Promise.allSettled([spotsP, viewportP]).then(() => {
+    const ref = bestTimelineRef();
+    if (ref) {
+      const ni = State.currentHourIdx;
+      buildWindField(ni).then(() => { drawColorField(); resetParticles(); });
+      renderSpots(ni);
+    }
+    loadMarineTemp();
+    State.lastDataLoad = Date.now();
+    scheduleRefresh();
+    setTimeout(() => dot.classList.remove('pulse'), 800);
   });
 }
 
