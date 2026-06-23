@@ -60,8 +60,19 @@ body {
    MAP  z:1
    ============================================================ */
 #map { position: absolute; inset: 0; z-index: 1; background: var(--bg); touch-action: none; }
+/* Coastline vignette — tummentaa kartan reunoja */
+#map::after {
+  content: '';
+  position: absolute; inset: 0; z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(ellipse 120% 120% at 50% 50%,
+    transparent 40%,
+    rgba(0,4,12,0.25) 70%,
+    rgba(0,4,12,0.55) 100%
+  );
+}
 .leaflet-container { background: var(--bg) !important; -webkit-transform: translateZ(0); transform: translateZ(0); }
-.leaflet-tile-pane { -webkit-filter: brightness(2.0) contrast(1.05) saturate(1.15); filter: brightness(2.0) contrast(1.05) saturate(1.15); }
+.leaflet-tile-pane { -webkit-filter: brightness(1.5) contrast(1.35) saturate(1.4); filter: brightness(1.5) contrast(1.35) saturate(1.4); }
 
 .leaflet-control-zoom { display: none !important; }
 .leaflet-control-attribution { background: rgba(6,9,18,.75) !important; color: rgba(255,255,255,.18) !important; font-size: 8px !important; }
@@ -2262,38 +2273,39 @@ function initMap() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>'
   }).addTo(map);
 
-  /* Coastline shadow layer — Windy-tyylinen ranta-korostus
-   *
-   * Tekniikka: CartoDB light_nolabels + CSS mix-blend-mode: multiply
-   * Light-tiilessä: vesi ≈ rgb(174,218,240) vaaleanharmaa-sininen
-   *                 maa  ≈ rgb(242,239,233) lähes valkoinen
-   * multiply-blend dark-taustan päälle:
-   *   meri: 174/255 × dark_ocean ≈ 0.68 → tummentaa 32%
-   *   maa:  242/255 × dark_land  ≈ 0.95 → tummentaa vain 5%
-   * → Automaattinen kontrastitehostus maan ja veden välillä.
-   * blur-filter pehmentää rajan antaen gradient-siirtymän kuten Windyssä.
-   */
+  /* ── Coastline shadow — NaturalEarth ocean polygon + SVG blur ────
+   * Lataa merivesipolygoni ja piirtää sen tummana SVG-layerina
+   * blur-filter → pehmeä gradient ranta-alueella (Windy-tyyli)
+   * mix-blend-mode multiply → tummentaa vain vesialueen reunat       */
   (function() {
-    var pane = map.createPane('coastShadow');
-    pane.style.zIndex = 201;   /* juuri pohjakartan yläpuolella */
-    pane.style.pointerEvents = 'none';
-    pane.style.mixBlendMode  = 'multiply';
+    var coastPane = map.createPane('coastPane');
+    coastPane.style.zIndex = '202';
+    coastPane.style.pointerEvents = 'none';
+    coastPane.style.mixBlendMode  = 'multiply';
 
-    var coastLayer = L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
-      {
-        subdomains: 'abcd', maxZoom: 19, pane: 'coastShadow', opacity: 1
-      }
-    );
-    coastLayer.addTo(map);
-
-    /* Blur jokaiselle tiilille pehmentää rajaa.
-       stdDeviation ~2 = noin 5px blur 256px tiilellä. */
-    coastLayer.on('tileload', function(e) {
-      e.tile.style.filter = 'blur(2.5px) brightness(0.75)';
-    });
+    fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_ocean.geojson')
+      .then(function(r){ return r.json(); })
+      .then(function(gj){
+        var layer = L.geoJSON(gj, {
+          pane: 'coastPane',
+          renderer: L.svg({ padding: 1 }),
+          style: {
+            fillColor:   '#00040f',
+            fillOpacity: 0.72,
+            stroke:      false,
+          }
+        }).addTo(map);
+        /* Lisää blur SVG-elementille → pehmeä reuna rannalla */
+        var el = coastPane.querySelector('svg');
+        if (el) el.style.filter = 'blur(6px)';
+        /* Kuuntele uutta SVG:tä jos zoom luo uuden */
+        map.on('zoomend moveend', function() {
+          var e2 = coastPane.querySelector('svg');
+          if (e2 && !e2._blurred) { e2.style.filter = 'blur(6px)'; e2._blurred = true; }
+        });
+      })
+      .catch(function(e){ console.log('[coast GeoJSON]', e.message); });
   })();
-
 
 
   /* Konfiguroi DoubleTapDragZoom-plugin */
