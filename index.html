@@ -2420,6 +2420,10 @@ const WindTexture = {
 function drawColorField() {
   if (!WindTexture.canvas || !State.map || !WindTexture.msData) return;
   const url = WindTexture.canvas.toDataURL();
+  const bounds = L.latLngBounds(
+    L.latLng(WindTexture.latMin, WindTexture.lngMin),
+    L.latLng(WindTexture.latMax, WindTexture.lngMax)
+  );
   if (State.heatmapOverlay) {
     State.heatmapOverlay.setUrl(url);
     State.heatmapOverlay.setBounds(bounds);
