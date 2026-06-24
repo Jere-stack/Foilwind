@@ -254,9 +254,9 @@ body {
 
 #tl-wrap {
   position: relative; pointer-events: all;
-  height: calc(72px + var(--sab));   /* safe-area bottom */
-  overflow: visible; padding-top: 28px;
-  padding-bottom: var(--sab);        /* sisältö ei mene home-indicatorin alle */
+  height: calc(92px + var(--sab));   /* isompi drag-alue */
+  overflow: visible; padding-top: 32px;
+  padding-bottom: var(--sab);
   background: linear-gradient(to top, rgba(6,9,18,.92) 0%, rgba(6,9,18,.5) 65%, transparent 100%);
   border-radius: 0;
 }
@@ -271,13 +271,13 @@ body {
 #tl-scroll::-webkit-scrollbar { display: none; }
 
 .htick {
-  flex: 0 0 24px; display: flex; flex-direction: column; align-items: center;
+  flex: 0 0 26px; display: flex; flex-direction: column; align-items: center;
   justify-content: flex-end; height: 100%;
   -webkit-user-select: none; user-select: none; cursor: pointer;
-  position: relative; padding-bottom: 14px;
+  position: relative; padding-bottom: 16px;
 }
 .htick-bar {
-  width: 14px; border-radius: 4px 4px 0 0; min-height: 3px;
+  width: 16px; border-radius: 5px 5px 0 0; min-height: 5px;
   transition: opacity 0.15s;
 }
 .htick:active .htick-bar { opacity: 0.7; }
@@ -5837,7 +5837,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     const isPast = i < realNowIdx;
     tick.className = 'htick' + (hour % 3 === 0 ? ' show-lbl' : '') + (isPast ? ' past' : '');
     tick.dataset.idx = i;
-    const barH = Math.max(3, (ms / maxMs) * 48);
+    const barH = Math.max(5, (ms / maxMs) * 58);
     const foilable = ms >= 8;
     tick.innerHTML = '<div class="htick-bar' + (foilable ? ' foilable' : '') + '" style="height:' + barH + 'px;background:rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')' + (foilable ? ';border-bottom:2px solid rgb(80,237,120)' : '') + '"></div>'
       + '<span class="htick-lbl">' + ('0'+hour).slice(-2) + '</span>';
