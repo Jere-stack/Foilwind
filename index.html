@@ -150,7 +150,8 @@ body {
    ============================================================ */
 #bottom-bar {
   display: flex; align-items: flex-end; gap: 0; margin-bottom: 6px;
-  pointer-events: none; /* pass touches to map by default */
+  padding: 0 calc(var(--sar) + 8px) 0 calc(var(--sal) + 8px);
+  pointer-events: none;
 }
 .mctl {
   width: 46px; height: 46px; border-radius: 0; border: none;
@@ -245,23 +246,25 @@ body {
    ============================================================ */
 #bottom {
   position: absolute; bottom: 0; left: 0; right: 0; z-index: 20;
-  padding: 0 calc(var(--sar) + 12px) calc(var(--sab) + 12px) calc(var(--sal) + 12px);
+  padding: 0;  /* slider ulottuu reunasta reunaan */
   background: none;
   pointer-events: none;
 }
 #layers { display: flex; gap: 5px; pointer-events: all; }
 
 #tl-wrap {
-  position: relative; pointer-events: all; height: 72px;
+  position: relative; pointer-events: all;
+  height: calc(72px + var(--sab));   /* safe-area bottom */
   overflow: visible; padding-top: 28px;
-  background: linear-gradient(to top, rgba(6,9,18,.85) 0%, rgba(6,9,18,.4) 70%, transparent 100%);
+  padding-bottom: var(--sab);        /* sisältö ei mene home-indicatorin alle */
+  background: linear-gradient(to top, rgba(6,9,18,.92) 0%, rgba(6,9,18,.5) 65%, transparent 100%);
   border-radius: 0;
 }
 #tl-scroll {
   display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
   -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 0;
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0%, black 12%, black 88%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
   overscroll-behavior-x: contain; height: 100%;
   touch-action: pan-x; align-items: flex-end;
 }
