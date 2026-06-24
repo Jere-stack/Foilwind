@@ -289,7 +289,10 @@ body {
 .htick.show-lbl .htick-lbl { color: rgba(255,255,255,0.9); font-weight: 600; font-size: 8px; }
 
 #tl-indicator {
-  position: absolute; top: 0; left: 50%; width: 3px; height: 100%;
+  position: absolute;
+  top: 48px;                          /* alkaa padding-top kohdalta = palkkien yläreuna */
+  bottom: var(--sab);                 /* loppuu safe-area-bottom kohtaan */
+  left: 50%; width: 3px;
   transform: translateX(-50%); pointer-events: none; z-index: 2;
   background: var(--accent);
   box-shadow: 0 0 10px rgba(0,207,255,0.6), 0 0 4px rgba(0,207,255,0.3);
@@ -6920,4 +6923,3 @@ if (document.readyState === 'loading') {
 </script>
 </body>
 </html>
-
