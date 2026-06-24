@@ -2066,10 +2066,81 @@ const ViewportGrid = {
    - touchmove drag-zoom: preventDefault + map._move() 60fps
    - touchend drag-zoom: snap + Leaflet animateZoom
    --------------------------------------------------------------- */
-(function() {
-  /* Asennetaan VASTA kartan luomisen jälkeen map-init hookissa */
+/* DoubleTapDragZoom — asennetaan initMap():ssa */
+function _installDoubleTapZoom(map) {
+  var mapEl = map.getContainer();
+  var dtz = { t1: 0, x1: 0, y1: 0, active: false, animReq: null,
+               startZoom: 0, startPt: null, startLlng: null, centerPt: null, currentZoom: 0 };
 
-})();
+  mapEl.addEventListener('touchstart', function(e) {
+    if (e.touches.length !== 1) { dtz.active = false; return; }
+    var t = e.touches[0];
+    var now = Date.now();
+    var dx = t.clientX - dtz.x1, dy = t.clientY - dtz.y1;
+    var dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (now - dtz.t1 < 300 && dist < 45) {
+      /* Double-tap tunnistettu */
+      dtz.active = true;
+      dtz.startZoom  = map.getZoom();
+      dtz.startPt    = map.mouseEventToContainerPoint(t);
+      dtz.centerPt   = map.getSize()._divideBy(2);
+      dtz.startLlng  = map.containerPointToLatLng(dtz.startPt);
+      dtz.currentZoom = dtz.startZoom;
+      dtz.t1 = 0; /* reset */
+    } else {
+      dtz.active = false;
+      dtz.t1 = now; dtz.x1 = t.clientX; dtz.y1 = t.clientY;
+    }
+  }, { passive: true });
+
+  mapEl.addEventListener('touchmove', function(e) {
+    if (!dtz.active || e.touches.length !== 1) return;
+    e.preventDefault();
+    var t = e.touches[0];
+    var p = map.mouseEventToContainerPoint(t);
+    var dy = dtz.startPt.y - p.y;
+    var scale = Math.pow(2, dy / 128);
+    dtz.currentZoom = Math.max(map.getMinZoom(),
+                      Math.min(map.getMaxZoom(),
+                        map.getScaleZoom(scale, dtz.startZoom)));
+    var delta = L.point(dtz.startPt.x - dtz.centerPt.x, 0);
+    var center = map.unproject(
+      map.project(dtz.startLlng, dtz.currentZoom).subtract(delta),
+      dtz.currentZoom
+    );
+    if (dtz.animReq) cancelAnimationFrame(dtz.animReq);
+    dtz.animReq = requestAnimationFrame(function() {
+      map._move(center, dtz.currentZoom, { pinch: true, round: false });
+    });
+  }, { passive: false });
+
+  mapEl.addEventListener('touchend', function(e) {
+    if (!dtz.active) return;
+    if (dtz.animReq) { cancelAnimationFrame(dtz.animReq); dtz.animReq = null; }
+    if (e.changedTouches.length === 1 && dtz.startPt) {
+      var endT = e.changedTouches[0];
+      var dy = Math.abs(endT.clientY - (dtz.startPt.y + map.getContainer().getBoundingClientRect().top));
+      if (dy < 10) {
+        /* Nopea tuplanapauta ilman vetoa → zoom in */
+        map.setZoomAround(dtz.startLlng, map.getZoom() + 1, { animate: true });
+      } else {
+        /* Drag-zoom päättyy → snap */
+        var snapped = map._limitZoom(dtz.currentZoom);
+        if (map.options.zoomAnimation) {
+          map._animateZoom(
+            map.unproject(map.project(dtz.startLlng, snapped).subtract(
+              L.point(dtz.startPt.x - dtz.centerPt.x, 0)), snapped),
+            snapped, true, map.options.zoomSnap
+          );
+        } else {
+          map._resetView(map.getCenter(), snapped);
+        }
+      }
+    }
+    dtz.active = false;
+  }, { passive: true });
+}
 
 
 
@@ -2143,7 +2214,9 @@ function initMap() {
     if (State._dragZooming) return;
     GeoProject.update(map);
     const { windCtx, windCvs, dpr } = State;
+    /* Tyhjennä canvas ja nollaa partikkelit välittömästi */
     if (windCtx) windCtx.clearRect(0, 0, windCvs.width / dpr, windCvs.height / dpr);
+    State.particles = [];   /* Nollaa partikkelit — uudet spawnaa kun data ladattu */
     State.windCvs.style.opacity = '1';
     State._panning = false;
     PerfTracker.reset();
@@ -2187,11 +2260,14 @@ function initMap() {
     const newZoom = map.getZoom();
     if (newZoom !== _prevZoom) { _prevZoom = newZoom; renderSpots(State.currentHourIdx); }
     WindTexture.build(State.windField, map.getBounds()).then(() => {
-      drawColorField(); Crosshair.refresh();
+      drawColorField(); resetParticles(); Crosshair.refresh();
     });
   });
 
   map.on('zoom', () => { State.windCvs.style.opacity = '0.25'; });
+
+  /* Asenna tuplanapauta-zoom */
+  _installDoubleTapZoom(map);
 
   GeoProject.update(map);
 }
