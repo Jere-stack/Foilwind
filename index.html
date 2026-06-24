@@ -254,10 +254,10 @@ body {
 
 #tl-wrap {
   position: relative; pointer-events: all;
-  height: calc(92px + var(--sab));   /* isompi drag-alue */
-  overflow: visible; padding-top: 32px;
+  height: calc(130px + var(--sab));  /* yhtä korkea kuin sininen indikaattoriviiva */
+  overflow: visible; padding-top: 48px;
   padding-bottom: var(--sab);
-  background: linear-gradient(to top, rgba(6,9,18,.92) 0%, rgba(6,9,18,.5) 65%, transparent 100%);
+  background: linear-gradient(to top, rgba(6,9,18,.92) 0%, rgba(6,9,18,.45) 60%, transparent 100%);
   border-radius: 0;
 }
 #tl-scroll {
@@ -5837,7 +5837,7 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
     const isPast = i < realNowIdx;
     tick.className = 'htick' + (hour % 3 === 0 ? ' show-lbl' : '') + (isPast ? ' past' : '');
     tick.dataset.idx = i;
-    const barH = Math.max(5, (ms / maxMs) * 58);
+    const barH = Math.max(5, (ms / maxMs) * 72);
     const foilable = ms >= 8;
     tick.innerHTML = '<div class="htick-bar' + (foilable ? ' foilable' : '') + '" style="height:' + barH + 'px;background:rgb(' + bc.r + ',' + bc.g + ',' + bc.b + ')' + (foilable ? ';border-bottom:2px solid rgb(80,237,120)' : '') + '"></div>'
       + '<span class="htick-lbl">' + ('0'+hour).slice(-2) + '</span>';
