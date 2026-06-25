@@ -4037,11 +4037,31 @@ function _addObsMarkers(map) {
   }
 
   /* ── Päivittää ikonit zoom-muutoksessa ──────────────────────── */
-  function updateIcons() {
+  /* Hae historia-arvo lähimmälle ajanhetkelle */
+  function _histValueAt(hist, targetTime) {
+    if (!hist || !hist.ws || !hist.ws.length) return { ws: null, wg: null };
+    var best = null, bestDiff = Infinity;
+    for (var i = 0; i < hist.ws.length; i++) {
+      var diff = Math.abs(new Date(hist.ws[i].t).getTime() - targetTime);
+      if (diff < bestDiff) { bestDiff = diff; best = i; }
+    }
+    if (best === null || bestDiff > 3600000) return { ws: null, wg: null }; /* >1h ero */
+    var ws = hist.ws[best] ? +hist.ws[best].v : null;
+    var wg = hist.wg && hist.wg[best] ? +hist.wg[best].v : ws;
+    return { ws: ws, wg: wg };
+  }
+
+  function updateIcons(targetTs) {
     var z = map.getZoom();
     _obsMarkers.forEach(function(m) {
       if (m.type === 'wind-prim' || m.type === 'wind-dot') {
-        m.marker.setIcon(mkWindIcon(z, m.ws, m.wg, m.stName, m.type === 'wind-prim'));
+        var ws = m.ws, wg = m.wg;
+        /* Jos aika annettu JA historia olemassa → hae historialukema */
+        if (targetTs && m.history) {
+          var hv = _histValueAt(m.history, targetTs);
+          if (hv.ws !== null) { ws = hv.ws; wg = hv.wg; }
+        }
+        m.marker.setIcon(mkWindIcon(z, ws, wg, m.stName, m.type === 'wind-prim'));
       } else {
         m.marker.setIcon(mkWaterIcon(z, m.temp, m.prim));
       }
@@ -4056,17 +4076,31 @@ function _addObsMarkers(map) {
 
   /* ── FMI: hae tuulidata, luo markerit ──────────────────────── */
   (function() {
-    var PRIM_FMI    = { harmaja:true, sipoo:true };
+    var PRIM_FMI    = { harmaja:true, sipoo:true, vuosaari:true };
     var FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true };
+    /* Jokainen haku hakee sekä latest- että history-datan */
     var fetches = FMI_MAP_STATIONS.map(function(st) {
-      /* FMI proxy palauttaa {ws, wg, wd, tmp, ...} — ei hourly-formaattia */
-      return fetch('https://foilwind.vercel.app/api/fmi?place='+st.place)
-        .then(function(r){ return r.ok ? r.json() : null; })
-        .catch(function(){ return null; });
+      if (!PRIM_FMI[st.place]) {
+        /* Ei-prim: vain latest */
+        return fetch('https://foilwind.vercel.app/api/fmi?place='+st.place)
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .catch(function(){ return null; })
+          .then(function(d){ return { latest: d, history: null }; });
+      }
+      /* Prim-asemat: latest + history rinnakkain */
+      return Promise.all([
+        fetch('https://foilwind.vercel.app/api/fmi?place='+st.place)
+          .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }),
+        fetch('https://foilwind.vercel.app/api/fmi?history=1&lat='+st.lat+'&lng='+st.lng)
+          .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+      ]).then(function(pair){ return { latest: pair[0], history: pair[1] }; });
     });
     Promise.all(fetches).then(function(results) {
       FMI_MAP_STATIONS.forEach(function(st, i) {
-        var data = results[i]; var ws=null, wg=null;
+        var res = results[i] || {};
+        var data = res.latest;
+        var hist = res.history;  /* {ws:[{t,v,d},...], wg:[...]} tai null */
+        var ws=null, wg=null;
         if (data && !data.error) {
           ws = data.ws != null ? +data.ws : null;
           wg = data.wg != null ? +data.wg : ws;
@@ -4077,7 +4111,9 @@ function _addObsMarkers(map) {
           .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
         var _lg = FMI_SEA_PLACES[st.place] ? 'fmi-sea' : 'fmi-land';
         _obsMarkers.push({marker:m, type:isPrim?'wind-prim':'wind-dot',
-          ws:ws, wg:wg, stName:st.name, layerGroup:_lg});
+          ws:ws, wg:wg, wsLatest:ws, wgLatest:wg,
+          stName:st.name, layerGroup:_lg, place:st.place,
+          history: hist });  /* tallenna historia markeriin */
       });
       map.on('zoomend', updateIcons);
     }).catch(function() {
@@ -6289,6 +6325,8 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
 function _tlUpdateNow(idx) {
   if (!State._tlTimes || !State._tlTimes[idx]) return;
   const d = new Date(State._tlTimes[idx]);
+  /* Päivitä meriasema-ikonit oikeaan historiaan */
+  if (window._updateObsIcons) window._updateObsIcons(d.getTime());
   const DAY = ['Su','Ma','Ti','Ke','To','Pe','La'];
   const hh = ('0'+d.getHours()).slice(-2);
   const dateStr = DAY[d.getDay()] + ' ' + d.getDate() + '.' + (d.getMonth()+1) + '.';
