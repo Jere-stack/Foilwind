@@ -2479,22 +2479,17 @@ function initMap() {
   function _scheduleViewportLoad() {
     clearTimeout(State._vpTimer);
     State._vpTimer = setTimeout(() => {
-      if (!State.spotsLoaded) {
-        loadSpotData().then(() => {
-          if (!State.particles.length) {
-            const target = nParticles();
-            for (let i = 0; i < target; i++) State.particles.push(makeParticle(true));
-          }
-          updateTimelineToCenter();
-        });
-      } else {
-        /* Päivitä slider lähimmän pisteen dataan */
+      /* Lataa uuden alueen viewport-pisteet JA päivitä slider */
+      ViewportGrid.loadViewport(map).then(() => {
+        ViewportGrid.invalidateCache();
         updateTimelineToCenter();
-        WindTexture.build(State.windField, map.getBounds()).then(() => {
+        buildWindField(State.currentHourIdx).then(() => {
           drawColorField(); resetParticles(); Crosshair.refresh();
         });
-      }
-    }, 250);
+      }).catch(() => {
+        updateTimelineToCenter();
+      });
+    }, 400);
   }
 
   let _prevZoom = map.getZoom();
