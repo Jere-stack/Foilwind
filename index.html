@@ -3704,40 +3704,63 @@ function _addObsMarkers(map) {
   var _obsMarkers = [];
 
   /* ── Tuuliasema-ikoni ──────────────────────────────────────── */
+  /* Tuuliviiri-ikoni SVG */
+  function _windVaneSvg(color, size) {
+    var s = size || 20;
+    return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none"'
+      +' xmlns="http://www.w3.org/2000/svg">'
+      /* Pystyviiva (masto) */
+      +'<line x1="12" y1="4" x2="12" y2="20" stroke="'+color+'" stroke-width="1.5"'
+        +' stroke-linecap="round" opacity="0.5"/>'
+      /* Nuoli oikealle (viiri) */
+      +'<path d="M12 7 L19 9 L12 11 Z" fill="'+color+'" opacity="0.9"/>'
+      /* Pallo mastossa */
+      +'<circle cx="12" cy="20" r="1.5" fill="'+color+'" opacity="0.6"/>'
+      +'</svg>';
+  }
+
   function mkWindIcon(zoom, ws, wg, stName, isPrim) {
     var z = zoom || 5;
     if (isPrim && z >= 8) {
       var wsStr = ws != null ? ws.toFixed(1) : '—';
-      var wgStr = wg != null ? wg.toFixed(1) : '—';
+      var wgStr = wg != null ? '↑ '+wg.toFixed(1) : '';
+      /* Siisti pilli: [ikoni | nopeus m/s | puuska] */
       var html =
-        '<div style="display:flex;flex-direction:column;align-items:flex-start;'
-          +'background:rgba(8,10,22,0.80);border:1px solid rgba(245,200,66,0.30);'
-          +'border-radius:8px;padding:5px 8px 4px;cursor:pointer;'
-          +'backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);'
-          +'box-shadow:0 2px 14px rgba(0,0,0,.6);min-width:60px">'
-        +'<div style="display:flex;align-items:baseline;gap:3px">'
-          +'<span style="font-family:Syne,system-ui;font-weight:800;font-size:18px;'
-            +'color:'+C_WIND+';line-height:1;letter-spacing:-0.5px">'+wsStr+'</span>'
-          +'<span style="font-family:DM Mono,monospace;font-size:8px;'
-            +'color:rgba(245,200,66,.45)">m/s</span>'
-        +'</div>'
-        +'<div style="font-family:DM Mono,monospace;font-size:8px;'
-          +'color:rgba(245,200,66,.55);margin-top:1px">↑ '+wgStr+'</div>'
-        +'<div style="font-family:DM Mono,monospace;font-size:7px;'
-          +'color:rgba(255,255,255,.25);margin-top:3px;letter-spacing:0.5px;'
-          +'text-transform:uppercase;white-space:nowrap">'
-          +stName.split(' ').pop()
-        +'</div>'
+        '<div style="'
+          +'display:flex;align-items:center;gap:6px;'
+          +'background:rgba(6,9,18,0.82);'
+          +'border:1px solid rgba(245,200,66,0.28);'
+          +'border-radius:20px;'           /* pilli-muoto */
+          +'padding:4px 10px 4px 6px;'
+          +'cursor:pointer;'
+          +'backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);'
+          +'box-shadow:0 2px 12px rgba(0,0,0,.65),0 0 0 0.5px rgba(245,200,66,.1) inset;'
+          +'white-space:nowrap;'
+        +'">'
+          /* Tuuliviiri-ikoni */
+          +_windVaneSvg(C_WIND, 16)
+          /* Nopeus */
+          +'<span style="font-family:Syne,system-ui;font-weight:800;font-size:15px;'
+            +'color:'+C_WIND+';line-height:1;letter-spacing:-0.3px">'+wsStr+'</span>'
+          /* Yksikkö */
+          +'<span style="font-family:DM Mono,monospace;font-size:7px;'
+            +'color:rgba(245,200,66,.40);margin-left:-3px;align-self:flex-end;'
+            +'margin-bottom:1px">m/s</span>'
+          /* Puuska */
+          +(wgStr ? '<span style="font-family:DM Mono,monospace;font-size:8px;'
+            +'color:rgba(245,200,66,.50);border-left:1px solid rgba(245,200,66,.2);'
+            +'padding-left:6px;margin-left:1px">'+wgStr+'</span>' : '')
         +'</div>';
-      return L.divIcon({ className:'', html:html, iconAnchor:[0,0], iconSize:[88,56] });
+      return L.divIcon({ className:'', html:html, iconAnchor:[0, 12], iconSize:[110, 24] });
     } else {
+      /* Pieni piste */
       var sz = z < 8 ? 5 : z < 10 ? 7 : 8;
-      var op = z < 8 ? 0.40 : 0.70;
+      var op = z < 8 ? 0.38 : 0.68;
       return L.divIcon({
         className:'',
         html:'<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;'
           +'background:'+C_WIND+';opacity:'+op+';cursor:pointer;'
-          +'box-shadow:0 0 '+sz+'px '+C_WIND+'55"></div>',
+          +'box-shadow:0 0 '+sz+'px '+C_WIND+'44"></div>',
         iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]
       });
     }
@@ -3796,19 +3819,17 @@ function _addObsMarkers(map) {
   (function() {
     var PRIM_FMI = { harmaja:true, sipoo:true };
     var fetches = FMI_MAP_STATIONS.map(function(st) {
-      return fetch('https://foilwind.vercel.app/api/fmi?place='+st.place+'&hours=2')
+      /* FMI proxy palauttaa {ws, wg, wd, tmp, ...} — ei hourly-formaattia */
+      return fetch('https://foilwind.vercel.app/api/fmi?place='+st.place)
         .then(function(r){ return r.ok ? r.json() : null; })
         .catch(function(){ return null; });
     });
     Promise.all(fetches).then(function(results) {
       FMI_MAP_STATIONS.forEach(function(st, i) {
         var data = results[i]; var ws=null, wg=null;
-        if (data && data.hourly) {
-          var h=data.hourly, idx2=(h.windspeed_10m||[]).length-1;
-          if (idx2>=0) {
-            ws = h.windspeed_10m[idx2]!=null ? +h.windspeed_10m[idx2] : null;
-            wg = h.windgusts_10m && h.windgusts_10m[idx2]!=null ? +h.windgusts_10m[idx2] : null;
-          }
+        if (data && !data.error) {
+          ws = data.ws != null ? +data.ws : null;
+          wg = data.wg != null ? +data.wg : ws;
         }
         var isPrim = !!PRIM_FMI[st.place];
         var icon = mkWindIcon(map.getZoom(), ws, wg, st.name, isPrim);
