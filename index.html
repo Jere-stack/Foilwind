@@ -181,107 +181,138 @@ body {
 /* ============================================================
    SETTINGS — Apple Liquid Glass popover
    ============================================================ */
-/* ── Settings popup ─────────────────────────────────────────── */
-#settings-popup {
-  position: fixed; z-index: 30;
-  width: 260px;
-  max-height: 70vh;          /* max korkeus — yli menevä scrollaa */
-  display: flex; flex-direction: column;
-  background: rgba(10,13,28,0.88);
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 20px;
-  -webkit-backdrop-filter: blur(28px) saturate(1.6);
-  backdrop-filter: blur(28px) saturate(1.6);
-  box-shadow:
-    0 0 0 0.5px rgba(255,255,255,.07) inset,
-    0 16px 48px rgba(0,0,0,.6),
-    0 2px 10px rgba(0,0,0,.3);
-  transform: translateY(12px) scale(0.94);
-  opacity: 0; pointer-events: none;
-  transition: transform .28s cubic-bezier(.2,.9,.3,1.15), opacity .2s ease;
-  transform-origin: bottom left;
-  overflow: hidden;
+/* ── Settings drawer — Windy-tyylinen liukupaneeli ───────── */
+#settings-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0,0,0,0);
+  pointer-events: none;
+  transition: background .3s ease;
 }
-#settings-popup.open {
-  transform: translateY(0) scale(1);
-  opacity: 1; pointer-events: all;
+#settings-overlay.open {
+  background: rgba(0,0,0,0.45);
+  pointer-events: all;
 }
 
-/* Otsikkorivi */
+#settings-popup {
+  position: fixed; z-index: 51;
+  top: 0; left: 0; bottom: 0;
+  width: 82vw; max-width: 340px;
+  display: flex; flex-direction: column;
+  background: rgba(8,11,24,0.97);
+  border-right: 1px solid rgba(255,255,255,.08);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  transform: translateX(-100%);
+  transition: transform .32s cubic-bezier(.4,0,.2,1);
+  overflow: hidden;
+  pointer-events: all;
+}
+#settings-popup.open {
+  transform: translateX(0);
+}
+
+/* Safe area top */
 #sp-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 16px 10px;
+  padding: calc(env(safe-area-inset-top) + 16px) 20px 14px;
   border-bottom: 1px solid rgba(255,255,255,.07);
   flex-shrink: 0;
 }
 #sp-title {
   font-family: 'Syne', system-ui; font-weight: 700;
-  font-size: 13px; color: rgba(255,255,255,.9);
+  font-size: 16px; color: rgba(255,255,255,.92);
   letter-spacing: 0.2px;
 }
 #sp-close {
-  width: 24px; height: 24px; border-radius: 12px;
-  background: rgba(255,255,255,.08); border: none;
-  color: rgba(255,255,255,.45); font-size: 14px; line-height: 1;
+  width: 30px; height: 30px; border-radius: 15px;
+  background: rgba(255,255,255,.07); border: none;
+  color: rgba(255,255,255,.5); font-size: 16px; line-height: 1;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: background .15s;
+  transition: background .15s; -webkit-user-select: none; user-select: none;
 }
 #sp-close:active { background: rgba(255,255,255,.15); }
 
-/* Scrollattava sisältö */
+/* Scrollattava runko */
+#sp-body-wrap { position: relative; flex: 1; overflow: hidden; }
 #sp-body {
+  position: absolute; inset: 0;
   overflow-y: auto; overflow-x: hidden;
-  padding: 12px 16px 16px;
+  padding: 8px 20px calc(env(safe-area-inset-bottom) + 24px);
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  overscroll-behavior: contain;
-  flex: 1;
 }
 #sp-body::-webkit-scrollbar { display: none; }
 
-/* Fade-out alareunassa jos sisältö ylittää */
-#sp-body-wrap {
-  position: relative;
-}
-#sp-body-wrap::after {
-  content: '';
-  position: absolute; bottom: 0; left: 0; right: 0; height: 24px;
-  background: linear-gradient(transparent, rgba(10,13,28,.88));
-  pointer-events: none;
-  border-radius: 0 0 20px 20px;
-}
-
 /* Osiot */
-.sp-section { margin-bottom: 16px; }
-.sp-section:last-child { margin-bottom: 0; }
+.sp-section { padding: 16px 0 4px; }
 .sp-divider {
-  height: 1px; background: rgba(255,255,255,.06);
-  margin: 14px 0;
+  height: 1px; background: rgba(255,255,255,.06); margin: 4px 0;
 }
 .sp-label {
-  font-family: 'DM Mono', monospace; font-size: 8.5px; font-weight: 500;
-  color: rgba(255,255,255,.32); letter-spacing: 1.4px; text-transform: uppercase;
-  margin-bottom: 10px;
+  font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500;
+  color: rgba(255,255,255,.3); letter-spacing: 1.6px; text-transform: uppercase;
+  margin-bottom: 12px;
 }
 
-/* Chip-valitsin */
-.sp-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+/* Chips */
+.sp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .sp-chip {
-  height: 30px; border-radius: 15px; padding: 0 11px;
+  height: 32px; border-radius: 16px; padding: 0 13px;
   border: 1px solid rgba(255,255,255,.09);
   background: rgba(255,255,255,.04);
   color: rgba(255,255,255,.5);
   font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500;
-  display: flex; align-items: center; gap: 4px; cursor: pointer;
+  display: flex; align-items: center; gap: 5px; cursor: pointer;
   transition: all .15s ease;
   -webkit-user-select: none; user-select: none;
 }
-.sp-chip:active { transform: scale(0.92); opacity: .8; }
+.sp-chip:active { transform: scale(0.93); }
 .sp-chip.active {
   background: rgba(41,232,168,.12);
-  border-color: rgba(41,232,168,.38);
+  border-color: rgba(41,232,168,.4);
   color: var(--accent);
 }
+.sp-chip .l-icon { font-size: 12px; }
+
+/* Toggle-rivi */
+.sp-toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  cursor: pointer; -webkit-user-select: none; user-select: none;
+}
+.sp-toggle-row:last-child { border-bottom: none; }
+.sp-toggle-left { display: flex; align-items: center; gap: 12px; }
+.sp-toggle-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+}
+.sp-toggle-name {
+  font-family: 'DM Mono', monospace; font-size: 12px;
+  color: rgba(255,255,255,.78); font-weight: 500;
+}
+.sp-toggle-sub {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  color: rgba(255,255,255,.28); margin-top: 2px;
+}
+
+/* iOS-kytkin */
+.sp-toggle {
+  width: 40px; height: 22px; border-radius: 11px;
+  background: rgba(255,255,255,.12);
+  position: relative; flex-shrink: 0;
+  transition: background .22s ease;
+}
+.sp-toggle::after {
+  content: ''; position: absolute;
+  top: 3px; left: 3px;
+  width: 16px; height: 16px; border-radius: 8px;
+  background: rgba(255,255,255,.85);
+  transition: transform .22s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 1px 4px rgba(0,0,0,.35);
+}
+.sp-toggle.on { background: var(--accent); }
+.sp-toggle.on::after { transform: translateX(18px); }
+
 .sp-chip .l-icon { font-size: 11px; }
 
 /* Toggle-rivi (karttatasot) */
@@ -1559,12 +1590,15 @@ body {
     <div class="up-option" data-unit="bft"><span class="up-label">bft</span></div>
   </div>
 
-  <!-- Settings popup -->
+  <!-- Settings overlay (tummentaa taustan) -->
+  <div id="settings-overlay"></div>
+
+  <!-- Settings drawer -->
   <div id="settings-popup">
     <!-- Otsikko -->
     <div id="sp-header">
       <span id="sp-title">Asetukset</span>
-      <button id="sp-close" onclick="document.getElementById('settings-popup').classList.remove('open')">✕</button>
+      <button id="sp-close" onclick="_closeSettings()">✕</button>
     </div>
     <!-- Scrollattava sisältö -->
     <div id="sp-body-wrap">
@@ -6538,22 +6572,53 @@ document.getElementById('btn-freespot').addEventListener('click', function() {
   openSheet(freeSpot, hourIdx);
 }, { passive: true });
 
+function _openSettings() {
+  document.getElementById('settings-popup').classList.add('open');
+  document.getElementById('settings-overlay').classList.add('open');
+  Haptics.light();
+}
+function _closeSettings() {
+  _closeSettings();
+  document.getElementById('settings-overlay').classList.remove('open');
+}
+
 document.getElementById('btn-settings').addEventListener('click', (e) => {
   e.stopPropagation();
-  Haptics.light();
-  const popup = document.getElementById('settings-popup');
-  const btn = document.getElementById('btn-settings');
-  const rect = btn.getBoundingClientRect();
-  popup.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
-  popup.style.left = rect.left + 'px';
-  popup.classList.toggle('open');
+  const isOpen = document.getElementById('settings-popup').classList.contains('open');
+  isOpen ? _closeSettings() : _openSettings();
 }, { passive: false });
 
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('#settings-popup') && !e.target.closest('#btn-settings')) {
-    document.getElementById('settings-popup').classList.remove('open');
-  }
-});
+/* Overlay-klikkaus sulkee drawerin */
+document.getElementById('settings-overlay').addEventListener('click', _closeSettings);
+
+/* Swipe-to-close: liu'uta vasemmalle sulkeaksesi */
+(function() {
+  var sp = document.getElementById('settings-popup');
+  var startX = 0, startY = 0, dragging = false;
+  sp.addEventListener('touchstart', function(e) {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    dragging = false;
+  }, { passive: true });
+  sp.addEventListener('touchmove', function(e) {
+    var dx = e.touches[0].clientX - startX;
+    var dy = Math.abs(e.touches[0].clientY - startY);
+    if (!dragging && Math.abs(dx) > 8 && Math.abs(dx) > dy) dragging = true;
+    if (dragging && dx < 0) {
+      sp.style.transform = 'translateX(' + Math.min(0, dx) + 'px)';
+      var ov = document.getElementById('settings-overlay');
+      ov.style.background = 'rgba(0,0,0,' + Math.max(0, 0.45 + dx/400) + ')';
+    }
+  }, { passive: true });
+  sp.addEventListener('touchend', function(e) {
+    if (!dragging) return;
+    var dx = e.changedTouches[0].clientX - startX;
+    sp.style.transform = '';
+    document.getElementById('settings-overlay').style.background = '';
+    if (dx < -60) _closeSettings();
+    dragging = false;
+  }, { passive: true });
+})();
 
 /* ── Karttatasot-togglet ─────────────────────────────────── */
 var _layerToggles = { 'fmi-sea': true, 'fmi-land': true, 'uiras': true };
@@ -7092,7 +7157,7 @@ document.getElementById('layers').addEventListener('click', e => {
   const layer = b.dataset.layer; if (!layer || layer === State.activeLayer) return;
   Haptics.light();
   document.querySelectorAll('#layers .sp-chip').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
-  document.getElementById('settings-popup').classList.remove('open');
+  _closeSettings();
   State.activeLayer = layer;
   buildLegend();
   buildWindField(State.currentHourIdx).then(() => { drawColorField(); resetParticles(); });
@@ -7110,7 +7175,7 @@ document.getElementById('models').addEventListener('click', e => {
   const model = b.dataset.model; if (!model || model === State.activeModel) return;
   Haptics.light();
   document.querySelectorAll('#models .sp-chip').forEach(btn => btn.classList.remove('active')); b.classList.add('active');
-  document.getElementById('settings-popup').classList.remove('open');
+  _closeSettings();
   State.activeModel = model;
   try { localStorage.setItem('fs_model', model); } catch(e) {}
   _rateLimited = false;
