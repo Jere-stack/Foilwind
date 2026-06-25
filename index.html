@@ -198,10 +198,10 @@ body {
   width: 100vw;
   display: flex; flex-direction: column;
   /* Läpinäkyvä tausta — kartta näkyy alta */
-  background: rgba(6,9,18,0.72);
+  background: rgba(6,9,18,0.35);
   border-right: none;
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
-  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   transform: translateX(-100%);
   transition: transform .35s cubic-bezier(.4,0,.2,1);
   overflow: hidden;
@@ -6581,7 +6581,7 @@ function _openSettings() {
   Haptics.light();
 }
 function _closeSettings() {
-  _closeSettings();
+  document.getElementById('settings-popup').classList.remove('open');
   document.getElementById('settings-overlay').classList.remove('open');
 }
 
@@ -6615,11 +6615,17 @@ document.getElementById('settings-overlay').addEventListener('click', _closeSett
   }, { passive: true });
   sp.addEventListener('touchend', function(e) {
     if (!dragging) { return; }
+    dragging = false;
     sp.style.transition = '';
     var dx = e.changedTouches[0].clientX - startX;
-    sp.style.transform = '';
-    if (dx < -60) _closeSettings();
-    dragging = false;
+    if (dx < -80) {
+      /* Sulkee: poista inline transform jotta CSS .open → ei open hoitaa */
+      sp.style.transform = '';
+      _closeSettings();
+    } else {
+      /* Palaa auki-asentoon */
+      sp.style.transform = '';
+    }
   }, { passive: true });
 })();
 
