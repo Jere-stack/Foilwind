@@ -1769,7 +1769,7 @@ const Units = {
     if (State && State.map) {
       try {
         var z = State.map.getZoom();
-        if (typeof updateObsIcons === 'function') updateObsIcons(z);
+        if (typeof window._updateObsIcons === 'function') window._updateObsIcons();
       } catch(e) {}
     }
   },
@@ -3810,7 +3810,7 @@ function _addObsMarkers(map) {
   }
 
   /* ── Päivittää ikonit zoom-muutoksessa ──────────────────────── */
-  window.updateObsIcons = function updateIcons() {
+  function updateIcons() {
     var z = map.getZoom();
     _obsMarkers.forEach(function(m) {
       if (m.type === 'wind-prim' || m.type === 'wind-dot') {
@@ -3820,6 +3820,8 @@ function _addObsMarkers(map) {
       }
     });
   }
+  /* Globaali alias yksikön vaihdon päivitystä varten */
+  window._updateObsIcons = updateIcons;
 
   /* ── FMI: hae tuulidata, luo markerit ──────────────────────── */
   (function() {
