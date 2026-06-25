@@ -182,9 +182,10 @@ body {
    SETTINGS — Apple Liquid Glass popover
    ============================================================ */
 /* ── Settings drawer — Windy-tyylinen liukupaneeli ───────── */
-/* Overlay — ei tummennus, vain pointer-events */
+/* Overlay — kattaa koko näytön, läpinäkyvä, klikkaus sulkee */
 #settings-overlay {
   position: fixed; inset: 0; z-index: 50;
+  background: transparent;
   pointer-events: none;
 }
 #settings-overlay.open {
@@ -195,15 +196,14 @@ body {
 #settings-popup {
   position: fixed; z-index: 51;
   top: 0; left: 0; bottom: 0;
-  width: 100vw;
+  width: 88vw;                          /* jättää 12% karttaa näkyviin */
   display: flex; flex-direction: column;
-  /* Läpinäkyvä tausta — kartta näkyy alta */
-  background: rgba(6,9,18,0.35);
-  border-right: none;
+  background: rgba(6,9,18,0.30);        /* hyvin läpinäkyvä */
+  border-right: 1px solid rgba(255,255,255,.06);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
   transform: translateX(-100%);
-  transition: transform .35s cubic-bezier(.4,0,.2,1);
+  transition: transform .34s cubic-bezier(.4,0,.2,1);
   overflow: hidden;
   pointer-events: all;
 }
@@ -252,12 +252,22 @@ body {
 }
 
 /* Chips */
+/* Korttikontti asetuslohkoille */
+.sp-card {
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  padding: 14px 14px 12px;
+  margin-bottom: 10px;
+}
+.sp-card:last-child { margin-bottom: 0; }
+
 .sp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .sp-chip {
-  height: 32px; border-radius: 16px; padding: 0 13px;
-  border: 1px solid rgba(255,255,255,.09);
-  background: rgba(255,255,255,.04);
-  color: rgba(255,255,255,.5);
+  height: 32px; border-radius: 10px; padding: 0 13px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.55);
   font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500;
   display: flex; align-items: center; gap: 5px; cursor: pointer;
   transition: all .15s ease;
@@ -265,8 +275,8 @@ body {
 }
 .sp-chip:active { transform: scale(0.93); }
 .sp-chip.active {
-  background: rgba(41,232,168,.12);
-  border-color: rgba(41,232,168,.4);
+  background: rgba(41,232,168,.14);
+  border-color: rgba(41,232,168,.38);
   color: var(--accent);
 }
 .sp-chip .l-icon { font-size: 12px; }
@@ -274,11 +284,11 @@ body {
 /* Toggle-rivi */
 .sp-toggle-row {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 0;
+  padding: 11px 0;
   border-bottom: 1px solid rgba(255,255,255,.05);
   cursor: pointer; -webkit-user-select: none; user-select: none;
 }
-.sp-toggle-row:last-child { border-bottom: none; }
+.sp-toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
 .sp-toggle-left { display: flex; align-items: center; gap: 12px; }
 .sp-toggle-dot {
   width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
@@ -1608,7 +1618,7 @@ body {
       <div id="sp-body">
 
         <!-- Säädata -->
-        <div class="sp-section">
+        <div class="sp-card">
           <div class="sp-label">Sääennuste</div>
           <div class="sp-chips" id="models">
             <div class="sp-chip" data-model="fmi_harmonie"><span class="l-icon">🇫🇮</span>FMI</div>
@@ -1619,10 +1629,8 @@ body {
           </div>
         </div>
 
-        <div class="sp-divider"></div>
-
         <!-- Kerros -->
-        <div class="sp-section">
+        <div class="sp-card">
           <div class="sp-label">Tuulikerros</div>
           <div class="sp-chips" id="layers">
             <div class="sp-chip active" data-layer="wind"><span class="l-icon">💨</span>Tuuli</div>
@@ -1630,10 +1638,8 @@ body {
           </div>
         </div>
 
-        <div class="sp-divider"></div>
-
         <!-- Yksikkö -->
-        <div class="sp-section">
+        <div class="sp-card">
           <div class="sp-label">Yksikkö</div>
           <div class="sp-chips" id="units">
             <div class="sp-chip active" data-unit="ms">m/s</div>
@@ -1643,12 +1649,9 @@ body {
           </div>
         </div>
 
-        <div class="sp-divider"></div>
-
         <!-- Karttatasot -->
-        <div class="sp-section">
+        <div class="sp-card">
           <div class="sp-label">Karttatasot</div>
-
           <div class="sp-toggle-row" data-layer-toggle="fmi-sea">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot" style="background:#f5c842"></div>
@@ -1659,7 +1662,6 @@ body {
             </div>
             <div class="sp-toggle on" id="toggle-fmi-sea"></div>
           </div>
-
           <div class="sp-toggle-row" data-layer-toggle="fmi-land">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot" style="background:#f5c842;opacity:.55"></div>
@@ -1670,7 +1672,6 @@ body {
             </div>
             <div class="sp-toggle on" id="toggle-fmi-land"></div>
           </div>
-
           <div class="sp-toggle-row" data-layer-toggle="uiras">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot" style="background:#29e8a8"></div>
@@ -1681,7 +1682,6 @@ body {
             </div>
             <div class="sp-toggle on" id="toggle-uiras"></div>
           </div>
-
         </div>
       </div><!-- /sp-body -->
     </div><!-- /sp-body-wrap -->
