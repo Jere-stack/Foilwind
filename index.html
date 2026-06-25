@@ -2467,11 +2467,6 @@ function initMap() {
     State._panning = false;
     PerfTracker.reset();
     const c = map.getCenter();
-    const best = _nearestLoadedSpot(c.lat, c.lng);
-    if (best) {
-      const ni = _nearestHourIdx(best, State.currentHourIdx);
-      if (ni !== State.currentHourIdx) { State.currentHourIdx = ni; Timeline.scheduleUpdate(); }
-    }
     _scheduleViewportLoad();
   });
 
@@ -2490,9 +2485,11 @@ function initMap() {
             const target = nParticles();
             for (let i = 0; i < target; i++) State.particles.push(makeParticle(true));
           }
-          Timeline.scheduleUpdate();
+          updateTimelineToCenter();
         });
       } else {
+        /* Päivitä slider lähimmän pisteen dataan */
+        updateTimelineToCenter();
         WindTexture.build(State.windField, map.getBounds()).then(() => {
           drawColorField(); resetParticles(); Crosshair.refresh();
         });
