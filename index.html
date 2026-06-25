@@ -2476,20 +2476,47 @@ function initMap() {
     State.windCvs.style.opacity = '0.25';
   });
 
+  /* Tallennetaan edellinen hakualue kynnystarkistusta varten */
+  var _lastLoadBounds = null;
+
+  function _viewportMovedEnough(bounds) {
+    if (!_lastLoadBounds) return true;
+    /* A: Tarkista onko liikuttu yli 30% näkymän leveydestä */
+    var vw = bounds.getEast()  - bounds.getWest();
+    var vh = bounds.getNorth() - bounds.getSouth();
+    var dx = Math.abs((bounds.getWest() + vw/2) - (_lastLoadBounds.getWest() + (_lastLoadBounds.getEast()-_lastLoadBounds.getWest())/2));
+    var dy = Math.abs((bounds.getSouth() + vh/2) - (_lastLoadBounds.getSouth() + (_lastLoadBounds.getNorth()-_lastLoadBounds.getSouth())/2));
+    return dx > vw * 0.30 || dy > vh * 0.30;
+  }
+
   function _scheduleViewportLoad() {
     clearTimeout(State._vpTimer);
     State._vpTimer = setTimeout(() => {
-      /* Lataa uuden alueen viewport-pisteet JA päivitä slider */
+      var bounds = map.getBounds();
+
+      /* A: Kynnystarkistus — ei ladata jos liike on pieni */
+      if (!_viewportMovedEnough(bounds)) {
+        /* Päivitä vain slider jo ladatulla datalla */
+        ViewportGrid.invalidateCache();
+        updateTimelineToCenter();
+        return;
+      }
+      _lastLoadBounds = bounds;
+
+      /* B: Päivitä slider HETI jo cachessa olevalla datalla */
+      ViewportGrid.invalidateCache();
+      updateTimelineToCenter();
+
+      /* Lataa uusi data taustalla — ei blockaa UI:ta */
       ViewportGrid.loadViewport(map).then(() => {
         ViewportGrid.invalidateCache();
+        /* Päivitä slider uudella datalla kun se on saatavilla */
         updateTimelineToCenter();
         buildWindField(State.currentHourIdx).then(() => {
           drawColorField(); resetParticles(); Crosshair.refresh();
         });
-      }).catch(() => {
-        updateTimelineToCenter();
-      });
-    }, 400);
+      }).catch(() => { /* Ei dataa — slider pysyy cachessa */ });
+    }, 350);
   }
 
   let _prevZoom = map.getZoom();
