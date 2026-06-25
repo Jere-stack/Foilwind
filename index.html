@@ -4038,16 +4038,42 @@ function _addObsMarkers(map) {
 
   /* ── Päivittää ikonit zoom-muutoksessa ──────────────────────── */
   /* Hae historia-arvo lähimmälle ajanhetkelle */
+  /* Muunna FMI "HH:MM" (Suomen aika) Unix-millisekunteiksi */
+  function _fmiTimeToMs(hhmm, refDate) {
+    /* refDate = Date-objekti josta päivä otetaan */
+    if (!hhmm || hhmm.length !== 5) return NaN;
+    var parts = hhmm.split(':');
+    var h = +parts[0], m = +parts[1];
+    /* FMI palauttaa Suomen ajan (UTC+2 tai UTC+3 DST) */
+    /* Luodaan UTC-aika: vähennetään offset */
+    var d = new Date(refDate);
+    d.setUTCHours(0, 0, 0, 0);
+    /* Tarkista onko kesäaika */
+    var isDst = (function(dt) {
+      var jan = new Date(dt.getFullYear(), 0, 1);
+      var jul = new Date(dt.getFullYear(), 6, 1);
+      return dt.getTimezoneOffset() < Math.max(jan.getTimezoneOffset(), jul.getTimezoneOffset());
+    })(d);
+    var offset = isDst ? 3 : 2; /* UTC+3 kesällä, UTC+2 talvella */
+    return d.getTime() + (h - offset) * 3600000 + m * 60000;
+  }
+
   function _histValueAt(hist, targetTime) {
-    /* hist = {ws:[{t,v,d},...], wg:[{t,v},...]} — _fmiLoadWithFallback formaatti */
+    /* hist = {ws:[{t:"HH:MM", v},...], wg:[...]} — FMI proxy formaatti */
     if (!hist || !hist.ws || !hist.ws.length) return null;
+    var refDate = new Date(targetTime);
     var best = -1, bestDiff = Infinity;
     for (var i = 0; i < hist.ws.length; i++) {
       var pt = hist.ws[i]; if (!pt || !pt.t) continue;
-      var diff = Math.abs(new Date(pt.t).getTime() - targetTime);
+      var ptMs = _fmiTimeToMs(pt.t, refDate);
+      if (isNaN(ptMs)) continue;
+      /* Kokeile myös eilistä (HH:MM voi olla yli yörajojen) */
+      var diff = Math.abs(ptMs - targetTime);
+      var diffYest = Math.abs(ptMs - 86400000 - targetTime);
+      if (diffYest < diff) { ptMs -= 86400000; diff = diffYest; }
       if (diff < bestDiff) { bestDiff = diff; best = i; }
     }
-    if (best < 0 || bestDiff > 7200000) return null; /* ei löydy 2h sisältä */
+    if (best < 0 || bestDiff > 3600000) return null; /* >1h → ei löydy */
     var ws = hist.ws[best].v != null ? +hist.ws[best].v : null;
     var wgPts = hist.wg || [];
     var wg = wgPts[best] && wgPts[best].v != null ? +wgPts[best].v : ws;
