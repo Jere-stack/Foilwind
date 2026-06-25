@@ -4103,15 +4103,9 @@ function _addObsMarkers(map) {
     var z = map.getZoom();
     _obsMarkers.forEach(function(m) {
       if (m.type === 'wind-prim' || m.type === 'wind-dot') {
-        /* Oletuksena käytä uusinta havaintoa */
+        /* Aina uusin havainto — havaintoasema ei ennusta */
         var ws = m.wsLatest != null ? m.wsLatest : m.ws;
         var wg = m.wgLatest != null ? m.wgLatest : m.wg;
-        /* Jos aikaleima annettu JA historia ladattu → hae oikea hetki */
-        if (targetTs && m.history) {
-          var hv = _histValueAt(m.history, targetTs);
-          if (hv !== null) { ws = hv.ws; wg = hv.wg; }
-          /* hv === null → historia-data ei kata tätä hetkeä → pysytään latest:ssa */
-        }
         m.marker.setIcon(mkWindIcon(z, ws, wg, m.stName, m.type === 'wind-prim'));
       } else {
         m.marker.setIcon(mkWaterIcon(z, m.temp, m.prim));
@@ -6365,7 +6359,7 @@ function _tlUpdateNow(idx) {
   if (!State._tlTimes || !State._tlTimes[idx]) return;
   const d = new Date(State._tlTimes[idx]);
   /* Päivitä meriasema-ikonit oikeaan historiaan */
-  if (window._updateObsIcons) window._updateObsIcons(d.getTime());
+  if (window._updateObsIcons) window._updateObsIcons(); /* aina uusin havainto */
   const DAY = ['Su','Ma','Ti','Ke','To','Pe','La'];
   const hh = ('0'+d.getHours()).slice(-2);
   const dateStr = DAY[d.getDay()] + ' ' + d.getDate() + '.' + (d.getMonth()+1) + '.';
