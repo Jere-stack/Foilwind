@@ -3698,83 +3698,152 @@ function _uirasChart(el,allPts,period,avgWin){ _uirasChartInteractive(el,allPts,
 
 /* Havaintoasema- ja uimavesikarttapisteet */
 function _addObsMarkers(map) {
-  var FC = '#64ffaa'; /* FMI vihrea */
-  var UC = '#29e8a8'; /* UiRas syaani */
+  /* ── Värit ──────────────────────────────────────────────────── */
+  var C_WIND  = '#f5c842';  /* Tuuliasema (keltainen)   */
+  var C_WATER = '#29e8a8';  /* Vedenlämpö (minttu)      */
   var _obsMarkers = [];
 
-  /* FMI-markerit: normaali koko */
-  function mkFmiIcon(c, zoom) {
+  /* ── Tuuliasema-ikoni ──────────────────────────────────────── */
+  function mkWindIcon(zoom, ws, wg, stName, isPrim) {
     var z = zoom || 5;
-    var sz = z < 8 ? 6 : z < 10 ? 8 : 10;
-    var op = z < 8 ? 0.5 : z < 10 ? 0.65 : 0.85;
-    return L.divIcon({
-      className: '',
-      html: '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:'+c+';opacity:'+op+';box-shadow:0 0 '+(sz/2)+'px '+c+'66;border:1px solid rgba(255,255,255,.25);cursor:pointer"></div>',
-      iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]
-    });
-  }
-
-  /* UiRas-markerit: huomattavasti pienempiä */
-  function mkUirasIcon(c, zoom, temp, isPrim) {
-    var z = zoom || 5;
-    var sz = z < 8 ? 4 : z < 10 ? 5 : 6;   /* pienempi kuin FMI */
-    var op = z < 8 ? 0.35 : z < 10 ? 0.5 : 0.65;
-    var dot = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;'
-      +'background:'+c+';opacity:'+op+';flex-shrink:0"></div>';
-    var label = '';
-    if (isPrim && temp != null && z >= 9) {
-      /* Lämpötilalukema prim-paikoille zoom ≥ 9 */
-      label = '<span style="font-family:DM Mono,monospace;font-size:9px;'
-        +'color:rgba(255,255,255,.75);line-height:1;margin-left:4px;'
-        +'white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.9)">'
-        +temp.toFixed(1)+'°</span>';
+    if (isPrim && z >= 8) {
+      var wsStr = ws != null ? ws.toFixed(1) : '—';
+      var wgStr = wg != null ? wg.toFixed(1) : '—';
+      var html =
+        '<div style="display:flex;flex-direction:column;align-items:flex-start;'
+          +'background:rgba(8,10,22,0.80);border:1px solid rgba(245,200,66,0.30);'
+          +'border-radius:8px;padding:5px 8px 4px;cursor:pointer;'
+          +'backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);'
+          +'box-shadow:0 2px 14px rgba(0,0,0,.6);min-width:60px">'
+        +'<div style="display:flex;align-items:baseline;gap:3px">'
+          +'<span style="font-family:Syne,system-ui;font-weight:800;font-size:18px;'
+            +'color:'+C_WIND+';line-height:1;letter-spacing:-0.5px">'+wsStr+'</span>'
+          +'<span style="font-family:DM Mono,monospace;font-size:8px;'
+            +'color:rgba(245,200,66,.45)">m/s</span>'
+        +'</div>'
+        +'<div style="font-family:DM Mono,monospace;font-size:8px;'
+          +'color:rgba(245,200,66,.55);margin-top:1px">↑ '+wgStr+'</div>'
+        +'<div style="font-family:DM Mono,monospace;font-size:7px;'
+          +'color:rgba(255,255,255,.25);margin-top:3px;letter-spacing:0.5px;'
+          +'text-transform:uppercase;white-space:nowrap">'
+          +stName.split(' ').pop()
+        +'</div>'
+        +'</div>';
+      return L.divIcon({ className:'', html:html, iconAnchor:[0,0], iconSize:[88,56] });
+    } else {
+      var sz = z < 8 ? 5 : z < 10 ? 7 : 8;
+      var op = z < 8 ? 0.40 : 0.70;
+      return L.divIcon({
+        className:'',
+        html:'<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;'
+          +'background:'+C_WIND+';opacity:'+op+';cursor:pointer;'
+          +'box-shadow:0 0 '+sz+'px '+C_WIND+'55"></div>',
+        iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]
+      });
     }
-    var w = isPrim && temp != null && z >= 9 ? sz + 34 : sz;
-    return L.divIcon({
-      className: '',
-      html: '<div style="display:flex;align-items:center;cursor:pointer">'+dot+label+'</div>',
-      iconSize:[w, sz], iconAnchor:[sz/2, sz/2]
-    });
   }
 
+  /* ── Vedenlämpö-ikoni ──────────────────────────────────────── */
+  function mkWaterIcon(zoom, temp, isPrim) {
+    var z = zoom || 5;
+    var wavePath = 'M0 5 Q2 2 4 5 Q6 8 8 5 Q10 2 12 5 Q13 6.5 14 5';
+    var waveSmall = '<svg width="12" height="7" viewBox="0 0 14 8" fill="none"'
+      +' xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;display:block">'
+      +'<path d="'+wavePath+'" stroke="'+C_WATER+'" stroke-width="1.5"'
+        +' stroke-linecap="round" fill="none"/>'
+      +'</svg>';
+    if (isPrim && z >= 9) {
+      var tStr = temp != null ? temp.toFixed(1)+'°' : '—';
+      return L.divIcon({
+        className:'',
+        html:'<div style="display:flex;align-items:center;gap:4px;cursor:pointer">'
+          +waveSmall
+          +'<span style="font-family:DM Mono,monospace;font-size:10px;font-weight:500;'
+            +'color:'+C_WATER+';white-space:nowrap;'
+            +'text-shadow:0 1px 4px rgba(0,0,0,.95)">'+tStr+'</span>'
+          +'</div>',
+        iconAnchor:[0,3], iconSize:[52,14]
+      });
+    } else {
+      var op = z < 8 ? 0.25 : 0.42;
+      return L.divIcon({
+        className:'',
+        html:'<div style="opacity:'+op+';cursor:pointer;line-height:0">'
+          +'<svg width="10" height="6" viewBox="0 0 14 8" fill="none"'
+            +' xmlns="http://www.w3.org/2000/svg">'
+            +'<path d="'+wavePath+'" stroke="'+C_WATER+'" stroke-width="1.5"'
+              +' stroke-linecap="round" fill="none"/>'
+          +'</svg>'
+          +'</div>',
+        iconAnchor:[5,3], iconSize:[10,6]
+      });
+    }
+  }
+
+  /* ── Päivittää ikonit zoom-muutoksessa ──────────────────────── */
   function updateIcons() {
     var z = map.getZoom();
-    _obsMarkers.forEach(function(m){
-      if (m.type === 'fmi') {
-        m.marker.setIcon(mkFmiIcon(m.color, z));
+    _obsMarkers.forEach(function(m) {
+      if (m.type === 'wind-prim' || m.type === 'wind-dot') {
+        m.marker.setIcon(mkWindIcon(z, m.ws, m.wg, m.stName, m.type === 'wind-prim'));
       } else {
-        m.marker.setIcon(mkUirasIcon(m.color, z, m.temp, m.prim));
+        m.marker.setIcon(mkWaterIcon(z, m.temp, m.prim));
       }
     });
   }
 
-  FMI_MAP_STATIONS.forEach(function(st){
-    var m = L.marker([st.lat,st.lng],{icon:mkFmiIcon(FC,map.getZoom()),zIndexOffset:-100})
-      .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
-    _obsMarkers.push({marker:m, color:FC, type:'fmi'});
-  });
+  /* ── FMI: hae tuulidata, luo markerit ──────────────────────── */
+  (function() {
+    var PRIM_FMI = { harmaja:true, sipoo:true };
+    var fetches = FMI_MAP_STATIONS.map(function(st) {
+      return fetch('https://foilwind.vercel.app/api/fmi?place='+st.place+'&hours=2')
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .catch(function(){ return null; });
+    });
+    Promise.all(fetches).then(function(results) {
+      FMI_MAP_STATIONS.forEach(function(st, i) {
+        var data = results[i]; var ws=null, wg=null;
+        if (data && data.hourly) {
+          var h=data.hourly, idx2=(h.windspeed_10m||[]).length-1;
+          if (idx2>=0) {
+            ws = h.windspeed_10m[idx2]!=null ? +h.windspeed_10m[idx2] : null;
+            wg = h.windgusts_10m && h.windgusts_10m[idx2]!=null ? +h.windgusts_10m[idx2] : null;
+          }
+        }
+        var isPrim = !!PRIM_FMI[st.place];
+        var icon = mkWindIcon(map.getZoom(), ws, wg, st.name, isPrim);
+        var m = L.marker([st.lat,st.lng],{icon:icon,zIndexOffset:isPrim?-50:-100})
+          .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
+        _obsMarkers.push({marker:m, type:isPrim?'wind-prim':'wind-dot',
+          ws:ws, wg:wg, stName:st.name});
+      });
+      map.on('zoomend', updateIcons);
+    }).catch(function() {
+      FMI_MAP_STATIONS.forEach(function(st) {
+        var isPrim=!!PRIM_FMI[st.place];
+        var m=L.marker([st.lat,st.lng],{icon:mkWindIcon(map.getZoom(),null,null,st.name,isPrim),zIndexOffset:-100})
+          .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
+        _obsMarkers.push({marker:m,type:isPrim?'wind-prim':'wind-dot',ws:null,wg:null,stName:st.name});
+      });
+      map.on('zoomend', updateIcons);
+    });
+  })();
 
-  /* UiRas: ladataan ensin lämpötilat, sitten luodaan markerit */
+  /* ── UiRas: hae vedenlämpö, luo markerit ───────────────────── */
   UiRas.loadLatest().then(function(tempMap) {
-    UIRAS_STATIONS.forEach(function(st){
-      var entry = tempMap[st.id.toUpperCase()];
-      var temp  = entry && entry.temp != null && entry.temp > -5 && entry.temp < 40
-                  ? entry.temp : null;
-      var icon  = mkUirasIcon(UC, map.getZoom(), temp, !!st.prim);
-      var m = L.marker([st.lat, st.lng], {icon: icon, zIndexOffset: -200})
-        .on('click', function(){ _openObsSheet('uiras', st); }).addTo(map);
-      _obsMarkers.push({marker:m, color:UC, type:'uiras', temp:temp, prim:!!st.prim});
+    UIRAS_STATIONS.forEach(function(st) {
+      var entry=tempMap[st.id.toUpperCase()];
+      var temp=entry&&entry.temp!=null&&entry.temp>-5&&entry.temp<40?entry.temp:null;
+      var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),temp,!!st.prim),zIndexOffset:-200})
+        .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
+      _obsMarkers.push({marker:m,type:'water',temp:temp,prim:!!st.prim});
     });
-    map.on('zoomend', updateIcons);
   }).catch(function() {
-    /* Fallback: lisää ilman lämpötilaa */
-    UIRAS_STATIONS.forEach(function(st){
-      var icon = mkUirasIcon(UC, map.getZoom(), null, !!st.prim);
-      var m = L.marker([st.lat, st.lng], {icon: icon, zIndexOffset: -200})
-        .on('click', function(){ _openObsSheet('uiras', st); }).addTo(map);
-      _obsMarkers.push({marker:m, color:UC, type:'uiras', temp:null, prim:!!st.prim});
+    UIRAS_STATIONS.forEach(function(st) {
+      var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),null,!!st.prim),zIndexOffset:-200})
+        .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
+      _obsMarkers.push({marker:m,type:'water',temp:null,prim:!!st.prim});
     });
-    map.on('zoomend', updateIcons);
   });
 }
 
