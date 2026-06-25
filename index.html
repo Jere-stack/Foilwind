@@ -4039,27 +4039,45 @@ function _addObsMarkers(map) {
   /* ── Päivittää ikonit zoom-muutoksessa ──────────────────────── */
   /* Hae historia-arvo lähimmälle ajanhetkelle */
   function _histValueAt(hist, targetTime) {
-    if (!hist || !hist.ws || !hist.ws.length) return { ws: null, wg: null };
+    /* Normalisoi hist: tukee sekä {ws:[{t,v}]} että {hourly:{time:[],windspeed_10m:[]}} */
+    var wsArr = null, wgArr2 = null;
+    if (hist && hist.ws && Array.isArray(hist.ws)) {
+      wsArr = hist.ws;
+      wgArr2 = hist.wg || hist.windgusts || [];
+    } else if (hist && hist.hourly && hist.hourly.time) {
+      var h = hist.hourly;
+      wsArr = (h.windspeed_10m || []).map(function(v, i) {
+        return { t: h.time[i], v: v };
+      });
+      wgArr2 = (h.windgusts_10m || []).map(function(v, i) {
+        return { t: h.time[i], v: v };
+      });
+    }
+    if (!wsArr || !wsArr.length) return null; /* null = ei dataa */
     var best = null, bestDiff = Infinity;
-    for (var i = 0; i < hist.ws.length; i++) {
-      var diff = Math.abs(new Date(hist.ws[i].t).getTime() - targetTime);
+    for (var i = 0; i < wsArr.length; i++) {
+      if (!wsArr[i] || !wsArr[i].t) continue;
+      var diff = Math.abs(new Date(wsArr[i].t).getTime() - targetTime);
       if (diff < bestDiff) { bestDiff = diff; best = i; }
     }
-    if (best === null || bestDiff > 3600000) return { ws: null, wg: null }; /* >1h ero */
-    var ws = hist.ws[best] ? +hist.ws[best].v : null;
-    var wg = hist.wg && hist.wg[best] ? +hist.wg[best].v : ws;
-    return { ws: ws, wg: wg };
+    if (best === null || bestDiff > 7200000) return null;
+    var wsVal = wsArr[best] && wsArr[best].v != null ? +wsArr[best].v : null;
+    var wgVal = wgArr2[best] && wgArr2[best].v != null ? +wgArr2[best].v : wsVal;
+    return { ws: wsVal, wg: wgVal };
   }
 
   function updateIcons(targetTs) {
     var z = map.getZoom();
     _obsMarkers.forEach(function(m) {
       if (m.type === 'wind-prim' || m.type === 'wind-dot') {
-        var ws = m.ws, wg = m.wg;
-        /* Jos aika annettu JA historia olemassa → hae historialukema */
+        /* Oletuksena käytä uusinta havaintoa */
+        var ws = m.wsLatest != null ? m.wsLatest : m.ws;
+        var wg = m.wgLatest != null ? m.wgLatest : m.wg;
+        /* Jos aikaleima annettu JA historia ladattu → hae oikea hetki */
         if (targetTs && m.history) {
           var hv = _histValueAt(m.history, targetTs);
-          if (hv.ws !== null) { ws = hv.ws; wg = hv.wg; }
+          if (hv !== null) { ws = hv.ws; wg = hv.wg; }
+          /* hv === null → historia-data ei kata tätä hetkeä → pysytään latest:ssa */
         }
         m.marker.setIcon(mkWindIcon(z, ws, wg, m.stName, m.type === 'wind-prim'));
       } else {
