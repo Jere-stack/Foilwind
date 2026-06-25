@@ -181,52 +181,155 @@ body {
 /* ============================================================
    SETTINGS — Apple Liquid Glass popover
    ============================================================ */
+/* ── Settings popup ─────────────────────────────────────────── */
 #settings-popup {
   position: fixed; z-index: 30;
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.15);
-  border-radius: 16px;
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  backdrop-filter: blur(24px) saturate(1.4);
-  padding: 14px 16px;
+  width: 260px;
+  max-height: 70vh;          /* max korkeus — yli menevä scrollaa */
+  display: flex; flex-direction: column;
+  background: rgba(10,13,28,0.88);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 20px;
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  backdrop-filter: blur(28px) saturate(1.6);
   box-shadow:
-    0 0 0 0.5px rgba(255,255,255,.06) inset,
-    0 12px 40px rgba(0,0,0,.45),
-    0 2px 8px rgba(0,0,0,.2);
-  transform: translateY(8px) scale(0.95);
+    0 0 0 0.5px rgba(255,255,255,.07) inset,
+    0 16px 48px rgba(0,0,0,.6),
+    0 2px 10px rgba(0,0,0,.3);
+  transform: translateY(12px) scale(0.94);
   opacity: 0; pointer-events: none;
-  transition: transform .25s cubic-bezier(.2,.9,.3,1.2), opacity .2s ease;
+  transition: transform .28s cubic-bezier(.2,.9,.3,1.15), opacity .2s ease;
   transform-origin: bottom left;
+  overflow: hidden;
 }
 #settings-popup.open {
   transform: translateY(0) scale(1);
   opacity: 1; pointer-events: all;
 }
-.sp-section { margin-bottom: 12px; }
-.sp-section:last-child { margin-bottom: 0; }
-.sp-label {
-  font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500;
-  color: rgba(255,255,255,.4); letter-spacing: 1.2px; text-transform: uppercase;
-  margin-bottom: 8px;
+
+/* Otsikkorivi */
+#sp-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+  flex-shrink: 0;
 }
-.sp-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+#sp-title {
+  font-family: 'Syne', system-ui; font-weight: 700;
+  font-size: 13px; color: rgba(255,255,255,.9);
+  letter-spacing: 0.2px;
+}
+#sp-close {
+  width: 24px; height: 24px; border-radius: 12px;
+  background: rgba(255,255,255,.08); border: none;
+  color: rgba(255,255,255,.45); font-size: 14px; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+}
+#sp-close:active { background: rgba(255,255,255,.15); }
+
+/* Scrollattava sisältö */
+#sp-body {
+  overflow-y: auto; overflow-x: hidden;
+  padding: 12px 16px 16px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  flex: 1;
+}
+#sp-body::-webkit-scrollbar { display: none; }
+
+/* Fade-out alareunassa jos sisältö ylittää */
+#sp-body-wrap {
+  position: relative;
+}
+#sp-body-wrap::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0; height: 24px;
+  background: linear-gradient(transparent, rgba(10,13,28,.88));
+  pointer-events: none;
+  border-radius: 0 0 20px 20px;
+}
+
+/* Osiot */
+.sp-section { margin-bottom: 16px; }
+.sp-section:last-child { margin-bottom: 0; }
+.sp-divider {
+  height: 1px; background: rgba(255,255,255,.06);
+  margin: 14px 0;
+}
+.sp-label {
+  font-family: 'DM Mono', monospace; font-size: 8.5px; font-weight: 500;
+  color: rgba(255,255,255,.32); letter-spacing: 1.4px; text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+/* Chip-valitsin */
+.sp-chips { display: flex; gap: 5px; flex-wrap: wrap; }
 .sp-chip {
-  height: 32px; border-radius: 16px; padding: 0 12px;
-  border: 1px solid rgba(255,255,255,.1);
+  height: 30px; border-radius: 15px; padding: 0 11px;
+  border: 1px solid rgba(255,255,255,.09);
   background: rgba(255,255,255,.04);
-  color: rgba(255,255,255,.6);
+  color: rgba(255,255,255,.5);
   font-family: 'DM Mono', monospace; font-size: 10px; font-weight: 500;
   display: flex; align-items: center; gap: 4px; cursor: pointer;
   transition: all .15s ease;
   -webkit-user-select: none; user-select: none;
 }
-.sp-chip:active { transform: scale(0.93); }
+.sp-chip:active { transform: scale(0.92); opacity: .8; }
 .sp-chip.active {
-  background: rgba(41,232,168,.15);
-  border-color: rgba(41,232,168,.4);
+  background: rgba(41,232,168,.12);
+  border-color: rgba(41,232,168,.38);
   color: var(--accent);
 }
 .sp-chip .l-icon { font-size: 11px; }
+
+/* Toggle-rivi (karttatasot) */
+.sp-toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+  cursor: pointer;
+  -webkit-user-select: none; user-select: none;
+}
+.sp-toggle-row:last-child { border-bottom: none; }
+.sp-toggle-left {
+  display: flex; align-items: center; gap: 10px;
+}
+.sp-toggle-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.sp-toggle-name {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  color: rgba(255,255,255,.72);
+}
+.sp-toggle-sub {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  color: rgba(255,255,255,.28); margin-top: 1px;
+}
+
+/* iOS-tyylinen toggle-kytkin */
+.sp-toggle {
+  width: 36px; height: 20px; border-radius: 10px;
+  background: rgba(255,255,255,.12);
+  position: relative; flex-shrink: 0;
+  transition: background .2s ease;
+}
+.sp-toggle::after {
+  content: '';
+  position: absolute; top: 2px; left: 2px;
+  width: 16px; height: 16px; border-radius: 8px;
+  background: rgba(255,255,255,.9);
+  transition: transform .2s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 1px 4px rgba(0,0,0,.3);
+}
+.sp-toggle.on {
+  background: var(--accent);
+}
+.sp-toggle.on::after {
+  transform: translateX(16px);
+}
 
 /* ============================================================
    WEATHER WIDGET
@@ -1458,32 +1561,93 @@ body {
 
   <!-- Settings popup -->
   <div id="settings-popup">
-    <div class="sp-section">
-      <div class="sp-label">Säädata</div>
-      <div class="sp-chips" id="models">
-        <div class="sp-chip" data-model="fmi_harmonie"><span class="l-icon">🇫🇮</span>FMI</div>
-        <div class="sp-chip active" data-model="best_match"><span class="l-icon">🌐</span>Auto</div>
-        <div class="sp-chip" data-model="icon_eu"><span class="l-icon">🇪🇺</span>ICON</div>
-        <div class="sp-chip" data-model="ecmwf_ifs025"><span class="l-icon">🌍</span>ECMWF</div>
-        <div class="sp-chip" data-model="gfs_seamless"><span class="l-icon">🇺🇸</span>GFS</div>
-      </div>
+    <!-- Otsikko -->
+    <div id="sp-header">
+      <span id="sp-title">Asetukset</span>
+      <button id="sp-close" onclick="document.getElementById('settings-popup').classList.remove('open')">✕</button>
     </div>
-    <div class="sp-section">
-      <div class="sp-label">Kerros</div>
-      <div class="sp-chips" id="layers">
-        <div class="sp-chip active" data-layer="wind"><span class="l-icon">💨</span>Tuuli</div>
-        <div class="sp-chip" data-layer="gust"><span class="l-icon">🌊</span>Puuska</div>
-      </div>
-    </div>
-    <div class="sp-section">
-      <div class="sp-label">Yksikkö</div>
-      <div class="sp-chips" id="units">
-        <div class="sp-chip active" data-unit="ms">m/s</div>
-        <div class="sp-chip" data-unit="kmh">km/h</div>
-        <div class="sp-chip" data-unit="kts">kts</div>
-        <div class="sp-chip" data-unit="bft">bft</div>
-      </div>
-    </div>
+    <!-- Scrollattava sisältö -->
+    <div id="sp-body-wrap">
+      <div id="sp-body">
+
+        <!-- Säädata -->
+        <div class="sp-section">
+          <div class="sp-label">Sääennuste</div>
+          <div class="sp-chips" id="models">
+            <div class="sp-chip" data-model="fmi_harmonie"><span class="l-icon">🇫🇮</span>FMI</div>
+            <div class="sp-chip active" data-model="best_match"><span class="l-icon">🌐</span>Auto</div>
+            <div class="sp-chip" data-model="icon_eu"><span class="l-icon">🇪🇺</span>ICON</div>
+            <div class="sp-chip" data-model="ecmwf_ifs025"><span class="l-icon">🌍</span>ECMWF</div>
+            <div class="sp-chip" data-model="gfs_seamless"><span class="l-icon">🇺🇸</span>GFS</div>
+          </div>
+        </div>
+
+        <div class="sp-divider"></div>
+
+        <!-- Kerros -->
+        <div class="sp-section">
+          <div class="sp-label">Tuulikerros</div>
+          <div class="sp-chips" id="layers">
+            <div class="sp-chip active" data-layer="wind"><span class="l-icon">💨</span>Tuuli</div>
+            <div class="sp-chip" data-layer="gust"><span class="l-icon">🌊</span>Puuska</div>
+          </div>
+        </div>
+
+        <div class="sp-divider"></div>
+
+        <!-- Yksikkö -->
+        <div class="sp-section">
+          <div class="sp-label">Yksikkö</div>
+          <div class="sp-chips" id="units">
+            <div class="sp-chip active" data-unit="ms">m/s</div>
+            <div class="sp-chip" data-unit="kmh">km/h</div>
+            <div class="sp-chip" data-unit="kts">kts</div>
+            <div class="sp-chip" data-unit="bft">bft</div>
+          </div>
+        </div>
+
+        <div class="sp-divider"></div>
+
+        <!-- Karttatasot -->
+        <div class="sp-section">
+          <div class="sp-label">Karttatasot</div>
+
+          <div class="sp-toggle-row" data-layer-toggle="fmi-sea">
+            <div class="sp-toggle-left">
+              <div class="sp-toggle-dot" style="background:#f5c842"></div>
+              <div>
+                <div class="sp-toggle-name">FMI · Meri</div>
+                <div class="sp-toggle-sub">Harmaja, Itätoukki, Vuosaari</div>
+              </div>
+            </div>
+            <div class="sp-toggle on" id="toggle-fmi-sea"></div>
+          </div>
+
+          <div class="sp-toggle-row" data-layer-toggle="fmi-land">
+            <div class="sp-toggle-left">
+              <div class="sp-toggle-dot" style="background:#f5c842;opacity:.55"></div>
+              <div>
+                <div class="sp-toggle-name">FMI · Maa</div>
+                <div class="sp-toggle-sub">Kaisaniemi, Kumpula, Malmi…</div>
+              </div>
+            </div>
+            <div class="sp-toggle on" id="toggle-fmi-land"></div>
+          </div>
+
+          <div class="sp-toggle-row" data-layer-toggle="uiras">
+            <div class="sp-toggle-left">
+              <div class="sp-toggle-dot" style="background:#29e8a8"></div>
+              <div>
+                <div class="sp-toggle-name">Uimapaikat</div>
+                <div class="sp-toggle-sub">UiRas vedenlämpö</div>
+              </div>
+            </div>
+            <div class="sp-toggle on" id="toggle-uiras"></div>
+          </div>
+
+        </div>
+      </div><!-- /sp-body -->
+    </div><!-- /sp-body-wrap -->
   </div>
 
   <div id="bottom">
@@ -3822,10 +3986,15 @@ function _addObsMarkers(map) {
   }
   /* Globaali alias yksikön vaihdon päivitystä varten */
   window._updateObsIcons = updateIcons;
+  /* Globaali markeri-taulukko layer-toggluja varten */
+  window._obsMarkersGlobal = _obsMarkers;
+  /* FMI meri-asemat tunnistusta varten */
+  window.FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true };
 
   /* ── FMI: hae tuulidata, luo markerit ──────────────────────── */
   (function() {
-    var PRIM_FMI = { harmaja:true, sipoo:true };
+    var PRIM_FMI    = { harmaja:true, sipoo:true };
+    var FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true };
     var fetches = FMI_MAP_STATIONS.map(function(st) {
       /* FMI proxy palauttaa {ws, wg, wd, tmp, ...} — ei hourly-formaattia */
       return fetch('https://foilwind.vercel.app/api/fmi?place='+st.place)
@@ -3843,8 +4012,9 @@ function _addObsMarkers(map) {
         var icon = mkWindIcon(map.getZoom(), ws, wg, st.name, isPrim);
         var m = L.marker([st.lat,st.lng],{icon:icon,zIndexOffset:isPrim?-50:-100})
           .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
+        var _lg = FMI_SEA_PLACES[st.place] ? 'fmi-sea' : 'fmi-land';
         _obsMarkers.push({marker:m, type:isPrim?'wind-prim':'wind-dot',
-          ws:ws, wg:wg, stName:st.name});
+          ws:ws, wg:wg, stName:st.name, layerGroup:_lg});
       });
       map.on('zoomend', updateIcons);
     }).catch(function() {
@@ -3852,7 +4022,8 @@ function _addObsMarkers(map) {
         var isPrim=!!PRIM_FMI[st.place];
         var m=L.marker([st.lat,st.lng],{icon:mkWindIcon(map.getZoom(),null,null,st.name,isPrim),zIndexOffset:-100})
           .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
-        _obsMarkers.push({marker:m,type:isPrim?'wind-prim':'wind-dot',ws:null,wg:null,stName:st.name});
+        var _lg2 = FMI_SEA_PLACES[st.place] ? 'fmi-sea' : 'fmi-land';
+        _obsMarkers.push({marker:m,type:isPrim?'wind-prim':'wind-dot',ws:null,wg:null,stName:st.name,layerGroup:_lg2});
       });
       map.on('zoomend', updateIcons);
     });
@@ -3865,13 +4036,13 @@ function _addObsMarkers(map) {
       var temp=entry&&entry.temp!=null&&entry.temp>-5&&entry.temp<40?entry.temp:null;
       var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),temp,!!st.prim),zIndexOffset:-200})
         .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
-      _obsMarkers.push({marker:m,type:'water',temp:temp,prim:!!st.prim});
+      _obsMarkers.push({marker:m,type:'water',temp:temp,prim:!!st.prim,layerGroup:'uiras'});
     });
   }).catch(function() {
     UIRAS_STATIONS.forEach(function(st) {
       var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),null,!!st.prim),zIndexOffset:-200})
         .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
-      _obsMarkers.push({marker:m,type:'water',temp:null,prim:!!st.prim});
+      _obsMarkers.push({marker:m,type:'water',temp:null,prim:!!st.prim,layerGroup:'uiras'});
     });
   });
 }
@@ -6382,6 +6553,55 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('#settings-popup') && !e.target.closest('#btn-settings')) {
     document.getElementById('settings-popup').classList.remove('open');
   }
+});
+
+/* ── Karttatasot-togglet ─────────────────────────────────── */
+var _layerToggles = { 'fmi-sea': true, 'fmi-land': true, 'uiras': true };
+
+/* FMI meri-asemat */
+var FMI_SEA_PLACES = { harmaja:1, sipoo:1, vuosaari:1 };
+
+function _applyLayerToggle(layerId, on) {
+  _layerToggles[layerId] = on;
+  var tog = document.getElementById('toggle-' + layerId);
+  if (tog) tog.classList.toggle('on', on);
+
+  /* Päivitä markerit */
+  if (!State || !State.map) return;
+  if (typeof window._obsMarkers === 'undefined') {
+    /* Hae markerit _addObsMarkers-sulkeumasta */
+    return;
+  }
+}
+
+/* Parempi: käytetään globaaleja markeri-taulukoita */
+/* Lisätään _addObsMarkers-funktion ulkopuolelle globaali taulukko */
+window._mapLayerState = { 'fmi-sea': true, 'fmi-land': true, 'uiras': true };
+
+document.querySelectorAll('.sp-toggle-row').forEach(function(row) {
+  row.addEventListener('click', function() {
+    Haptics.light();
+    var id = row.dataset.layerToggle;
+    var tog = document.getElementById('toggle-' + id);
+    if (!tog) return;
+    var isOn = !tog.classList.contains('on');
+    tog.classList.toggle('on', isOn);
+    window._mapLayerState[id] = isOn;
+
+    /* Näytä/piilota markerit */
+    if (window._obsMarkersGlobal) {
+      window._obsMarkersGlobal.forEach(function(m) {
+        var show = true;
+        if (m.layerGroup === 'fmi-sea')  show = window._mapLayerState['fmi-sea'];
+        if (m.layerGroup === 'fmi-land') show = window._mapLayerState['fmi-land'];
+        if (m.layerGroup === 'uiras')    show = window._mapLayerState['uiras'];
+        var el = m.marker.getElement
+          ? m.marker.getElement()
+          : (m.marker._icon || null);
+        if (el) el.style.display = show ? '' : 'none';
+      });
+    }
+  });
 });
 
 document.getElementById('btn-loc').addEventListener('click', () => {
