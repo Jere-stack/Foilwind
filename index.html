@@ -182,28 +182,28 @@ body {
    SETTINGS — Apple Liquid Glass popover
    ============================================================ */
 /* ── Settings drawer — Windy-tyylinen liukupaneeli ───────── */
+/* Overlay — ei tummennus, vain pointer-events */
 #settings-overlay {
   position: fixed; inset: 0; z-index: 50;
-  background: rgba(0,0,0,0);
   pointer-events: none;
-  transition: background .3s ease;
 }
 #settings-overlay.open {
-  background: rgba(0,0,0,0.45);
   pointer-events: all;
 }
 
+/* Drawer — koko ruudun korkea, liukuu vasemmalta */
 #settings-popup {
   position: fixed; z-index: 51;
   top: 0; left: 0; bottom: 0;
-  width: 82vw; max-width: 340px;
+  width: 100vw;
   display: flex; flex-direction: column;
-  background: rgba(8,11,24,0.97);
-  border-right: 1px solid rgba(255,255,255,.08);
-  -webkit-backdrop-filter: blur(24px);
-  backdrop-filter: blur(24px);
+  /* Läpinäkyvä tausta — kartta näkyy alta */
+  background: rgba(6,9,18,0.72);
+  border-right: none;
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
   transform: translateX(-100%);
-  transition: transform .32s cubic-bezier(.4,0,.2,1);
+  transition: transform .35s cubic-bezier(.4,0,.2,1);
   overflow: hidden;
   pointer-events: all;
 }
@@ -224,20 +224,17 @@ body {
   letter-spacing: 0.2px;
 }
 #sp-close {
-  width: 30px; height: 30px; border-radius: 15px;
-  background: rgba(255,255,255,.07); border: none;
-  color: rgba(255,255,255,.5); font-size: 16px; line-height: 1;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: background .15s; -webkit-user-select: none; user-select: none;
+  -webkit-user-select: none; user-select: none;
+  transition: opacity .15s;
 }
-#sp-close:active { background: rgba(255,255,255,.15); }
+#sp-close:active { opacity: .6; }
 
 /* Scrollattava runko */
 #sp-body-wrap { position: relative; flex: 1; overflow: hidden; }
 #sp-body {
   position: absolute; inset: 0;
   overflow-y: auto; overflow-x: hidden;
-  padding: 8px 20px calc(env(safe-area-inset-bottom) + 24px);
+  padding: 8px 24px calc(env(safe-area-inset-bottom) + 32px);
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -1598,7 +1595,13 @@ body {
     <!-- Otsikko -->
     <div id="sp-header">
       <span id="sp-title">Asetukset</span>
-      <button id="sp-close" onclick="_closeSettings()">✕</button>
+      <!-- Sulje-nuoli — pyyhkäise vasemmalle tai paina -->
+      <button id="sp-close" onclick="_closeSettings()" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.07);border:none;border-radius:16px;padding:6px 12px 6px 8px;color:rgba(255,255,255,.5);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Sulje
+      </button>
     </div>
     <!-- Scrollattava sisältö -->
     <div id="sp-body-wrap">
@@ -6604,17 +6607,17 @@ document.getElementById('settings-overlay').addEventListener('click', _closeSett
     var dx = e.touches[0].clientX - startX;
     var dy = Math.abs(e.touches[0].clientY - startY);
     if (!dragging && Math.abs(dx) > 8 && Math.abs(dx) > dy) dragging = true;
+    /* Vasen pyyhkäisy sulkee (drawer tulee vasemmalta) */
     if (dragging && dx < 0) {
-      sp.style.transform = 'translateX(' + Math.min(0, dx) + 'px)';
-      var ov = document.getElementById('settings-overlay');
-      ov.style.background = 'rgba(0,0,0,' + Math.max(0, 0.45 + dx/400) + ')';
+      sp.style.transition = 'none';
+      sp.style.transform = 'translateX(' + dx + 'px)';
     }
   }, { passive: true });
   sp.addEventListener('touchend', function(e) {
-    if (!dragging) return;
+    if (!dragging) { return; }
+    sp.style.transition = '';
     var dx = e.changedTouches[0].clientX - startX;
     sp.style.transform = '';
-    document.getElementById('settings-overlay').style.background = '';
     if (dx < -60) _closeSettings();
     dragging = false;
   }, { passive: true });
