@@ -198,10 +198,10 @@ body {
   top: 0; left: 0; bottom: 0;
   width: 88vw;                          /* jättää 12% karttaa näkyviin */
   display: flex; flex-direction: column;
-  background: rgba(6,9,18,0.30);        /* hyvin läpinäkyvä */
-  border-right: 1px solid rgba(255,255,255,.06);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  background: rgba(6,9,18,0.55);
+  border-right: 1px solid rgba(255,255,255,.08);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  backdrop-filter: blur(16px) saturate(1.3);
   transform: translateX(-100%);
   transition: transform .34s cubic-bezier(.4,0,.2,1);
   overflow: hidden;
@@ -211,11 +211,12 @@ body {
   transform: translateX(0);
 }
 
-/* Safe area top */
+/* Safe area top — täysin läpinäkymätön */
 #sp-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: calc(env(safe-area-inset-top) + 16px) 20px 14px;
-  border-bottom: 1px solid rgba(255,255,255,.07);
+  background: rgba(6,9,18,0.98);
+  border-bottom: 1px solid rgba(255,255,255,.10);
   flex-shrink: 0;
 }
 #sp-title {
@@ -254,8 +255,8 @@ body {
 /* Chips */
 /* Korttikontti asetuslohkoille */
 .sp-card {
-  background: rgba(255,255,255,.05);
-  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(6,9,18,0.60);
+  border: 1px solid rgba(255,255,255,.10);
   border-radius: 14px;
   padding: 14px 14px 12px;
   margin-bottom: 10px;
@@ -1652,6 +1653,7 @@ body {
         <!-- Karttatasot -->
         <div class="sp-card">
           <div class="sp-label">Karttatasot</div>
+
           <div class="sp-toggle-row" data-layer-toggle="fmi-sea">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot" style="background:#f5c842"></div>
@@ -1662,9 +1664,10 @@ body {
             </div>
             <div class="sp-toggle on" id="toggle-fmi-sea"></div>
           </div>
+
           <div class="sp-toggle-row" data-layer-toggle="fmi-land">
             <div class="sp-toggle-left">
-              <div class="sp-toggle-dot" style="background:#f5c842;opacity:.55"></div>
+              <div class="sp-toggle-dot" style="background:#f5c842;opacity:.5"></div>
               <div>
                 <div class="sp-toggle-name">FMI · Maa</div>
                 <div class="sp-toggle-sub">Kaisaniemi, Kumpula, Malmi…</div>
@@ -1672,16 +1675,29 @@ body {
             </div>
             <div class="sp-toggle on" id="toggle-fmi-land"></div>
           </div>
-          <div class="sp-toggle-row" data-layer-toggle="uiras">
+
+          <div class="sp-toggle-row" data-layer-toggle="uiras-prim">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot" style="background:#29e8a8"></div>
               <div>
-                <div class="sp-toggle-name">Uimapaikat</div>
-                <div class="sp-toggle-sub">UiRas vedenlämpö</div>
+                <div class="sp-toggle-name">Rantalämpötilat</div>
+                <div class="sp-toggle-sub">Mustikkamaa, Uunisaari, Pihlajasaari…</div>
               </div>
             </div>
-            <div class="sp-toggle on" id="toggle-uiras"></div>
+            <div class="sp-toggle on" id="toggle-uiras-prim"></div>
           </div>
+
+          <div class="sp-toggle-row" data-layer-toggle="uiras-sec">
+            <div class="sp-toggle-left">
+              <div class="sp-toggle-dot" style="background:#29e8a8;opacity:.45"></div>
+              <div>
+                <div class="sp-toggle-name">Muut uimapaikat</div>
+                <div class="sp-toggle-sub">Marjaniemi, Rastila, Pikkukoski…</div>
+              </div>
+            </div>
+            <div class="sp-toggle on" id="toggle-uiras-sec"></div>
+          </div>
+
         </div>
       </div><!-- /sp-body -->
     </div><!-- /sp-body-wrap -->
@@ -6650,7 +6666,28 @@ function _applyLayerToggle(layerId, on) {
 
 /* Parempi: käytetään globaaleja markeri-taulukoita */
 /* Lisätään _addObsMarkers-funktion ulkopuolelle globaali taulukko */
-window._mapLayerState = { 'fmi-sea': true, 'fmi-land': true, 'uiras': true };
+window._mapLayerState = {
+  'fmi-sea': true, 'fmi-land': true,
+  'uiras-prim': true, 'uiras-sec': true
+};
+
+function _applyMapLayers() {
+  if (!window._obsMarkersGlobal) return;
+  window._obsMarkersGlobal.forEach(function(m) {
+    var show = true;
+    if (m.layerGroup === 'fmi-sea')  show = window._mapLayerState['fmi-sea'];
+    if (m.layerGroup === 'fmi-land') show = window._mapLayerState['fmi-land'];
+    if (m.layerGroup === 'uiras') {
+      /* UiRas: prim ja sec erikseen */
+      var isPrim = !!m.prim;
+      show = isPrim
+        ? window._mapLayerState['uiras-prim']
+        : window._mapLayerState['uiras-sec'];
+    }
+    var el = m.marker._icon || null;
+    if (el) el.style.display = show ? '' : 'none';
+  });
+}
 
 document.querySelectorAll('.sp-toggle-row').forEach(function(row) {
   row.addEventListener('click', function() {
@@ -6661,20 +6698,7 @@ document.querySelectorAll('.sp-toggle-row').forEach(function(row) {
     var isOn = !tog.classList.contains('on');
     tog.classList.toggle('on', isOn);
     window._mapLayerState[id] = isOn;
-
-    /* Näytä/piilota markerit */
-    if (window._obsMarkersGlobal) {
-      window._obsMarkersGlobal.forEach(function(m) {
-        var show = true;
-        if (m.layerGroup === 'fmi-sea')  show = window._mapLayerState['fmi-sea'];
-        if (m.layerGroup === 'fmi-land') show = window._mapLayerState['fmi-land'];
-        if (m.layerGroup === 'uiras')    show = window._mapLayerState['uiras'];
-        var el = m.marker.getElement
-          ? m.marker.getElement()
-          : (m.marker._icon || null);
-        if (el) el.style.display = show ? '' : 'none';
-      });
-    }
+    _applyMapLayers();
   });
 });
 
