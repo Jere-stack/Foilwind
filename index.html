@@ -3132,24 +3132,25 @@ function isNightHour(iso) {
 
 /* Tunnetut UiRas-asemat PKS:ssa koordinaatteineen */
 const UIRAS_STATIONS = [
-  { name: 'Hietaniemi',        lat: 60.1734, lng: 24.9100, id: '70B3D57050001AB9' },
-  { name: 'Lauttasaari',       lat: 60.1490, lng: 24.8760, id: '70B3D57050001A97' },
-  { name: 'Marjaniemi',        lat: 60.1978, lng: 25.0990, id: '70B3D57050001ADA' },
-  { name: 'Mustikkamaa',       lat: 60.1754, lng: 24.9912, id: '70B3D57050001BA6' },
-  { name: 'Rastila',           lat: 60.2081, lng: 25.1320, id: '70B3D57050001BBE' },
-  { name: 'Kallahdenniemi',    lat: 60.1871, lng: 25.1490, id: '70B3D57050004740' },
-  { name: 'Pihlajasaari',      lat: 60.1443, lng: 24.9160, id: '70B3D57050004CDB' },
-  { name: 'Uunisaari',         lat: 60.1480, lng: 24.9540, id: '70B3D5705000516A' },
-  { name: 'Aurinkolahti',      lat: 60.2094, lng: 25.1189, id: '70B3D5705000DFED' },
-  { name: 'Pikkukoski',        lat: 60.2374, lng: 24.9610, id: '70B3D5705000E070' },
-  { name: 'Vartiosaari',       lat: 60.1900, lng: 25.0570, id: '70B3D5705000E3B2' },
-  { name: 'Kivinokka',         lat: 60.1985, lng: 25.0445, id: '70B3D5705000E3C0' },
-  { name: 'Seurasaari',        lat: 60.1892, lng: 24.8870, id: '70B3D5705000E430' },
-  { name: 'Hanika (Espoo)',    lat: 60.1462, lng: 24.7620, id: '70B3D570500113C4' },
-  { name: 'Kattilajärvi',      lat: 60.2970, lng: 24.6240, id: '70B3D5705001140F' },
-  { name: 'Kuusijärvi (Vantaa)',lat:60.3110, lng: 25.1050, id: '70B3D57050011422' },
-  { name: 'Vetokannas',        lat: 60.3450, lng: 25.0320, id: '70B3D57050011458' },
-  { name: 'Iso Huopalahti',    lat: 60.2050, lng: 24.8760, id: '70B3D5705001148E' },
+  /* prim:true = näytetään lämpötilalukema markerin vieressä */
+  { name: 'Hietaniemi',        lat: 60.17590, lng: 24.90640, id: '70B3D57050001AB9', prim: true  },
+  { name: 'Lauttasaari',       lat: 60.15370, lng: 24.87120, id: '70B3D57050001A97', prim: true  },
+  { name: 'Marjaniemi',        lat: 60.19780, lng: 25.09900, id: '70B3D57050001ADA' },
+  { name: 'Mustikkamaa',       lat: 60.17630, lng: 24.99270, id: '70B3D57050001BA6', prim: true  },
+  { name: 'Rastila',           lat: 60.20810, lng: 25.13200, id: '70B3D57050001BBE' },
+  { name: 'Kallahdenniemi',    lat: 60.18710, lng: 25.14900, id: '70B3D57050004740' },
+  { name: 'Pihlajasaari',      lat: 60.14180, lng: 24.92240, id: '70B3D57050004CDB', prim: true  },
+  { name: 'Uunisaari',         lat: 60.15020, lng: 24.95530, id: '70B3D5705000516A', prim: true  },
+  { name: 'Aurinkolahti',      lat: 60.20940, lng: 25.11890, id: '70B3D5705000DFED' },
+  { name: 'Pikkukoski',        lat: 60.23740, lng: 24.96100, id: '70B3D5705000E070' },
+  { name: 'Vartiosaari',       lat: 60.19000, lng: 25.05700, id: '70B3D5705000E3B2' },
+  { name: 'Kivinokka',         lat: 60.19850, lng: 25.04450, id: '70B3D5705000E3C0' },
+  { name: 'Seurasaari',        lat: 60.18920, lng: 24.88700, id: '70B3D5705000E430' },
+  { name: 'Hanika (Espoo)',    lat: 60.14620, lng: 24.76200, id: '70B3D570500113C4' },
+  { name: 'Kattilajärvi',      lat: 60.29700, lng: 24.62400, id: '70B3D5705001140F' },
+  { name: 'Kuusijärvi (Vantaa)',lat:60.31100, lng: 25.10500, id: '70B3D57050011422' },
+  { name: 'Vetokannas',        lat: 60.34500, lng: 25.03200, id: '70B3D57050011458' },
+  { name: 'Iso Huopalahti',    lat: 60.20500, lng: 24.87600, id: '70B3D5705001148E' },
 ];
 
 const FMI_MAP_STATIONS = [
@@ -3701,7 +3702,8 @@ function _addObsMarkers(map) {
   var UC = '#29e8a8'; /* UiRas syaani */
   var _obsMarkers = [];
 
-  function mkIcon(c, zoom) {
+  /* FMI-markerit: normaali koko */
+  function mkFmiIcon(c, zoom) {
     var z = zoom || 5;
     var sz = z < 8 ? 6 : z < 10 ? 8 : 10;
     var op = z < 8 ? 0.5 : z < 10 ? 0.65 : 0.85;
@@ -3712,23 +3714,68 @@ function _addObsMarkers(map) {
     });
   }
 
+  /* UiRas-markerit: huomattavasti pienempiä */
+  function mkUirasIcon(c, zoom, temp, isPrim) {
+    var z = zoom || 5;
+    var sz = z < 8 ? 4 : z < 10 ? 5 : 6;   /* pienempi kuin FMI */
+    var op = z < 8 ? 0.35 : z < 10 ? 0.5 : 0.65;
+    var dot = '<div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;'
+      +'background:'+c+';opacity:'+op+';flex-shrink:0"></div>';
+    var label = '';
+    if (isPrim && temp != null && z >= 9) {
+      /* Lämpötilalukema prim-paikoille zoom ≥ 9 */
+      label = '<span style="font-family:DM Mono,monospace;font-size:9px;'
+        +'color:rgba(255,255,255,.75);line-height:1;margin-left:4px;'
+        +'white-space:nowrap;text-shadow:0 1px 3px rgba(0,0,0,.9)">'
+        +temp.toFixed(1)+'°</span>';
+    }
+    var w = isPrim && temp != null && z >= 9 ? sz + 34 : sz;
+    return L.divIcon({
+      className: '',
+      html: '<div style="display:flex;align-items:center;cursor:pointer">'+dot+label+'</div>',
+      iconSize:[w, sz], iconAnchor:[sz/2, sz/2]
+    });
+  }
+
   function updateIcons() {
     var z = map.getZoom();
-    _obsMarkers.forEach(function(m){ m.marker.setIcon(mkIcon(m.color, z)); });
+    _obsMarkers.forEach(function(m){
+      if (m.type === 'fmi') {
+        m.marker.setIcon(mkFmiIcon(m.color, z));
+      } else {
+        m.marker.setIcon(mkUirasIcon(m.color, z, m.temp, m.prim));
+      }
+    });
   }
 
   FMI_MAP_STATIONS.forEach(function(st){
-    var m = L.marker([st.lat,st.lng],{icon:mkIcon(FC,map.getZoom()),zIndexOffset:-100})
+    var m = L.marker([st.lat,st.lng],{icon:mkFmiIcon(FC,map.getZoom()),zIndexOffset:-100})
       .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
-    _obsMarkers.push({marker:m,color:FC});
-  });
-  UIRAS_STATIONS.forEach(function(st){
-    var m = L.marker([st.lat,st.lng],{icon:mkIcon(UC,map.getZoom()),zIndexOffset:-100})
-      .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
-    _obsMarkers.push({marker:m,color:UC});
+    _obsMarkers.push({marker:m, color:FC, type:'fmi'});
   });
 
-  map.on('zoomend', updateIcons);
+  /* UiRas: ladataan ensin lämpötilat, sitten luodaan markerit */
+  UiRas.loadLatest().then(function(tempMap) {
+    UIRAS_STATIONS.forEach(function(st){
+      var entry = tempMap[st.id.toUpperCase()];
+      var temp  = entry && entry.temp != null && entry.temp > -5 && entry.temp < 40
+                  ? entry.temp : null;
+      var icon  = mkUirasIcon(UC, map.getZoom(), temp, !!st.prim);
+      var m = L.marker([st.lat, st.lng], {icon: icon, zIndexOffset: -200})
+        .on('click', function(){ _openObsSheet('uiras', st); }).addTo(map);
+      _obsMarkers.push({marker:m, color:UC, type:'uiras', temp:temp, prim:!!st.prim});
+    });
+    map.on('zoomend', updateIcons);
+  }).catch(function() {
+    /* Fallback: lisää ilman lämpötilaa */
+    UIRAS_STATIONS.forEach(function(st){
+      var icon = mkUirasIcon(UC, map.getZoom(), null, !!st.prim);
+      var m = L.marker([st.lat, st.lng], {icon: icon, zIndexOffset: -200})
+        .on('click', function(){ _openObsSheet('uiras', st); }).addTo(map);
+      _obsMarkers.push({marker:m, color:UC, type:'uiras', temp:null, prim:!!st.prim});
+    });
+    map.on('zoomend', updateIcons);
+  });
 }
 
 function _openObsSheet(type, station) {
