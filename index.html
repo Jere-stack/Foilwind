@@ -4039,31 +4039,19 @@ function _addObsMarkers(map) {
   /* ── Päivittää ikonit zoom-muutoksessa ──────────────────────── */
   /* Hae historia-arvo lähimmälle ajanhetkelle */
   function _histValueAt(hist, targetTime) {
-    /* Normalisoi hist: tukee sekä {ws:[{t,v}]} että {hourly:{time:[],windspeed_10m:[]}} */
-    var wsArr = null, wgArr2 = null;
-    if (hist && hist.ws && Array.isArray(hist.ws)) {
-      wsArr = hist.ws;
-      wgArr2 = hist.wg || hist.windgusts || [];
-    } else if (hist && hist.hourly && hist.hourly.time) {
-      var h = hist.hourly;
-      wsArr = (h.windspeed_10m || []).map(function(v, i) {
-        return { t: h.time[i], v: v };
-      });
-      wgArr2 = (h.windgusts_10m || []).map(function(v, i) {
-        return { t: h.time[i], v: v };
-      });
-    }
-    if (!wsArr || !wsArr.length) return null; /* null = ei dataa */
-    var best = null, bestDiff = Infinity;
-    for (var i = 0; i < wsArr.length; i++) {
-      if (!wsArr[i] || !wsArr[i].t) continue;
-      var diff = Math.abs(new Date(wsArr[i].t).getTime() - targetTime);
+    /* hist = {ws:[{t,v,d},...], wg:[{t,v},...]} — _fmiLoadWithFallback formaatti */
+    if (!hist || !hist.ws || !hist.ws.length) return null;
+    var best = -1, bestDiff = Infinity;
+    for (var i = 0; i < hist.ws.length; i++) {
+      var pt = hist.ws[i]; if (!pt || !pt.t) continue;
+      var diff = Math.abs(new Date(pt.t).getTime() - targetTime);
       if (diff < bestDiff) { bestDiff = diff; best = i; }
     }
-    if (best === null || bestDiff > 7200000) return null;
-    var wsVal = wsArr[best] && wsArr[best].v != null ? +wsArr[best].v : null;
-    var wgVal = wgArr2[best] && wgArr2[best].v != null ? +wgArr2[best].v : wsVal;
-    return { ws: wsVal, wg: wgVal };
+    if (best < 0 || bestDiff > 7200000) return null; /* ei löydy 2h sisältä */
+    var ws = hist.ws[best].v != null ? +hist.ws[best].v : null;
+    var wgPts = hist.wg || [];
+    var wg = wgPts[best] && wgPts[best].v != null ? +wgPts[best].v : ws;
+    return { ws: ws, wg: wg };
   }
 
   function updateIcons(targetTs) {
@@ -4096,53 +4084,41 @@ function _addObsMarkers(map) {
   (function() {
     var PRIM_FMI    = { harmaja:true, sipoo:true, vuosaari:true };
     var FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true };
-    /* Jokainen haku hakee sekä latest- että history-datan */
-    var fetches = FMI_MAP_STATIONS.map(function(st) {
-      if (!PRIM_FMI[st.place]) {
-        /* Ei-prim: vain latest */
-        return fetch('https://foilwind.vercel.app/api/fmi?place='+st.place)
-          .then(function(r){ return r.ok ? r.json() : null; })
-          .catch(function(){ return null; })
-          .then(function(d){ return { latest: d, history: null }; });
-      }
-      /* Prim-asemat: latest + history rinnakkain */
-      return Promise.all([
-        fetch('https://foilwind.vercel.app/api/fmi?place='+st.place)
-          .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; }),
-        fetch('https://foilwind.vercel.app/api/fmi?history=1&lat='+st.lat+'&lng='+st.lng)
-          .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
-      ]).then(function(pair){ return { latest: pair[0], history: pair[1] }; });
+    /* Käytä _fmiLoadWithFallback prim-asemille — sama kuin spottikortti käyttää */
+    /* 1. Lisää ensin kaikki markerit ilman dataa */
+    FMI_MAP_STATIONS.forEach(function(st) {
+      var isPrim = !!PRIM_FMI[st.place];
+      var icon = mkWindIcon(map.getZoom(), null, null, st.name, isPrim);
+      var m = L.marker([st.lat,st.lng],{icon:icon,zIndexOffset:isPrim?-50:-100})
+        .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
+      var _lg = FMI_SEA_PLACES[st.place] ? 'fmi-sea' : 'fmi-land';
+      _obsMarkers.push({marker:m, type:isPrim?'wind-prim':'wind-dot',
+        ws:null, wg:null, wsLatest:null, wgLatest:null,
+        stName:st.name, layerGroup:_lg, place:st.place,
+        history:null, _markerRef: _obsMarkers.length });
     });
-    Promise.all(fetches).then(function(results) {
-      FMI_MAP_STATIONS.forEach(function(st, i) {
-        var res = results[i] || {};
-        var data = res.latest;
-        var hist = res.history;  /* {ws:[{t,v,d},...], wg:[...]} tai null */
-        var ws=null, wg=null;
-        if (data && !data.error) {
-          ws = data.ws != null ? +data.ws : null;
-          wg = data.wg != null ? +data.wg : ws;
+    map.on('zoomend', updateIcons);
+
+    /* 2. Lataa data jokaiselle asemalle _fmiLoadWithFallback:lla */
+    FMI_MAP_STATIONS.forEach(function(st, stIdx) {
+      var isPrim = !!PRIM_FMI[st.place];
+      var stationList = [st];
+      _fmiLoadWithFallback(stationList, 24, function(okSt, latData, histData) {
+        /* Löydä markeri taulukosta */
+        var entry = null;
+        for (var k = 0; k < _obsMarkers.length; k++) {
+          if (_obsMarkers[k].place === st.place) { entry = _obsMarkers[k]; break; }
         }
-        var isPrim = !!PRIM_FMI[st.place];
-        var icon = mkWindIcon(map.getZoom(), ws, wg, st.name, isPrim);
-        var m = L.marker([st.lat,st.lng],{icon:icon,zIndexOffset:isPrim?-50:-100})
-          .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
-        var _lg = FMI_SEA_PLACES[st.place] ? 'fmi-sea' : 'fmi-land';
-        _obsMarkers.push({marker:m, type:isPrim?'wind-prim':'wind-dot',
-          ws:ws, wg:wg, wsLatest:ws, wgLatest:wg,
-          stName:st.name, layerGroup:_lg, place:st.place,
-          history: hist });  /* tallenna historia markeriin */
-      });
-      map.on('zoomend', updateIcons);
-    }).catch(function() {
-      FMI_MAP_STATIONS.forEach(function(st) {
-        var isPrim=!!PRIM_FMI[st.place];
-        var m=L.marker([st.lat,st.lng],{icon:mkWindIcon(map.getZoom(),null,null,st.name,isPrim),zIndexOffset:-100})
-          .on('click',function(){ _openObsSheet('fmi',st); }).addTo(map);
-        var _lg2 = FMI_SEA_PLACES[st.place] ? 'fmi-sea' : 'fmi-land';
-        _obsMarkers.push({marker:m,type:isPrim?'wind-prim':'wind-dot',ws:null,wg:null,stName:st.name,layerGroup:_lg2});
-      });
-      map.on('zoomend', updateIcons);
+        if (!entry) return;
+        /* Päivitä data */
+        var ws = latData && latData.ws != null ? +latData.ws : null;
+        var wg = latData && latData.wg != null ? +latData.wg : ws;
+        entry.ws = ws; entry.wg = wg;
+        entry.wsLatest = ws; entry.wgLatest = wg;
+        entry.history = histData; /* {ws:[{t,v,d}], wg:[{t,v}]} */
+        /* Päivitä ikoni */
+        entry.marker.setIcon(mkWindIcon(map.getZoom(), ws, wg, st.name, isPrim));
+      }, function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
     });
   })();
 
