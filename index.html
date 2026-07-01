@@ -432,13 +432,12 @@ body {
     rgba(6,9,18,0.62) 78%);
   -webkit-backdrop-filter: blur(14px) saturate(1.5);
   backdrop-filter: blur(14px) saturate(1.5);
-  /* Kerroksittainen ambient-hehku box-shadow:lla — ei erillistä gradient-rengasta.
-     Jokainen kerros on pelkkä blur ilman spreadia → luonnollinen optinen häivytys,
-     täsmälleen sama tekniikka kuin iOS:n Control Centerin hehkuefekteissä. */
+  /* Yksi ainoa hehkukerros — kaksi päällekkäistä blur-arvoa loi näkyvän
+     "askeleen" niiden rajapintaan. Yksi matalaopasiteettinen kerros pienellä
+     säteellä häivyttyy täysin huomaamattomasti ilman havaittavaa ulkoreunaa. */
   box-shadow:
-    0 4px 16px rgba(0,0,0,.38),        /* pohjavarjo — nostaa napin irti taustasta */
-    0 0 20px rgba(255,255,255,.12),    /* lähihehku */
-    0 0 44px rgba(255,255,255,.06);    /* kaukainen pehmeä bleed */
+    0 4px 14px rgba(0,0,0,.35),        /* pohjavarjo — nostaa napin irti taustasta */
+    0 0 12px rgba(255,255,255,.09);    /* pieni, hyvin pehmeä hehku */
   z-index: 6;
   transition: box-shadow .25s ease, background .2s ease;
 }
@@ -448,9 +447,8 @@ body {
     rgba(41,232,168,0.10) 45%,
     rgba(6,9,18,0.60) 78%);
   box-shadow:
-    0 4px 16px rgba(0,0,0,.38),
-    0 0 22px rgba(80,237,170,.30),
-    0 0 48px rgba(80,237,170,.14);
+    0 4px 14px rgba(0,0,0,.35),
+    0 0 14px rgba(80,237,170,.20);
 }
 #tl-scroll {
   display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
