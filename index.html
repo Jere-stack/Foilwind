@@ -179,16 +179,11 @@ body {
   background: rgba(245,200,66,0.22);
 }
 #bottom-bar-spacer { flex: 1; pointer-events: none; }
-/* Left column: settings at bottom, loc+play stacked above */
-#btn-left-col {
-  display: flex; flex-direction: column; align-items: center;
-  pointer-events: none; /* column itself transparent, buttons handle touches */
-}
-/* Right column: calendar above, wingfoil below */
+/* Yksi pino oikealla: sijainti, vapaa piste, kalenteri, asetukset — tasavälein */
 #btn-spots-wrap {
   display: flex; flex-direction: column; align-items: center; position: relative;
   pointer-events: none;
-  gap: 6px;
+  gap: 8px;
 }
 
 /* ============================================================
@@ -429,17 +424,25 @@ body {
   position: absolute;
   left: calc(var(--sal) + 10px);
   bottom: calc(var(--sab) + 20px);
-  width: 38px; height: 38px;
+  width: 40px; height: 40px;
   border-radius: 50%;
-  background: rgba(6,9,18,0.75);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 2px 12px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.10) inset;
+  /* Pehmeä liukuvärjäys — ei kovaa reunaviivaa, vaan hienovarainen sisäinen hehku */
+  background: radial-gradient(circle at 32% 28%,
+    rgba(255,255,255,0.20) 0%,
+    rgba(255,255,255,0.05) 45%,
+    rgba(6,9,18,0.62) 78%);
+  -webkit-backdrop-filter: blur(14px) saturate(1.5);
+  backdrop-filter: blur(14px) saturate(1.5);
+  /* Ei terävää reunaviivaa — pelkkä ulkoinen pehmeä hehku */
+  box-shadow: 0 4px 16px rgba(0,0,0,.38), 0 0 22px rgba(255,255,255,.05);
   z-index: 6;
 }
 .tl-play-btn.playing {
-  background: rgba(41,232,168,0.18);
-  box-shadow: 0 2px 12px rgba(0,0,0,.5), 0 0 0 1px rgba(41,232,168,.35) inset;
+  background: radial-gradient(circle at 32% 28%,
+    rgba(140,255,210,0.32) 0%,
+    rgba(41,232,168,0.10) 45%,
+    rgba(6,9,18,0.60) 78%);
+  box-shadow: 0 4px 16px rgba(0,0,0,.38), 0 0 26px rgba(41,232,168,.28);
 }
 #tl-scroll {
   display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
@@ -1747,21 +1750,16 @@ body {
 
   <div id="bottom">
     <div id="bottom-bar">
-      <!-- Left column: pelkkä sijainti — play siirretty timelinen alkuun -->
-      <div id="btn-left-col">
+      <div id="bottom-bar-spacer"></div>
+      <!-- Yksi pino oikealla: sijainti, vapaa piste, kalenteri, asetukset -->
+      <div id="btn-spots-wrap">
         <div class="mctl" id="btn-loc">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round">
-            <circle cx="12" cy="12" r="4"/>
-            <line x1="12" y1="2" x2="12" y2="6"/>
-            <line x1="12" y1="18" x2="12" y2="22"/>
-            <line x1="2" y1="12" x2="6" y2="12"/>
-            <line x1="18" y1="12" x2="22" y2="12"/>
+          <!-- Dot + ring — selkeästi erilainen kuin tähtäin-crosshair alla -->
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8">
+            <circle cx="12" cy="12" r="3" fill="white" stroke="none"/>
+            <circle cx="12" cy="12" r="8"/>
           </svg>
         </div>
-      </div>
-      <div id="bottom-bar-spacer"></div>
-      <!-- Right column: free point, calendar, asetukset alimmaisena -->
-      <div id="btn-spots-wrap">
         <div class="mctl" id="btn-freespot" title="Avaa tämän paikan tiedot">
           <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
             <!-- Tähtäinympyrä -->
