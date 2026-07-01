@@ -168,15 +168,14 @@ body {
 
 /* Asetukset-nappi — Windy-tyylinen lämmin korostus */
 .mctl-settings {
-  color: #f5c842;
-  background: rgba(245,200,66,0.13);
-  border-radius: 14px;
-  box-shadow: 0 0 0 1px rgba(245,200,66,0.22) inset,
-              0 0 16px rgba(245,200,66,0.10);
+  color: #0a0a0a;                       /* tumma ikoni vahvan keltaisen päällä — Windy-tyyli */
+  background: #f5c842;                  /* vahva, kiinteä keltainen — ei läpinäkyvyyttä */
+  border-radius: 50%;                   /* pyöreä, ei pyöristetty neliö */
+  box-shadow: 0 2px 8px rgba(245,200,66,.35);  /* pehmeä hehku, ei reunaviivaa */
   transition: opacity .15s, transform .12s, background .15s;
 }
 .mctl-settings:active {
-  background: rgba(245,200,66,0.22);
+  background: #e0b430;
 }
 #bottom-bar-spacer { flex: 1; pointer-events: none; }
 /* Yksi pino oikealla: sijainti, vapaa piste, kalenteri, asetukset — tasavälein */
@@ -1700,7 +1699,7 @@ body {
           </div>
         </div>
 
-        <!-- Karttatasot -->
+        <!-- Karttatasot — vain FMI Meri päällä oletuksena -->
         <div class="sp-card">
           <div class="sp-label">Karttatasot</div>
 
@@ -1715,17 +1714,6 @@ body {
             <div class="sp-toggle on" id="toggle-fmi-sea"></div>
           </div>
 
-          <div class="sp-toggle-row" data-layer-toggle="fmi-land">
-            <div class="sp-toggle-left">
-              <div class="sp-toggle-dot" style="background:#f5c842;opacity:.5"></div>
-              <div>
-                <div class="sp-toggle-name">FMI · Maa</div>
-                <div class="sp-toggle-sub">Kaisaniemi, Kumpula, Malmi…</div>
-              </div>
-            </div>
-            <div class="sp-toggle on" id="toggle-fmi-land"></div>
-          </div>
-
           <div class="sp-toggle-row" data-layer-toggle="uiras-prim">
             <div class="sp-toggle-left">
               <div class="sp-toggle-dot" style="background:#29e8a8"></div>
@@ -1734,7 +1722,18 @@ body {
                 <div class="sp-toggle-sub">Mustikkamaa, Uunisaari, Pihlajasaari…</div>
               </div>
             </div>
-            <div class="sp-toggle on" id="toggle-uiras-prim"></div>
+            <div class="sp-toggle" id="toggle-uiras-prim"></div>
+          </div>
+
+          <div class="sp-toggle-row" data-layer-toggle="fmi-land">
+            <div class="sp-toggle-left">
+              <div class="sp-toggle-dot" style="background:#f5c842;opacity:.5"></div>
+              <div>
+                <div class="sp-toggle-name">FMI · Maa</div>
+                <div class="sp-toggle-sub">Kaisaniemi, Kumpula, Malmi…</div>
+              </div>
+            </div>
+            <div class="sp-toggle" id="toggle-fmi-land"></div>
           </div>
 
           <div class="sp-toggle-row" data-layer-toggle="uiras-sec">
@@ -1745,7 +1744,7 @@ body {
                 <div class="sp-toggle-sub">Marjaniemi, Rastila, Pikkukoski…</div>
               </div>
             </div>
-            <div class="sp-toggle on" id="toggle-uiras-sec"></div>
+            <div class="sp-toggle" id="toggle-uiras-sec"></div>
           </div>
 
         </div><!-- /sp-body-inner -->
@@ -4175,6 +4174,8 @@ function _addObsMarkers(map) {
         history:null, _markerRef: _obsMarkers.length });
     });
     map.on('zoomend', updateIcons);
+    /* Sovella oletus-layertila heti — vain FMI Meri näkyy oletuksena */
+    if (typeof _applyMapLayers === 'function') _applyMapLayers();
 
     /* 2. Lataa data jokaiselle asemalle _fmiLoadWithFallback:lla */
     FMI_MAP_STATIONS.forEach(function(st, stIdx) {
@@ -4208,12 +4209,14 @@ function _addObsMarkers(map) {
         .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
       _obsMarkers.push({marker:m,type:'water',temp:temp,prim:!!st.prim,layerGroup:'uiras'});
     });
+    if (typeof _applyMapLayers === 'function') _applyMapLayers();
   }).catch(function() {
     UIRAS_STATIONS.forEach(function(st) {
       var m=L.marker([st.lat,st.lng],{icon:mkWaterIcon(map.getZoom(),null,!!st.prim),zIndexOffset:-200})
         .on('click',function(){ _openObsSheet('uiras',st); }).addTo(map);
       _obsMarkers.push({marker:m,type:'water',temp:null,prim:!!st.prim,layerGroup:'uiras'});
     });
+    if (typeof _applyMapLayers === 'function') _applyMapLayers();
   });
 }
 
@@ -6786,8 +6789,8 @@ function _applyLayerToggle(layerId, on) {
 /* Parempi: käytetään globaaleja markeri-taulukoita */
 /* Lisätään _addObsMarkers-funktion ulkopuolelle globaali taulukko */
 window._mapLayerState = {
-  'fmi-sea': true, 'fmi-land': true,
-  'uiras-prim': true, 'uiras-sec': true
+  'fmi-sea': true, 'fmi-land': false,
+  'uiras-prim': false, 'uiras-sec': false
 };
 
 function _applyMapLayers() {
@@ -7358,7 +7361,12 @@ document.getElementById('models').addEventListener('click', e => {
 }, { passive: true });
 
 const tlScroll = document.getElementById('tl-scroll');
-tlScroll.addEventListener('touchstart', e => e.stopPropagation(), { passive: true });
+tlScroll.addEventListener('touchstart', e => {
+  e.stopPropagation();
+  /* Windy-tyyli: kosketus timelineen pysäyttää toiston heti,
+     jottei ohjelmallinen scrollTo() taistele käyttäjän raahauksen kanssa */
+  if (State.isPlaying) stopPlay();
+}, { passive: true });
 tlScroll.addEventListener('touchmove', e => e.stopPropagation(), { passive: true });
 
 /* -- LOADING & REFRESH ------------------------------------------ */
