@@ -165,6 +165,19 @@ body {
 }
 .mctl:active { opacity: 0.5; transform: scale(0.88); }
 .mctl.playing { color: var(--accent); }
+
+/* Asetukset-nappi — Windy-tyylinen lämmin korostus */
+.mctl-settings {
+  color: #f5c842;
+  background: rgba(245,200,66,0.13);
+  border-radius: 14px;
+  box-shadow: 0 0 0 1px rgba(245,200,66,0.22) inset,
+              0 0 16px rgba(245,200,66,0.10);
+  transition: opacity .15s, transform .12s, background .15s;
+}
+.mctl-settings:active {
+  background: rgba(245,200,66,0.22);
+}
 #bottom-bar-spacer { flex: 1; pointer-events: none; }
 /* Left column: settings at bottom, loc+play stacked above */
 #btn-left-col {
@@ -192,17 +205,17 @@ body {
   pointer-events: all;
 }
 
-/* Drawer — koko ruudun korkea, liukuu vasemmalta */
+/* Drawer — koko ruudun korkea, liukuu OIKEALTA (asetukset-nappi on oikealla) */
 #settings-popup {
   position: fixed; z-index: 51;
-  top: 0; left: 0; bottom: 0;
-  width: 88vw;                          /* jättää 12% karttaa näkyviin */
+  top: 0; right: 0; bottom: 0;
+  width: 88vw;                          /* jättää 12% karttaa näkyviin vasemmalle */
   display: flex; flex-direction: column;
   background: transparent;
-  border-right: none;
+  border-left: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  transform: translateX(-100%);
+  transform: translateX(100%);
   transition: transform .34s cubic-bezier(.4,0,.2,1);
   overflow: hidden;
   pointer-events: all;
@@ -1617,7 +1630,7 @@ body {
       <!-- Sulje-nuoli — pyyhkäise vasemmalle tai paina -->
       <button id="sp-close" onclick="_closeSettings()" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.07);border:none;border-radius:16px;padding:6px 12px 6px 8px;color:rgba(255,255,255,.5);font-family:'DM Mono',monospace;font-size:10px;cursor:pointer">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <polyline points="15 18 9 12 15 6"/>
+          <polyline points="9 18 15 12 9 6"/>
         </svg>
         Sulje
       </button>
@@ -1715,7 +1728,7 @@ body {
 
   <div id="bottom">
     <div id="bottom-bar">
-      <!-- Left column: loc + play stacked above settings -->
+      <!-- Left column: loc + play — nostettu ylemmäs asetusten siirryttyä oikealle -->
       <div id="btn-left-col">
         <div class="mctl" id="btn-loc">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round">
@@ -1731,19 +1744,9 @@ body {
             <path d="M7 4.5v15l12-7.5z"/>
           </svg>
         </div>
-        <div class="mctl" id="btn-settings">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round">
-            <line x1="4" y1="6" x2="20" y2="6"/>
-            <line x1="4" y1="12" x2="20" y2="12"/>
-            <line x1="4" y1="18" x2="20" y2="18"/>
-            <circle cx="8" cy="6" r="2" fill="white" stroke="none"/>
-            <circle cx="16" cy="12" r="2" fill="white" stroke="none"/>
-            <circle cx="10" cy="18" r="2" fill="white" stroke="none"/>
-          </svg>
-        </div>
       </div>
       <div id="bottom-bar-spacer"></div>
-      <!-- Right column: free point above, calendar below -->
+      <!-- Right column: free point, calendar, asetukset alimmaisena -->
       <div id="btn-spots-wrap">
         <div class="mctl" id="btn-freespot" title="Avaa tämän paikan tiedot">
           <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -1767,6 +1770,17 @@ body {
             <circle cx="16" cy="14" r="1.2" fill="white" stroke="none"/>
             <circle cx="8" cy="18" r="1.2" fill="white" stroke="none"/>
             <circle cx="12" cy="18" r="1.2" fill="white" stroke="none"/>
+          </svg>
+        </div>
+        <!-- Asetukset — Windy-tyylinen keltainen korostus -->
+        <div class="mctl mctl-settings" id="btn-settings">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+            <line x1="4" y1="6" x2="20" y2="6"/>
+            <line x1="4" y1="12" x2="20" y2="12"/>
+            <line x1="4" y1="18" x2="20" y2="18"/>
+            <circle cx="8" cy="6" r="2" fill="currentColor" stroke="none"/>
+            <circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/>
+            <circle cx="10" cy="18" r="2" fill="currentColor" stroke="none"/>
           </svg>
         </div>
       </div>
@@ -6691,7 +6705,7 @@ document.getElementById('btn-settings').addEventListener('click', (e) => {
 /* Overlay-klikkaus sulkee drawerin */
 document.getElementById('settings-overlay').addEventListener('click', _closeSettings);
 
-/* Swipe-to-close: liu'uta vasemmalle sulkeaksesi */
+/* Swipe-to-close: liu'uta OIKEALLE sulkeaksesi (drawer tulee oikealta) */
 (function() {
   var sp = document.getElementById('settings-popup');
   var startX = 0, startY = 0, dragging = false;
@@ -6704,8 +6718,8 @@ document.getElementById('settings-overlay').addEventListener('click', _closeSett
     var dx = e.touches[0].clientX - startX;
     var dy = Math.abs(e.touches[0].clientY - startY);
     if (!dragging && Math.abs(dx) > 8 && Math.abs(dx) > dy) dragging = true;
-    /* Vasen pyyhkäisy sulkee (drawer tulee vasemmalta) */
-    if (dragging && dx < 0) {
+    /* Oikea pyyhkäisy sulkee (drawer tulee oikealta) */
+    if (dragging && dx > 0) {
       sp.style.transition = 'none';
       sp.style.transform = 'translateX(' + dx + 'px)';
     }
@@ -6715,7 +6729,7 @@ document.getElementById('settings-overlay').addEventListener('click', _closeSett
     dragging = false;
     sp.style.transition = '';
     var dx = e.changedTouches[0].clientX - startX;
-    if (dx < -80) {
+    if (dx > 80) {
       /* Sulkee: poista inline transform jotta CSS .open → ei open hoitaa */
       sp.style.transform = '';
       _closeSettings();
