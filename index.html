@@ -4200,6 +4200,36 @@ function _addObsMarkers(map) {
     });
   })();
 
+  /* ── Kruunuvuorenselkä: erillinen havaintoasema (FMI Marine Helsinki) ──
+   * Ei kuulu viralliseen FMI-havaintoverkkoon (api/fmi.js), joten oma proxy
+   * api/kruunuvuori.js hakee CSV-datan swell.fmi.fi:stä. Sama pilli-kortti
+   * kuin muilla meriasemilla (Harmaja, Itätoukki, Vuosaari).                */
+  (function() {
+    var KV_STATION = { name: 'Kruunuvuorenselkä', place: 'kruunuvuorenselka', lat: 60.163, lng: 24.997 };
+
+    var icon = mkWindIcon(map.getZoom(), null, null, KV_STATION.name, true);
+    var m = L.marker([KV_STATION.lat, KV_STATION.lng], { icon: icon, zIndexOffset: -50 })
+      .on('click', function(){ _openObsSheet('kruunuvuori', KV_STATION); }).addTo(map);
+    var kvEntry = { marker: m, type: 'wind-prim', ws: null, wg: null,
+      wsLatest: null, wgLatest: null, stName: KV_STATION.name,
+      layerGroup: 'fmi-sea', place: KV_STATION.place, history: null };
+    _obsMarkers.push(kvEntry);
+    if (typeof _applyMapLayers === 'function') _applyMapLayers();
+
+    fetch('https://foilwind.vercel.app/api/kruunuvuori')
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(data) {
+        if (!data || data.error) return;
+        var ws = data.ws != null ? +data.ws : null;
+        var wg = data.wg != null ? +data.wg : ws;
+        kvEntry.ws = ws; kvEntry.wg = wg;
+        kvEntry.wsLatest = ws; kvEntry.wgLatest = wg;
+        kvEntry.history = data.history || null; /* {ws:[{t,v,d}], wg:[{t,v}]} — HH:MM formaatti */
+        kvEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, wg, KV_STATION.name, true));
+      })
+      .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
+  })();
+
   /* ── UiRas: hae vedenlämpö, luo markerit ───────────────────── */
   UiRas.loadLatest().then(function(tempMap) {
     UIRAS_STATIONS.forEach(function(st) {
@@ -4233,7 +4263,7 @@ function _openObsSheet(type, station) {
   var accentBorder=isWater?'rgba(0,215,185,.2)':'rgba(100,255,160,.2)';
   var icon=isWater?'🌊':'🛰';
   var typeLabel=isWater?'Uimaveden lämpötila':'Tuulihavainto';
-  var srcLabel=isWater?'UiRas · Forum Virium Helsinki':'Ilmatieteenlaitos · FMI';
+  var srcLabel=isWater?'UiRas · Forum Virium Helsinki':(type==='kruunuvuori'?'Merellinen Helsinki · FMI':'Ilmatieteenlaitos · FMI');
   var unit=isWater?'°C':Units.label();
 
   var valId='obs-val-'+Math.random().toString(36).slice(2,6);
@@ -4274,7 +4304,7 @@ function _openObsSheet(type, station) {
 
     /* -- Footer -- */
     +'<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06);font-family:DM Mono,monospace;font-size:8px;color:rgba(255,255,255,.18);text-align:center">'
-      +(isWater?'UiRas avoin data · Forum Virium Helsinki':'Ilmatieteenlaitos · avoin data')
+      +(isWater?'UiRas avoin data · Forum Virium Helsinki':(type==='kruunuvuori'?'Merellinen Helsinki · swell.fmi.fi':'Ilmatieteenlaitos · avoin data'))
     +'</div>';
 
   sheet.classList.add('open');
@@ -4309,6 +4339,25 @@ function _openObsSheet(type, station) {
         if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
       }
     );
+  } else if(type==='kruunuvuori'){
+    /* Kruunuvuorenselkä — oma proxy, ei kuulu viralliseen FMI-havaintoverkkoon */
+    fetch('https://foilwind.vercel.app/api/kruunuvuori')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if(data&&!data.error&&data.ws!=null){
+          var cc=ColorRamp.rgb(data.ws);
+          var wc='rgb('+cc.r+','+cc.g+','+cc.b+')';
+          var sub=Units.label();
+          if(data.wd!=null) sub+='\u2002'+dirArrow(data.wd)+' '+Math.round(data.wd)+'°';
+          if(data.time) sub+='\u2002'+data.time;
+          updateHero(Units.fmt(data.ws),sub,wc);
+        }
+        if(el&&data&&data.history) _renderLiveHistory(el,data.history,data);
+        else if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+      })
+      .catch(function(){
+        if(el) el.innerHTML='<div style="text-align:center;font-family:DM Mono,monospace;font-size:10px;color:rgba(255,100,100,.6);padding:16px">Ei dataa</div>';
+      });
   } else {
     Promise.allSettled([
       UiRas.loadLatest(),
