@@ -422,20 +422,32 @@ body {
 /* Play-nappi — kelluu timelinen vasemmassa reunassa, Windy-tyyli */
 .tl-play-btn {
   position: absolute;
-  left: calc(var(--sal) + 10px);
-  bottom: calc(var(--sab) + 20px);
-  width: 40px; height: 40px;
+  left: calc(var(--sal) + 8px);
+  bottom: calc(var(--sab) + 15px);
+  width: 52px; height: 52px;             /* isompi — helpompi painaa, vastaa timelinen korkeutta */
   border-radius: 50%;
-  /* Pehmeä liukuvärjäys — ei kovaa reunaviivaa, vaan hienovarainen sisäinen hehku */
   background: radial-gradient(circle at 32% 28%,
     rgba(255,255,255,0.20) 0%,
     rgba(255,255,255,0.05) 45%,
     rgba(6,9,18,0.62) 78%);
   -webkit-backdrop-filter: blur(14px) saturate(1.5);
   backdrop-filter: blur(14px) saturate(1.5);
-  /* Ei terävää reunaviivaa — pelkkä ulkoinen pehmeä hehku */
   box-shadow: 0 4px 16px rgba(0,0,0,.38), 0 0 22px rgba(255,255,255,.05);
   z-index: 6;
+}
+/* Halo — vaalea liukuvärjäys joka alkaa vahvimpana napin reunalta
+   ja häivyttyy läpinäkyväksi ulospäin, peittäen hieman timelineä */
+.tl-play-btn::before {
+  content: '';
+  position: absolute;
+  inset: -32px;                          /* halo ulottuu 32px napin reunan ulkopuolelle */
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(255,255,255,0)    0%,           /* keskellä läpinäkyvä — napin oma tausta peittää */
+    rgba(255,255,255,0.28) 38%,          /* vahvin kohta juuri napin reunalla */
+    rgba(255,255,255,0)    100%);        /* häivyttyy täysin läpinäkyväksi */
+  z-index: -1;
+  pointer-events: none;
 }
 .tl-play-btn.playing {
   background: radial-gradient(circle at 32% 28%,
@@ -444,10 +456,16 @@ body {
     rgba(6,9,18,0.60) 78%);
   box-shadow: 0 4px 16px rgba(0,0,0,.38), 0 0 26px rgba(41,232,168,.28);
 }
+.tl-play-btn.playing::before {
+  background: radial-gradient(circle,
+    rgba(140,255,210,0)    0%,
+    rgba(80,237,170,0.30)  38%,
+    rgba(80,237,170,0)     100%);
+}
 #tl-scroll {
   display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
   -webkit-overflow-scrolling: touch; scrollbar-width: none;
-  padding-left: calc(var(--sal) + 52px); padding-right: 0;
+  padding-left: calc(var(--sal) + 64px); padding-right: 0;
   -webkit-mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
   mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
   overscroll-behavior-x: contain; height: 100%;
@@ -1800,7 +1818,7 @@ body {
     <div id="tl-wrap">
       <!-- Play-nappi kelluu timelinen vasemmassa reunassa (Windy-tyyli) -->
       <div class="mctl tl-play-btn" id="btn-play">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="white" id="play-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="white" id="play-icon">
           <path d="M7 4.5v15l12-7.5z"/>
         </svg>
       </div>
