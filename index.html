@@ -4009,13 +4009,14 @@ function _addObsMarkers(map) {
       +'</svg>';
   }
 
-  function mkWindIcon(zoom, ws, wg, stName, isPrim) {
+  function mkWindIcon(zoom, ws, wg, stName, isPrim, waterTemp) {
     var z = zoom || 5;
     if (isPrim && z >= 8) {
       /* Käytä appin yksikkömuunnosta — Units.fmt() + Units.label() */
       var wsStr = ws != null ? Units.fmt(ws) : '—';
       var unitLbl = Units.label();
       var wgStr  = wg != null ? Units.fmt(wg) : null;
+      var twStr  = waterTemp != null ? waterTemp.toFixed(1) + '°' : null;
       var html =
         '<div style="'
           +'display:flex;align-items:center;gap:5px;'
@@ -4039,8 +4040,18 @@ function _addObsMarkers(map) {
               +'color:rgba(245,200,66,.42);border-left:1px solid rgba(245,200,66,.18);'
               +'padding-left:5px;margin-left:1px">↑'+wgStr+'</span>'
             : '')
+          +(twStr
+            ? '<span style="display:flex;align-items:center;gap:2px;'
+              +'font-family:DM Mono,monospace;font-size:7px;'
+              +'color:rgba(41,232,168,.65);border-left:1px solid rgba(255,255,255,.12);'
+              +'padding-left:5px;margin-left:1px">'
+              +'<svg width="8" height="5" viewBox="0 0 14 8" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">'
+                +'<path d="M0 5 Q2 2 4 5 Q6 8 8 5 Q10 2 12 5 Q13 6.5 14 5" stroke="'+C_WATER+'" stroke-width="1.6" stroke-linecap="round" fill="none"/>'
+              +'</svg>'
+              +twStr+'</span>'
+            : '')
         +'</div>';
-      return L.divIcon({ className:'', html:html, iconAnchor:[0, 11], iconSize:[105, 22] });
+      return L.divIcon({ className:'', html:html, iconAnchor:[0, 11], iconSize:[twStr ? 135 : 105, 22] });
     } else {
       /* Pieni piste */
       var sz = z < 8 ? 5 : z < 10 ? 7 : 8;
@@ -4143,7 +4154,7 @@ function _addObsMarkers(map) {
         /* Aina uusin havainto — havaintoasema ei ennusta */
         var ws = m.wsLatest != null ? m.wsLatest : m.ws;
         var wg = m.wgLatest != null ? m.wgLatest : m.wg;
-        m.marker.setIcon(mkWindIcon(z, ws, wg, m.stName, m.type === 'wind-prim'));
+        m.marker.setIcon(mkWindIcon(z, ws, wg, m.stName, m.type === 'wind-prim', m.waterTemp));
       } else {
         m.marker.setIcon(mkWaterIcon(z, m.temp, m.prim));
       }
@@ -4212,7 +4223,8 @@ function _addObsMarkers(map) {
       .on('click', function(){ _openObsSheet('kruunuvuori', KV_STATION); }).addTo(map);
     var kvEntry = { marker: m, type: 'wind-prim', ws: null, wg: null,
       wsLatest: null, wgLatest: null, stName: KV_STATION.name,
-      layerGroup: 'fmi-sea', place: KV_STATION.place, history: null };
+      layerGroup: 'fmi-sea', place: KV_STATION.place, history: null,
+      waterTemp: null };
     _obsMarkers.push(kvEntry);
     if (typeof _applyMapLayers === 'function') _applyMapLayers();
 
@@ -4225,7 +4237,8 @@ function _addObsMarkers(map) {
         kvEntry.ws = ws; kvEntry.wg = wg;
         kvEntry.wsLatest = ws; kvEntry.wgLatest = wg;
         kvEntry.history = data.history || null; /* {ws:[{t,v,d}], wg:[{t,v}]} — HH:MM formaatti */
-        kvEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, wg, KV_STATION.name, true));
+        kvEntry.waterTemp = data.tw != null ? +data.tw : null;
+        kvEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, wg, KV_STATION.name, true, kvEntry.waterTemp));
       })
       .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
   })();
@@ -4350,6 +4363,7 @@ function _openObsSheet(type, station) {
           var sub=Units.label();
           if(data.wd!=null) sub+='\u2002'+dirArrow(data.wd)+' '+Math.round(data.wd)+'°';
           if(data.time) sub+='\u2002'+data.time;
+          if(data.tw!=null) sub+='\u2002🌊'+data.tw.toFixed(1)+'°C';
           updateHero(Units.fmt(data.ws),sub,wc);
         }
         if(el&&data&&data.history) _renderLiveHistory(el,data.history,data);
