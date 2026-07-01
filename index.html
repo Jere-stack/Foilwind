@@ -4228,6 +4228,52 @@ function _addObsMarkers(map) {
     _obsMarkers.push(kvEntry);
     if (typeof _applyMapLayers === 'function') _applyMapLayers();
 
+    /* Törmäyksenvälttely: kortti väistää lähellä olevia wingfoil-spotteja.
+     * Kahden kiinteän koordinaatin pikselietäisyys riippuu VAIN zoomista,
+     * ei panoroinnista — siksi riittää päivittää tämä zoomend-tapahtumassa. */
+    function _avoidSpotOverlap() {
+      var el = kvEntry.marker.getElement ? kvEntry.marker.getElement() : null;
+      var inner = el ? el.firstElementChild : null;
+      if (!inner) return;
+
+      var kvPt = map.latLngToContainerPoint([KV_STATION.lat, KV_STATION.lng]);
+      var THRESH = 75; /* px — pilli-kortin suunnilleen puolikas leveys */
+      var minDist = Infinity, pushX = 0, pushY = -1;
+      var spotsList = (typeof SPOTS !== 'undefined') ? SPOTS : [];
+
+      for (var i = 0; i < spotsList.length; i++) {
+        var s = spotsList[i];
+        if (s.lat == null || s.lng == null) continue;
+        var sPt = map.latLngToContainerPoint([s.lat, s.lng]);
+        var dx = kvPt.x - sPt.x, dy = kvPt.y - sPt.y;
+        var d = Math.sqrt(dx * dx + dy * dy);
+        if (d < minDist) { minDist = d; pushX = dx; pushY = dy; }
+      }
+
+      inner.style.transition = 'transform .25s ease';
+      if (minDist < THRESH) {
+        /* Siirretään korttia poispäin lähimmästä spotista sen verran
+           että selkeä väli syntyy — suunta lasketaan spotin ja kortin
+           välisestä vektorista, ei kiinteä suunta */
+        var len = Math.sqrt(pushX * pushX + pushY * pushY);
+        var ux, uy;
+        if (len < 0.5) {
+          /* Täsmälleen päällekkäin — vektori on (0,0), käytä kiinteää
+             oletussuuntaa (ylös) ettei siirto jää nollaksi */
+          ux = 0; uy = -1;
+        } else {
+          ux = pushX / len; uy = pushY / len;
+        }
+        var amount = (THRESH - minDist) + 22;
+        inner.style.transform = 'translate(' + (ux * amount).toFixed(0) + 'px,' + (uy * amount).toFixed(0) + 'px)';
+      } else {
+        inner.style.transform = '';
+      }
+    }
+
+    map.on('zoomend', _avoidSpotOverlap);
+    _avoidSpotOverlap(); /* alkutila heti kartan latauduttua */
+
     fetch('https://foilwind.vercel.app/api/kruunuvuori')
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(data) {
@@ -4239,6 +4285,7 @@ function _addObsMarkers(map) {
         kvEntry.history = data.history || null; /* {ws:[{t,v,d}], wg:[{t,v}]} — HH:MM formaatti */
         kvEntry.waterTemp = data.tw != null ? +data.tw : null;
         kvEntry.marker.setIcon(mkWindIcon(map.getZoom(), ws, wg, KV_STATION.name, true, kvEntry.waterTemp));
+        _avoidSpotOverlap(); /* setIcon loi uuden DOM-elementin — sovella väistö uudelleen */
       })
       .catch(function() { /* Lataus epäonnistui — jätä tyhjäksi */ });
   })();
