@@ -4158,6 +4158,11 @@ function _addObsMarkers(map) {
       } else {
         m.marker.setIcon(mkWaterIcon(z, m.temp, m.prim));
       }
+      /* setIcon loi uuden DOM-elementin — jos tällä merkillä on oma
+         väistölogiikka (esim. Kruunuvuorenselkä), sovella se heti uudelleen.
+         Näin väistö toimii RIIPPUMATTA siitä mikä käynnisti päivityksen
+         (zoomend, yksikön vaihto, timelinen liu'utus, ...). */
+      if (typeof m._avoidOverlap === 'function') m._avoidOverlap();
     });
   }
   /* Globaali alias yksikön vaihdon päivitystä varten */
@@ -4230,7 +4235,12 @@ function _addObsMarkers(map) {
 
     /* Törmäyksenvälttely: kortti väistää lähellä olevia wingfoil-spotteja.
      * Kahden kiinteän koordinaatin pikselietäisyys riippuu VAIN zoomista,
-     * ei panoroinnista — siksi riittää päivittää tämä zoomend-tapahtumassa. */
+     * ei panoroinnista. Funktio on liitetty kvEntry._avoidOverlap:iin,
+     * jolloin JAETTU updateIcons() kutsuu sitä aina kun se piirtää tämän
+     * merkin ikonin uudelleen — riippumatta siitä käynnistikö sen zoomend,
+     * yksikön vaihto vai timelinen liu'utus. Aiemmin väistö oli kytketty
+     * VAIN zoomend-tapahtumaan, jolloin se "unohtui" heti kun jokin muu
+     * reitti kutsui setIcon():ia ilman uudelleensovellusta. */
     function _avoidSpotOverlap() {
       var el = kvEntry.marker.getElement ? kvEntry.marker.getElement() : null;
       var inner = el ? el.firstElementChild : null;
@@ -4252,14 +4262,9 @@ function _addObsMarkers(map) {
 
       inner.style.transition = 'transform .25s ease';
       if (minDist < THRESH) {
-        /* Siirretään korttia poispäin lähimmästä spotista sen verran
-           että selkeä väli syntyy — suunta lasketaan spotin ja kortin
-           välisestä vektorista, ei kiinteä suunta */
         var len = Math.sqrt(pushX * pushX + pushY * pushY);
         var ux, uy;
         if (len < 0.5) {
-          /* Täsmälleen päällekkäin — vektori on (0,0), käytä kiinteää
-             oletussuuntaa (ylös) ettei siirto jää nollaksi */
           ux = 0; uy = -1;
         } else {
           ux = pushX / len; uy = pushY / len;
@@ -4271,7 +4276,7 @@ function _addObsMarkers(map) {
       }
     }
 
-    map.on('zoomend', _avoidSpotOverlap);
+    kvEntry._avoidOverlap = _avoidSpotOverlap; /* jaettu updateIcons() kutsuu tätä aina */
     _avoidSpotOverlap(); /* alkutila heti kartan latauduttua */
 
     fetch('https://foilwind.vercel.app/api/kruunuvuori')
