@@ -423,9 +423,28 @@ body {
   background: linear-gradient(to top, rgba(6,9,18,.88) 0%, rgba(6,9,18,.55) 45%, rgba(6,9,18,.08) 72%, transparent 100%);
   border-radius: 0;
 }
+
+/* Play-nappi — kelluu timelinen vasemmassa reunassa, Windy-tyyli */
+.tl-play-btn {
+  position: absolute;
+  left: calc(var(--sal) + 10px);
+  bottom: calc(var(--sab) + 20px);
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: rgba(6,9,18,0.75);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 12px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.10) inset;
+  z-index: 6;
+}
+.tl-play-btn.playing {
+  background: rgba(41,232,168,0.18);
+  box-shadow: 0 2px 12px rgba(0,0,0,.5), 0 0 0 1px rgba(41,232,168,.35) inset;
+}
 #tl-scroll {
   display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
-  -webkit-overflow-scrolling: touch; scrollbar-width: none; padding: 0;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  padding-left: calc(var(--sal) + 52px); padding-right: 0;
   -webkit-mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
   mask-image: linear-gradient(to right, transparent 0%, black 4%, black 96%, transparent 100%);
   overscroll-behavior-x: contain; height: 100%;
@@ -1728,7 +1747,7 @@ body {
 
   <div id="bottom">
     <div id="bottom-bar">
-      <!-- Left column: loc + play — nostettu ylemmäs asetusten siirryttyä oikealle -->
+      <!-- Left column: pelkkä sijainti — play siirretty timelinen alkuun -->
       <div id="btn-left-col">
         <div class="mctl" id="btn-loc">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round">
@@ -1737,11 +1756,6 @@ body {
             <line x1="12" y1="18" x2="12" y2="22"/>
             <line x1="2" y1="12" x2="6" y2="12"/>
             <line x1="18" y1="12" x2="22" y2="12"/>
-          </svg>
-        </div>
-        <div class="mctl" id="btn-play">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="white" id="play-icon">
-            <path d="M7 4.5v15l12-7.5z"/>
           </svg>
         </div>
       </div>
@@ -1786,6 +1800,12 @@ body {
       </div>
     </div>
     <div id="tl-wrap">
+      <!-- Play-nappi kelluu timelinen vasemmassa reunassa (Windy-tyyli) -->
+      <div class="mctl tl-play-btn" id="btn-play">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white" id="play-icon">
+          <path d="M7 4.5v15l12-7.5z"/>
+        </svg>
+      </div>
       <div id="tl-indicator"><div id="tl-time-bubble">--:--</div></div>
       <div id="tl-scroll"></div>
     </div>
