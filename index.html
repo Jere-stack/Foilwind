@@ -424,7 +424,7 @@ body {
   position: absolute;
   left: calc(var(--sal) + 8px);
   bottom: calc(var(--sab) + 15px);
-  width: 52px; height: 52px;             /* isompi — helpompi painaa, vastaa timelinen korkeutta */
+  width: 52px; height: 52px;
   border-radius: 50%;
   background: radial-gradient(circle at 32% 28%,
     rgba(255,255,255,0.20) 0%,
@@ -432,35 +432,25 @@ body {
     rgba(6,9,18,0.62) 78%);
   -webkit-backdrop-filter: blur(14px) saturate(1.5);
   backdrop-filter: blur(14px) saturate(1.5);
-  box-shadow: 0 4px 16px rgba(0,0,0,.38), 0 0 22px rgba(255,255,255,.05);
+  /* Kerroksittainen ambient-hehku box-shadow:lla — ei erillistä gradient-rengasta.
+     Jokainen kerros on pelkkä blur ilman spreadia → luonnollinen optinen häivytys,
+     täsmälleen sama tekniikka kuin iOS:n Control Centerin hehkuefekteissä. */
+  box-shadow:
+    0 4px 16px rgba(0,0,0,.38),        /* pohjavarjo — nostaa napin irti taustasta */
+    0 0 20px rgba(255,255,255,.12),    /* lähihehku */
+    0 0 44px rgba(255,255,255,.06);    /* kaukainen pehmeä bleed */
   z-index: 6;
-}
-/* Halo — vaalea liukuvärjäys joka alkaa vahvimpana napin reunalta
-   ja häivyttyy läpinäkyväksi ulospäin, peittäen hieman timelineä */
-.tl-play-btn::before {
-  content: '';
-  position: absolute;
-  inset: -32px;                          /* halo ulottuu 32px napin reunan ulkopuolelle */
-  border-radius: 50%;
-  background: radial-gradient(circle,
-    rgba(255,255,255,0)    0%,           /* keskellä läpinäkyvä — napin oma tausta peittää */
-    rgba(255,255,255,0.28) 38%,          /* vahvin kohta juuri napin reunalla */
-    rgba(255,255,255,0)    100%);        /* häivyttyy täysin läpinäkyväksi */
-  z-index: -1;
-  pointer-events: none;
+  transition: box-shadow .25s ease, background .2s ease;
 }
 .tl-play-btn.playing {
   background: radial-gradient(circle at 32% 28%,
     rgba(140,255,210,0.32) 0%,
     rgba(41,232,168,0.10) 45%,
     rgba(6,9,18,0.60) 78%);
-  box-shadow: 0 4px 16px rgba(0,0,0,.38), 0 0 26px rgba(41,232,168,.28);
-}
-.tl-play-btn.playing::before {
-  background: radial-gradient(circle,
-    rgba(140,255,210,0)    0%,
-    rgba(80,237,170,0.30)  38%,
-    rgba(80,237,170,0)     100%);
+  box-shadow:
+    0 4px 16px rgba(0,0,0,.38),
+    0 0 22px rgba(80,237,170,.30),
+    0 0 48px rgba(80,237,170,.14);
 }
 #tl-scroll {
   display: flex; gap: 0; overflow-x: auto; overflow-y: hidden;
