@@ -7,10 +7,16 @@ const STATIONS = [
   { place: 'tapiola',    name: 'Espoo Tapiola',            lat: 60.17510, lng: 24.80590, type: 'weather', fmisid: null },
   { place: 'malmi',      name: 'Helsinki Malmi',           lat: 60.25299, lng: 25.04549, type: 'weather', fmisid: null },
   { place: 'vantaa',     name: 'Vantaa Helsinki-Vantaa',   lat: 60.31700, lng: 24.96300, type: 'weather', fmisid: null },
-  /* Vuosaari satama — fmisid haetaan bbox:lla */
-  { place: 'vuosaari',   name: 'Helsinki Vuosaari satama', lat: 60.20900, lng: 25.19660, type: 'maritime', fmisid: null },
+  /* Vuosaari satama — FMISID 151028 (vahvistettu dlarah.org:n kautta) */
+  { place: 'vuosaari',   name: 'Helsinki Vuosaari satama', lat: 60.20900, lng: 25.19660, type: 'maritime', fmisid: '151028' },
   /* Sipoo Itätoukki — FMISID 105392 (vahvistettu 18.4.2026: ws=4.1 wg=4.4) */
   { place: 'sipoo',      name: 'Sipoo Itätoukki',          lat: 60.10121, lng: 25.19439, type: 'fmisid',   fmisid: '105392' },
+  /* Porvoo Emäsalo — FMISID 101023 (vahvistettu dlarah.org:n kautta, itäpuolen avomeriasema) */
+  { place: 'emasalo',    name: 'Porvoo Emäsalo',           lat: 60.20382, lng: 25.62546, type: 'fmisid',   fmisid: '101023' },
+  /* Kirkkonummi Mäkiluoto — FMISID 100997. Tämä on virallinen viiteasema jota kaikki
+     "Porkkala"-sääpalvelut käyttävät (Foreca, kilotavu.com ym.), ei erillistä
+     FMI-asemaa nimellä "Porkkala" ole olemassa — Mäkiluoto on n. 7-9km Porkkalanniemestä. */
+  { place: 'porkkala',   name: 'Kirkkonummi Mäkiluoto',    lat: 59.91982, lng: 24.35023, type: 'fmisid',   fmisid: '100997' },
 ];
 
 function km(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
