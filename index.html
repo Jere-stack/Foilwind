@@ -3452,6 +3452,8 @@ const FMI_MAP_STATIONS = [
   { place:'vuosaari',   name:'Helsinki Vuosaari satama', lat:60.20900, lng:25.19660, tag:'Meri' },
   { place:'sipoo',      name:'Sipoo Itätoukki',          lat:60.10121, lng:25.19439, tag:'Meri' },
   { place:'vantaa',     name:'Vantaa Helsinki-Vantaa',   lat:60.31700, lng:24.96300, tag:'Lento' },
+  { place:'emasalo',    name:'Porvoo Emäsalo',           lat:60.20382, lng:25.62546, tag:'Meri' },
+  { place:'porkkala',   name:'Kirkkonummi Mäkiluoto',    lat:59.91982, lng:24.35023, tag:'Avomeri' },
 ];
 
 const UiRas = {
@@ -4170,12 +4172,12 @@ function _addObsMarkers(map) {
   /* Globaali markeri-taulukko layer-toggluja varten */
   window._obsMarkersGlobal = _obsMarkers;
   /* FMI meri-asemat tunnistusta varten */
-  window.FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true };
+  window.FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true, emasalo:true, porkkala:true };
 
   /* ── FMI: hae tuulidata, luo markerit ──────────────────────── */
   (function() {
     var PRIM_FMI    = { harmaja:true, sipoo:true, vuosaari:true };
-    var FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true };
+    var FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true, emasalo:true, porkkala:true };
     /* Käytä _fmiLoadWithFallback prim-asemille — sama kuin spottikortti käyttää */
     /* 1. Lisää ensin kaikki markerit ilman dataa */
     FMI_MAP_STATIONS.forEach(function(st) {
