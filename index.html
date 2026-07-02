@@ -2128,13 +2128,7 @@ const SPOTS = [
   { name: 'Kruunuvuorenranta', lat: 60.1650, lng: 25.0105, desc: 'Itäväylän kupeessa',             bestDirs: ['N','S','SW']          },
   { name: 'Puuskaniemi',       lat: 60.1727, lng: 25.0853, desc: 'Jollaksen edusta – avoin',       bestDirs: ['SE']                  },
   { name: 'Kallahti',          lat: 60.1871, lng: 25.1408, desc: 'Vuosaaren ranta – itätuulet',    bestDirs: ['S','SW','W']          },
-  { name: 'Parainen',          lat: 60.300,  lng: 22.303,  desc: 'Saaristomeri',                   bestDirs: ['SW','W','NW']         },
-  { name: 'Naantali',          lat: 60.468,  lng: 22.028,  desc: 'Suoja länsituulille',             bestDirs: ['W','NW','SW']         },
-  { name: 'Oulu',              lat: 64.950,  lng: 25.367,  desc: 'Perämeri – luoteis',              bestDirs: ['NW','W','SW']         },
-  { name: 'Kotka',             lat: 60.465,  lng: 26.940,  desc: 'Suomenlahti – itä',              bestDirs: ['E','SE','S']          },
-  { name: 'Pori',              lat: 61.485,  lng: 21.797,  desc: 'Selkämeri',                      bestDirs: ['SW','W','NW']         },
-  { name: 'Turku',             lat: 60.452,  lng: 22.287,  desc: 'Turun saaristo',                 bestDirs: ['SW','W','S']          },
-  { name: 'Lohja',             lat: 60.243,  lng: 23.998,  desc: 'Sisäjärvi',                      bestDirs: ['S','SW','W','NW','N'] }
+  { name: 'Pori',              lat: 61.485,  lng: 21.797,  desc: 'Selkämeri',                      bestDirs: ['SW','W','NW']         }
 ];
 
 /* -- VIEWPORT GRID ---------------------------------------------- */
@@ -4176,7 +4170,7 @@ function _addObsMarkers(map) {
 
   /* ── FMI: hae tuulidata, luo markerit ──────────────────────── */
   (function() {
-    var PRIM_FMI    = { harmaja:true, sipoo:true, vuosaari:true };
+    var PRIM_FMI    = { harmaja:true, sipoo:true, vuosaari:true, emasalo:true, porkkala:true };
     var FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true, emasalo:true, porkkala:true };
     /* Käytä _fmiLoadWithFallback prim-asemille — sama kuin spottikortti käyttää */
     /* 1. Lisää ensin kaikki markerit ilman dataa */
