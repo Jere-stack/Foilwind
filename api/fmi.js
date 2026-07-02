@@ -17,6 +17,9 @@ const STATIONS = [
      "Porkkala"-sääpalvelut käyttävät (Foreca, kilotavu.com ym.), ei erillistä
      FMI-asemaa nimellä "Porkkala" ole olemassa — Mäkiluoto on n. 7-9km Porkkalanniemestä. */
   { place: 'porkkala',   name: 'Kirkkonummi Mäkiluoto',    lat: 59.91982, lng: 24.35023, type: 'fmisid',   fmisid: '100997' },
+  /* Hanko Tulliniemi — FMISID 100946 (vahvistettu FMI WFS-rekisteristä, 59.808642,22.912464),
+     n. 1.7km wingfoil-spotin "Hanko Tulliniemi" koordinaateista. */
+  { place: 'hanko',      name: 'Hanko Tulliniemi',         lat: 59.80864, lng: 22.91246, type: 'fmisid',   fmisid: '100946' },
 ];
 
 function km(a,b,c,d){var R=6371,dL=(c-a)*Math.PI/180,dG=(d-b)*Math.PI/180;return R*2*Math.asin(Math.sqrt(Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dG/2)**2));}
