@@ -2029,11 +2029,15 @@ const Units = {
       c.classList.toggle('active', c.dataset.unit === unit));
     document.querySelectorAll('#units-picker .up-option').forEach(el =>
       el.classList.toggle('active', el.dataset.unit === unit));
-    /* Päivitä tuuliasema-ikonit yksikön vaihtuessa */
+    /* Päivitä tuuliasema-ikonit yksikön vaihtuessa — säilytä nykyinen
+       aikajanan kohta ettei historiavalinta katoa pelkästä yksikön vaihdosta */
     if (State && State.map) {
       try {
-        var z = State.map.getZoom();
-        if (typeof window._updateObsIcons === 'function') window._updateObsIcons();
+        var currentTs = null;
+        if (State._tlTimes && State._tlTimes[State.currentHourIdx]) {
+          currentTs = new Date(State._tlTimes[State.currentHourIdx]).getTime();
+        }
+        if (typeof window._updateObsIcons === 'function') window._updateObsIcons(currentTs);
       } catch(e) {}
     }
   },
@@ -3449,6 +3453,7 @@ const FMI_MAP_STATIONS = [
   { place:'vantaa',     name:'Vantaa Helsinki-Vantaa',   lat:60.31700, lng:24.96300, tag:'Lento' },
   { place:'emasalo',    name:'Porvoo Emäsalo',           lat:60.20382, lng:25.62546, tag:'Meri' },
   { place:'porkkala',   name:'Kirkkonummi Mäkiluoto',    lat:59.91982, lng:24.35023, tag:'Avomeri' },
+  { place:'hanko',      name:'Hanko Tulliniemi',         lat:59.80864, lng:22.91246, tag:'Avomeri' },
 ];
 
 const UiRas = {
@@ -4131,10 +4136,15 @@ function _addObsMarkers(map) {
       var pt = hist.ws[i]; if (!pt || !pt.t) continue;
       var ptMs = _fmiTimeToMs(pt.t, refDate);
       if (isNaN(ptMs)) continue;
-      /* Kokeile myös eilistä (HH:MM voi olla yli yörajojen) */
-      var diff = Math.abs(ptMs - targetTime);
-      var diffYest = Math.abs(ptMs - 86400000 - targetTime);
-      if (diffYest < diff) { ptMs -= 86400000; diff = diffYest; }
+      /* HH:MM ei itsessään kerro vuorokautta — kokeile kolmea kandidaattia
+         (sama päivä, edellinen, seuraava) ja valitse lähin, jotta täsmäys
+         toimii oikein myös vuorokauden vaihtumisen tuntumassa. */
+      var candidates = [ptMs, ptMs - 86400000, ptMs + 86400000];
+      var diff = Infinity;
+      for (var c = 0; c < candidates.length; c++) {
+        var dd = Math.abs(candidates[c] - targetTime);
+        if (dd < diff) diff = dd;
+      }
       if (diff < bestDiff) { bestDiff = diff; best = i; }
     }
     if (best < 0 || bestDiff > 3600000) return null; /* >1h → ei löydy */
@@ -4146,11 +4156,26 @@ function _addObsMarkers(map) {
 
   function updateIcons(targetTs) {
     var z = map.getZoom();
+    /* Historiahaku VAIN jos valittu aika on menneisyydessä tai juuri nyt.
+     * Aiempi bugi: _fmiTimeToMs rakentaa kellonajan KOHDEAJAN kalenteripäivästä,
+     * joten tulevaisuuden (ennuste-)aika saattoi vahingossa täsmätä samaan
+     * kellonaikaan menneisyydessä (esim. huomenna klo 14:30 ~ tänään klo 14:30),
+     * jolloin havaintoasema näytti väärän lukeman ennusteajalle. Ratkaisu: älä
+     * edes yritä historiahakua jos kohdeaika on tulevaisuudessa. */
+    var FUTURE_GRACE = 5 * 60000; /* 5min toleranssi "nyt"-pisteen ympärille */
+    var isPastOrNow = targetTs != null && targetTs <= (Date.now() + FUTURE_GRACE);
+
     _obsMarkers.forEach(function(m) {
       if (m.type === 'wind-prim' || m.type === 'wind-dot') {
-        /* Aina uusin havainto — havaintoasema ei ennusta */
+        /* Oletuksena uusin havainto */
         var ws = m.wsLatest != null ? m.wsLatest : m.ws;
         var wg = m.wgLatest != null ? m.wgLatest : m.wg;
+        /* Menneisyyden hetki JA historiaa saatavilla → hae oikean ajan havainto */
+        if (isPastOrNow && m.history) {
+          var hv = _histValueAt(m.history, targetTs);
+          if (hv !== null) { ws = hv.ws; wg = hv.wg; }
+          /* hv === null → historia ei ulotu tähän hetkeen → pysytään latest:ssa */
+        }
         m.marker.setIcon(mkWindIcon(z, ws, wg, m.stName, m.type === 'wind-prim', m.waterTemp));
       } else {
         m.marker.setIcon(mkWaterIcon(z, m.temp, m.prim));
@@ -4167,12 +4192,12 @@ function _addObsMarkers(map) {
   /* Globaali markeri-taulukko layer-toggluja varten */
   window._obsMarkersGlobal = _obsMarkers;
   /* FMI meri-asemat tunnistusta varten */
-  window.FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true, emasalo:true, porkkala:true };
+  window.FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true, emasalo:true, porkkala:true, hanko:true };
 
   /* ── FMI: hae tuulidata, luo markerit ──────────────────────── */
   (function() {
-    var PRIM_FMI    = { harmaja:true, sipoo:true, vuosaari:true, emasalo:true, porkkala:true };
-    var FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true, emasalo:true, porkkala:true };
+    var PRIM_FMI    = { harmaja:true, sipoo:true, vuosaari:true, emasalo:true, porkkala:true, hanko:true };
+    var FMI_SEA_PLACES = { harmaja:true, sipoo:true, vuosaari:true, emasalo:true, porkkala:true, hanko:true };
     /* Käytä _fmiLoadWithFallback prim-asemille — sama kuin spottikortti käyttää */
     /* 1. Lisää ensin kaikki markerit ilman dataa */
     FMI_MAP_STATIONS.forEach(function(st) {
@@ -6511,8 +6536,9 @@ function renderTimeline(times, speeds, dirs, activeIdx) {
 function _tlUpdateNow(idx) {
   if (!State._tlTimes || !State._tlTimes[idx]) return;
   const d = new Date(State._tlTimes[idx]);
-  /* Päivitä meriasema-ikonit oikeaan historiaan */
-  if (window._updateObsIcons) window._updateObsIcons(); /* aina uusin havainto */
+  /* Päivitä meriasema-ikonit: menneisyydessä oikea historiahavainto,
+     tulevaisuudessa (ennuste) aina viimeisin havainto */
+  if (window._updateObsIcons) window._updateObsIcons(d.getTime());
   const DAY = ['Su','Ma','Ti','Ke','To','Pe','La'];
   const hh = ('0'+d.getHours()).slice(-2);
   const dateStr = DAY[d.getDay()] + ' ' + d.getDate() + '.' + (d.getMonth()+1) + '.';
