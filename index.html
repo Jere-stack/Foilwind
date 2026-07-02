@@ -4268,6 +4268,18 @@ function _addObsMarkers(map) {
       var inner = el ? el.firstElementChild : null;
       if (!inner) return;
 
+      /* Väistö on kalibroitu pilli-kortin leveydelle (105-135px).
+         Pienessä piste-tilassa (z<8) tätä ei tarvita eikä pidä soveltaa —
+         muuten 75px kynnys työntää 5px pistettä satunnaiselta näyttävästi
+         aina kun mikä tahansa spotti sattuu olemaan lähellä. Nollataan
+         transform ja palataan heti jos kortti EI ole tällä hetkellä pilli. */
+      var z = map.getZoom();
+      var isPillNow = (z >= 8); /* sama ehto kuin mkWindIcon:n isPrim&&z>=8 -haarassa */
+      if (!isPillNow) {
+        inner.style.transform = '';
+        return;
+      }
+
       var kvPt = map.latLngToContainerPoint([KV_STATION.lat, KV_STATION.lng]);
       var THRESH = 75; /* px — pilli-kortin suunnilleen puolikas leveys */
       var minDist = Infinity, pushX = 0, pushY = -1;
