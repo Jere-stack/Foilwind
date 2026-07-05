@@ -2142,6 +2142,8 @@ const ViewportGrid = {
   _globalBase: new Map(),
   TILE_DEG: 10,
   CACHE_TTL: 90 * 60 * 1000,
+  _loadAbort: null,      /* nykyisen viewport-latauksen AbortController */
+  _loadGeneration: 0,    /* kasvava tunniste — vanhentuneet lataukset hylätään tällä */
 
   gridStep(zoom) {
     if (zoom <= 3) return 5;    /* globaali */
@@ -2285,6 +2287,15 @@ const ViewportGrid = {
   },
 
   async loadViewport(map, onProgress) {
+    /* Peruuta edellinen kesken oleva viewport-lataus — estää tilanteen jossa
+       hidas vanha pyyntö valmistuu nopean uuden pyynnön JÄLKEEN ja kirjoittaa
+       vanhentunutta dataa päälle. myGen-tarkistus on lisävarmistus siltä
+       varalta että abort() ei ehdi katkaista jo käynnissä olevaa promisea. */
+    if (this._loadAbort) this._loadAbort.abort();
+    const abortCtrl = new AbortController();
+    this._loadAbort = abortCtrl;
+    const myGen = ++this._loadGeneration;
+
     const bounds = map.getBounds(), zoom = map.getZoom();
     const gridPoints = this.getViewportPoints(bounds, zoom);
     this._restoreCache(gridPoints);
@@ -2294,16 +2305,18 @@ const ViewportGrid = {
     for (let i = 0; i < toLoad.length; i += batchSize) batches.push(toLoad.slice(i, i + batchSize));
     let done = 0;
     for (let i = 0; i < batches.length; i += 6) {
+      if (myGen !== this._loadGeneration) return; /* uudempi lataus on jo käynnissä */
       const wave = batches.slice(i, i + 6);
       await Promise.allSettled(wave.map(b =>
-        loadBatch(b).then(() => {
+        loadBatch(b, undefined, undefined, abortCtrl.signal).then(() => {
+          if (myGen !== this._loadGeneration) return; /* vanhentunut — ei kirjoiteta */
           b.forEach(p => { if (p.wx) this._points.set(this._ptKey(p.lat, p.lng), p); });
           done += b.length;
           if (onProgress) onProgress(done, toLoad.length);
         })
       ));
     }
-    this._saveCache(gridPoints);
+    if (myGen === this._loadGeneration) this._saveCache(gridPoints);
   },
 
   async loadSpots() {
@@ -3044,7 +3057,7 @@ function setRateLimited() {
   document.getElementById('rl-banner').classList.add('show');
 }
 
-function loadBatch(points, forecastDays, forceOM) {
+function loadBatch(points, forecastDays, forceOM, signal) {
   if (_rateLimited) return Promise.resolve();
   const model = State.activeModel;
   const p0 = points[0], pN = points[points.length - 1];
@@ -3059,7 +3072,10 @@ function loadBatch(points, forecastDays, forceOM) {
   function tryHarmonie() {
     const urls = buildHarmonieUrls(points);
     return Promise.all(urls.map(function(url) {
-      return fetch(url).then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
+      return fetch(url, { signal: signal }).then(function(r){ return r.ok ? r.json() : null; }).catch(function(err){
+        if (err && err.name === 'AbortError') throw err; /* keskeytys kulkee läpi, ei laimeneta null:ksi */
+        return null;
+      });
     })).then(function(results) {
       let ok = 0;
       results.forEach(function(j, i) {
@@ -3070,14 +3086,13 @@ function loadBatch(points, forecastDays, forceOM) {
       if (!ok) throw new Error('harmonie_empty');
       _batchCache[cacheKey] = points.map(p => p.wx || null);
       ViewportGrid.invalidateCache();
-      console.log('[API] FMI HARMONIE 2.5km: ' + ok + '/' + points.length + ' pistetta');
     });
   }
 
   /* Open-Meteo batch */
   function tryOM(mdl, retries, fd, past) {
     if (_rateLimited) return Promise.resolve();
-    return fetch(buildBatchUrl(points, mdl, fd, past))
+    return fetch(buildBatchUrl(points, mdl, fd, past), { signal: signal })
       .then(r => {
         if (r.status === 429) {
           if (retries > 0) {
@@ -3106,27 +3121,28 @@ function loadBatch(points, forecastDays, forceOM) {
      fmi_harmonie  -> HARMONIE, ei fallbackia (kayttaja valitsi)
      best_match    -> HARMONIE ensin, fallback Auto
      muu (ICON/ECMWF/GFS) -> suoraan Open-Meteo
-     forceOM=true  -> aina Open-Meteo (global coarse) */
+     forceOM=true  -> aina Open-Meteo (global coarse)
+     AbortError missä tahansa vaiheessa lopettaa koko ketjun heti —
+     ei yritetä turhaan seuraavaa fallbackia jo keskeytetylle pyynnölle. */
   if (forceOM || (model !== 'fmi_harmonie' && model !== 'best_match')) {
     const mdl = forceOM ? 'best_match' : model;
-    /* Global coarse (forceOM): nopea 1 pv ennuste, ei historiaa */
     const pastD = forceOM ? 0 : 2;
     const foreD = forceOM ? 1 : (forecastDays || 16);
     return tryOM(mdl, 2, foreD, pastD)
-      .catch(e => { if (e.message==='429') return tryOM('best_match', 1, foreD, pastD); throw e; })
-      .catch(e => { if (e.message==='429') setRateLimited(); });
+      .catch(e => { if (e.name === 'AbortError') throw e; if (e.message==='429') return tryOM('best_match', 1, foreD, pastD); throw e; })
+      .catch(e => { if (e.name === 'AbortError') throw e; if (e.message==='429') setRateLimited(); });
   }
   if (model === 'fmi_harmonie') {
     return tryHarmonie()
-      .catch(e => { console.error('[API] HARMONIE virhe:', e.message); });
+      .catch(e => { if (e.name === 'AbortError') throw e; console.error('[API] HARMONIE virhe:', e.message); });
   }
   /* best_match: HARMONIE ensin, fallback Open-Meteo */
   return tryHarmonie()
     .catch(function(e) {
-      console.warn('[API] HARMONIE -> Open-Meteo fallback:', e.message);
+      if (e.name === 'AbortError') throw e;
       return tryOM('best_match', 2, forecastDays || 16, 2)
-        .catch(e2 => { if (e2.message==='429') return tryOM('best_match', 1, forecastDays || 16, 2); throw e2; })
-        .catch(e2 => { if (e2.message==='429') setRateLimited(); });
+        .catch(e2 => { if (e2.name === 'AbortError') throw e2; if (e2.message==='429') return tryOM('best_match', 1, forecastDays || 16, 2); throw e2; })
+        .catch(e2 => { if (e2.name === 'AbortError') throw e2; if (e2.message==='429') setRateLimited(); });
     });
 }
 
@@ -6810,7 +6826,7 @@ async function loadMarineTemp() {
         }
       }
     });
-  } catch(e) { console.log('[Marine]', e.message); }
+  } catch(e) { console.warn('[Marine]', e.message); }
 }
 
 /* Etsi lähin spotti jolla on validi vedenlämpö.
@@ -6918,26 +6934,6 @@ document.getElementById('settings-overlay').addEventListener('click', _closeSett
 })();
 
 /* ── Karttatasot-togglet ─────────────────────────────────── */
-var _layerToggles = { 'fmi-sea': true, 'fmi-land': true, 'uiras': true };
-
-/* FMI meri-asemat */
-var FMI_SEA_PLACES = { harmaja:1, sipoo:1, vuosaari:1 };
-
-function _applyLayerToggle(layerId, on) {
-  _layerToggles[layerId] = on;
-  var tog = document.getElementById('toggle-' + layerId);
-  if (tog) tog.classList.toggle('on', on);
-
-  /* Päivitä markerit */
-  if (!State || !State.map) return;
-  if (typeof window._obsMarkers === 'undefined') {
-    /* Hae markerit _addObsMarkers-sulkeumasta */
-    return;
-  }
-}
-
-/* Parempi: käytetään globaaleja markeri-taulukoita */
-/* Lisätään _addObsMarkers-funktion ulkopuolelle globaali taulukko */
 window._mapLayerState = {
   'fmi-sea': true, 'fmi-land': false,
   'uiras-prim': false, 'uiras-sec': false
