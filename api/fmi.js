@@ -245,10 +245,14 @@ module.exports = async function handler(req,res){
       var ws=series['windspeedms']||[];
       var wg=series['windgust']||[];
       if(!ws.length)return res.status(200).json({error:'no data',station:station.name,place:station.place,ws:[],wg:[]});
+      /* iso = yksiselitteinen aikaleima. "t" (HH:MM) on pelkkää näyttöä varten —
+         se ei riitä yksin kun historia kattaa >24h, koska sama kellonaika
+         esiintyy silloin kahdesti (eilen ja tänään) eikä niitä voi erottaa
+         toisistaan enää HH:MM-merkkijonosta. */
       return res.status(200).json({
         station:station.name,place:station.place,
-        ws:ws.map(function(p){return{t:toFiTime(p.t),v:p.v};}),
-        wg:wg.map(function(p){return{t:toFiTime(p.t),v:p.v};}),
+        ws:ws.map(function(p){return{t:toFiTime(p.t),v:p.v,iso:p.t};}),
+        wg:wg.map(function(p){return{t:toFiTime(p.t),v:p.v,iso:p.t};}),
       });
     }else{
       var d=parseLatest(xml);
