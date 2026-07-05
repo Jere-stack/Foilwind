@@ -53,8 +53,8 @@ module.exports = async function handler(req, res) {
       if (isNaN(utcMs)) continue;
 
       if (utcMs >= cutoffMs) {
-        wsHist.push({ t: hhmm, v: ws, d: wdir });
-        wgHist.push({ t: hhmm, v: gust });
+        wsHist.push({ t: hhmm, v: ws, d: wdir, iso: utcTime });
+        wgHist.push({ t: hhmm, v: gust, iso: utcTime });
       }
 
       /* Uusin havainto = suurin UTC-aikaleima — ei oleteta rivijärjestystä */
