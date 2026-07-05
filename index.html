@@ -4144,23 +4144,32 @@ function _addObsMarkers(map) {
   }
 
   function _histValueAt(hist, targetTime) {
-    /* hist = {ws:[{t:"HH:MM", v},...], wg:[...]} — FMI proxy formaatti */
+    /* hist = {ws:[{t:"HH:MM", v, iso}, ...], wg:[...]} — FMI proxy formaatti.
+     * "iso" on yksiselitteinen aikaleima palvelimelta (lisätty korjaamaan bugi
+     * jossa sama HH:MM esiintyi kahdesti >24h historiassa — eilen ja tänään —
+     * eikä niitä pystynyt erottamaan pelkästä kellonajasta). "t" on vain
+     * varafallback jos iso puuttuu (esim. vanha välimuistissa oleva data). */
     if (!hist || !hist.ws || !hist.ws.length) return null;
     var refDate = new Date(targetTime);
     var best = -1, bestDiff = Infinity;
     for (var i = 0; i < hist.ws.length; i++) {
-      var pt = hist.ws[i]; if (!pt || !pt.t) continue;
-      var ptMs = _fmiTimeToMs(pt.t, refDate);
-      if (isNaN(ptMs)) continue;
-      /* HH:MM ei itsessään kerro vuorokautta — kokeile kolmea kandidaattia
-         (sama päivä, edellinen, seuraava) ja valitse lähin, jotta täsmäys
-         toimii oikein myös vuorokauden vaihtumisen tuntumassa. */
-      var candidates = [ptMs, ptMs - 86400000, ptMs + 86400000];
-      var diff = Infinity;
-      for (var c = 0; c < candidates.length; c++) {
-        var dd = Math.abs(candidates[c] - targetTime);
-        if (dd < diff) diff = dd;
-      }
+      var pt = hist.ws[i]; if (!pt) continue;
+      var diff;
+      if (pt.iso) {
+        /* Yksiselitteinen — ei arvailua, ei päivämääräkonfliktia */
+        var ptMsIso = new Date(pt.iso).getTime();
+        if (isNaN(ptMsIso)) continue;
+        diff = Math.abs(ptMsIso - targetTime);
+      } else if (pt.t) {
+        var ptMs = _fmiTimeToMs(pt.t, refDate);
+        if (isNaN(ptMs)) continue;
+        var candidates = [ptMs, ptMs - 86400000, ptMs + 86400000];
+        diff = Infinity;
+        for (var c = 0; c < candidates.length; c++) {
+          var dd = Math.abs(candidates[c] - targetTime);
+          if (dd < diff) diff = dd;
+        }
+      } else continue;
       if (diff < bestDiff) { bestDiff = diff; best = i; }
     }
     if (best < 0 || bestDiff > 3600000) return null; /* >1h → ei löydy */
