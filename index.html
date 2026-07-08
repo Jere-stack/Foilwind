@@ -4009,7 +4009,9 @@ function _addObsMarkers(map) {
   /* ── Värit ──────────────────────────────────────────────────── */
   var C_WIND  = '#f5c842';  /* Tuuliasema (keltainen)   */
   var C_WATER = '#29e8a8';  /* Vedenlämpö (minttu)      */
+  var C_STATION = '#ff453a'; /* Asemien todellinen sijainti (punainen)  */
   var _obsMarkers = [];
+  var _stationDots = []; /* Pienet punaiset sijaintimerkit prim-asemille */
 
   /* ── Tuuliasema-ikoni ──────────────────────────────────────── */
   /* Tuuliviiri-ikoni SVG */
@@ -4025,6 +4027,51 @@ function _addObsMarkers(map) {
       /* Pallo mastossa */
       +'<circle cx="12" cy="20" r="1.5" fill="'+color+'" opacity="0.6"/>'
       +'</svg>';
+  }
+
+  /* Kuppianemometri-ikoni — merkkaa havaintoaseman TODELLISEN sijainnin
+   * (tuulikortti voi väistyä spottien tieltä, mutta tämä pysyy aina
+   * täsmälleen paikallaan). Klassinen, heti tunnistettava symboli. */
+  function _stationDotSvg(size) {
+    var s = size || 15;
+    return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none"'
+      +' xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 1px 3px rgba(0,0,0,.6))">'
+      /* Masto */
+      +'<line x1="12" y1="13" x2="12" y2="21" stroke="'+C_STATION+'" stroke-width="1.6" stroke-linecap="round"/>'
+      /* Kolme vartta 120° välein */
+      +'<line x1="12" y1="12" x2="12" y2="5"  stroke="'+C_STATION+'" stroke-width="1.4" stroke-linecap="round"/>'
+      +'<line x1="12" y1="12" x2="18" y2="16" stroke="'+C_STATION+'" stroke-width="1.4" stroke-linecap="round"/>'
+      +'<line x1="12" y1="12" x2="6"  y2="16" stroke="'+C_STATION+'" stroke-width="1.4" stroke-linecap="round"/>'
+      /* Kupit varsien päissä */
+      +'<circle cx="12" cy="5"  r="2.1" fill="'+C_STATION+'"/>'
+      +'<circle cx="18" cy="16" r="2.1" fill="'+C_STATION+'"/>'
+      +'<circle cx="6"  cy="16" r="2.1" fill="'+C_STATION+'"/>'
+      /* Keskipiste */
+      +'<circle cx="12" cy="12" r="1.3" fill="'+C_STATION+'"/>'
+      +'</svg>';
+  }
+
+  /* Luo pieni kiinteä sijaintimerkki — EI koskaan siirry/väisty,
+   * toisin kuin tuulikortti joka voi liikkua _avoidSpotOverlap:in takia. */
+  function _addStationDot(lat, lng, onClick) {
+    var icon = L.divIcon({
+      className: '', html: _stationDotSvg(15),
+      iconSize: [15, 15], iconAnchor: [7.5, 7.5]
+    });
+    var dot = L.marker([lat, lng], { icon: icon, zIndexOffset: -60 })
+      .on('click', onClick).addTo(map);
+    _stationDots.push(dot);
+    return dot;
+  }
+
+  /* Näytä pisteet vain kun tuulikortitkin näkyvät isoina (z>=8) —
+   * pienellä zoomilla ne vain sotkisivat jo olemassa olevan keltaisen pisteen. */
+  function _updateStationDots() {
+    var show = map.getZoom() >= 8;
+    _stationDots.forEach(function(d) {
+      var el = d.getElement ? d.getElement() : null;
+      if (el) el.style.display = show ? '' : 'none';
+    });
   }
 
   function mkWindIcon(zoom, ws, wg, stName, isPrim, waterTemp) {
@@ -4211,6 +4258,9 @@ function _addObsMarkers(map) {
          (zoomend, yksikön vaihto, timelinen liu'utus, ...). */
       if (typeof m._avoidOverlap === 'function') m._avoidOverlap();
     });
+    /* Punaiset sijaintimerkit näkyvät/piiloutuvat samalla zoom-kynnyksellä
+       kuin tuulikorttien pilli-muoto (z>=8) */
+    _updateStationDots();
   }
   /* Globaali alias yksikön vaihdon päivitystä varten */
   window._updateObsIcons = updateIcons;
@@ -4235,6 +4285,11 @@ function _addObsMarkers(map) {
         ws:null, wg:null, wsLatest:null, wgLatest:null,
         stName:st.name, layerGroup:_lg, place:st.place,
         history:null, _markerRef: _obsMarkers.length });
+      /* Punainen sijaintimerkki vain isoille prim-korteille —
+         pieni piste-tila näyttää jo täsmällisen sijainnin sellaisenaan */
+      if (isPrim) {
+        _addStationDot(st.lat, st.lng, function(){ _openObsSheet('fmi', st); });
+      }
     });
     map.on('zoomend', updateIcons);
     /* Sovella oletus-layertila heti — vain FMI Meri näkyy oletuksena */
@@ -4279,6 +4334,9 @@ function _addObsMarkers(map) {
       waterTemp: null };
     _obsMarkers.push(kvEntry);
     if (typeof _applyMapLayers === 'function') _applyMapLayers();
+    /* Punainen sijaintimerkki — pysyy aina täsmälleen paikallaan,
+       vaikka tuulikortti väistyisi lähellä olevan spotin tieltä */
+    _addStationDot(KV_STATION.lat, KV_STATION.lng, function(){ _openObsSheet('kruunuvuori', KV_STATION); });
 
     /* Törmäyksenvälttely: kortti väistää lähellä olevia wingfoil-spotteja.
      * Kahden kiinteän koordinaatin pikselietäisyys riippuu VAIN zoomista,
@@ -4372,6 +4430,10 @@ function _addObsMarkers(map) {
     });
     if (typeof _applyMapLayers === 'function') _applyMapLayers();
   });
+
+  /* Alkutila heti — muuten punaiset pisteet näkyisivät hetken liian
+     kaukaa zoomattuna ennen ensimmäistä zoomend-tapahtumaa */
+  _updateStationDots();
 }
 
 function _openObsSheet(type, station) {
