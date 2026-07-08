@@ -4032,7 +4032,9 @@ function _addObsMarkers(map) {
   /* Kuppianemometri-ikoni — merkkaa havaintoaseman TODELLISEN sijainnin
    * (tuulikortti voi väistyä spottien tieltä, mutta tämä pysyy aina
    * täsmälleen paikallaan). Klassinen, heti tunnistettava symboli. */
-  function _stationDotSvg(size) {
+  /* Täysi kuppianemometri-ikoni — näkyy lähellä (z>=8), samalla kun
+   * tuulikorttikin muuttuu isoksi pilliksi. */
+  function _stationDotFullSvg(size) {
     var s = size || 15;
     return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none"'
       +' xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 1px 3px rgba(0,0,0,.6))">'
@@ -4051,30 +4053,56 @@ function _addObsMarkers(map) {
       +'</svg>';
   }
 
-  /* Luo pieni kiinteä sijaintimerkki — EI koskaan siirry/väisty,
+  /* Pieni himmeä pallo — näkyy kaukaa (z<8). Tuulimerkki on tällä
+   * zoomilla myös pieni piste, joten tämä keskitetään täsmälleen
+   * samaan kohtaan — rauhallinen "ydin" keltaisen pisteen sisällä,
+   * ei kilpaileva erillinen merkki. */
+  function _stationDotSmallSvg(size) {
+    var s = size || 6;
+    return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24"'
+      +' xmlns="http://www.w3.org/2000/svg">'
+      +'<circle cx="12" cy="12" r="10" fill="'+C_STATION+'" opacity="0.5"/>'
+      +'</svg>';
+  }
+
+  /* Rakentaa oikean ikonin zoomin mukaan.
+   * Lähellä (z>=8): täysi anemometri, siirretty ~9px ylös-vasemmalle
+   * ankkurista — tuulikortti venyy aina OIKEALLE ankkurista, joten
+   * tämä siirto vie ikonin pois kortin tieltä sen sijaan että peittäisi.
+   * Kaukana (z<8): pieni himmeä pallo, ei siirtoa (tuulimerkkikin on
+   * tällöin pelkkä piste samassa kohdassa, ei tarvetta väistää). */
+  function _makeStationIcon(zoom) {
+    if (zoom >= 8) {
+      var OFF = 9;
+      return L.divIcon({
+        className: '', html: _stationDotFullSvg(15),
+        iconSize: [15, 15], iconAnchor: [7.5 + OFF, 7.5 + OFF]
+      });
+    }
+    return L.divIcon({
+      className: '', html: _stationDotSmallSvg(6),
+      iconSize: [6, 6], iconAnchor: [3, 3]
+    });
+  }
+
+  /* Luo pieni kiinteä sijaintimerkki — EI koskaan siirry spottien takia,
    * toisin kuin tuulikortti joka voi liikkua _avoidSpotOverlap:in takia. */
   function _addStationDot(lat, lng, onClick) {
-    var icon = L.divIcon({
-      className: '', html: _stationDotSvg(15),
-      iconSize: [15, 15], iconAnchor: [7.5, 7.5]
-    });
     /* zIndexOffset korkeampi kuin tuulikortin (-50) — sama koordinaatti
        tarkoittaa samaa Leafletin laskemaa perus-z-indeksiä, joten tämä
        offset yksin ratkaisee kumpi piirtyy päällimmäisenä. */
-    var dot = L.marker([lat, lng], { icon: icon, zIndexOffset: 50 })
+    var dot = L.marker([lat, lng], { icon: _makeStationIcon(map.getZoom()), zIndexOffset: 50 })
       .on('click', onClick).addTo(map);
     _stationDots.push(dot);
     return dot;
   }
 
-  /* Näytä pisteet vain kun tuulikortitkin näkyvät isoina (z>=8) —
-   * pienellä zoomilla ne vain sotkisivat jo olemassa olevan keltaisen pisteen. */
+  /* Vaihda kaikkien sijaintimerkkien ikoni zoomin mukaan — kutsutaan
+   * updateIcons():n yhteydessä, samalla hetkellä kun tuulikortitkin
+   * vaihtavat pilli/piste-tilan välillä. */
   function _updateStationDots() {
-    var show = map.getZoom() >= 8;
-    _stationDots.forEach(function(d) {
-      var el = d.getElement ? d.getElement() : null;
-      if (el) el.style.display = show ? '' : 'none';
-    });
+    var icon = _makeStationIcon(map.getZoom());
+    _stationDots.forEach(function(d) { d.setIcon(icon); });
   }
 
   function mkWindIcon(zoom, ws, wg, stName, isPrim, waterTemp) {
