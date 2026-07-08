@@ -4058,7 +4058,10 @@ function _addObsMarkers(map) {
       className: '', html: _stationDotSvg(15),
       iconSize: [15, 15], iconAnchor: [7.5, 7.5]
     });
-    var dot = L.marker([lat, lng], { icon: icon, zIndexOffset: -60 })
+    /* zIndexOffset korkeampi kuin tuulikortin (-50) — sama koordinaatti
+       tarkoittaa samaa Leafletin laskemaa perus-z-indeksiä, joten tämä
+       offset yksin ratkaisee kumpi piirtyy päällimmäisenä. */
+    var dot = L.marker([lat, lng], { icon: icon, zIndexOffset: 50 })
       .on('click', onClick).addTo(map);
     _stationDots.push(dot);
     return dot;
